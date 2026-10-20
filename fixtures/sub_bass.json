@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "tempo": 124.0,
+  "track": {
+    "index": 1,
+    "name": "Sub Bass",
+    "type": "midi",
+    "color": 16725558,
+    "is_grouped": false,
+    "mixer": {
+      "volume": 0.85,
+      "panning": 0.0,
+      "mute": false,
+      "solo": false,
+      "arm": false
+    },
+    "devices": [
+      {
+        "index": 0,
+        "name": "Operator",
+        "class_name": "Operator",
+        "type": "instrument",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "Algorithm",
+            "value": 10,
+            "min": 0,
+            "max": 10,
+            "is_quantized": true,
+            "display": "11"
+          },
+          {
+            "index": 2,
+            "name": "Osc-A Wave",
+            "value": 0,
+            "min": 0,
+            "max": 20,
+            "is_quantized": true,
+            "display": "Sin"
+          },
+          {
+            "index": 3,
+            "name": "Osc-A Level",
+            "value": 1.0,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "0.0 dB"
+          },
+          {
+            "index": 4,
+            "name": "Filter Freq",
+            "value": 0.4,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "800 Hz"
+          },
+          {
+            "index": 5,
+            "name": "Ae Release",
+            "value": 0.3,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "120 ms"
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "name": "Saturator",
+        "class_name": "Saturator",
+        "type": "audio_effect",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "Drive",
+            "value": 0.1,
+            "min": -36,
+            "max": 36,
+            "is_quantized": false,
+            "display": "3.00 dB"
+          },
+          {
+            "index": 2,
+            "name": "Type",
+            "value": 0,
+            "min": 0,
+            "max": 7,
+            "is_quantized": true,
+            "display": "Analog Clip"
+          },
+          {
+            "index": 3,
+            "name": "Output",
+            "value": 0.0,
+            "min": -36,
+            "max": 0,
+            "is_quantized": false,
+            "display": "-2.00 dB"
+          },
+          {
+            "index": 4,
+            "name": "Dry/Wet",
+            "value": 1.0,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "100 %"
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Deep house track, the bass carries the low end."
+}

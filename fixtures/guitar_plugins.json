@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "track": {
+    "index": 3,
+    "name": "4-Audio",
+    "type": "audio",
+    "color": 16753961,
+    "is_grouped": false,
+    "mixer": {
+      "volume": 0.7749424576759338,
+      "panning": 0.0,
+      "mute": false,
+      "solo": false,
+      "arm": false
+    },
+    "devices": [
+      {
+        "index": 0,
+        "name": "Guitar Rig 6",
+        "class_name": "PluginDevice",
+        "type": "audio_effect",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "name": "Tuner",
+        "class_name": "Tuner",
+        "type": "audio_effect",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          }
+        ]
+      }
+    ]
+  }
+}
