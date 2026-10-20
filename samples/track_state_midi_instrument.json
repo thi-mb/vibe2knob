@@ -1,0 +1,469 @@
+{
+  "schema_version": 1,
+  "track": {
+    "index": 0,
+    "name": "1-LABS (64 Bit)",
+    "type": "midi",
+    "color": 16249980,
+    "is_grouped": false,
+    "mixer": {
+      "volume": 0.75,
+      "panning": 0.004999999888241291,
+      "mute": false,
+      "solo": false,
+      "arm": false
+    },
+    "devices": [
+      {
+        "index": 0,
+        "name": "LABS (64 Bit)",
+        "class_name": "PluginDevice",
+        "type": "instrument",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "Expression",
+            "value": 0.9135338068008423,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.91"
+          },
+          {
+            "index": 2,
+            "name": "Dynamics",
+            "value": 0.6879699230194092,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.69"
+          },
+          {
+            "index": 3,
+            "name": "Reverb",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 4,
+            "name": "Release",
+            "value": 0.5,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.50"
+          },
+          {
+            "index": 5,
+            "name": "Tightness",
+            "value": 0.6880168914794922,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.69"
+          },
+          {
+            "index": 6,
+            "name": "Vibrato",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "1.00"
+          },
+          {
+            "index": 7,
+            "name": "Simple Mix",
+            "value": 0.5,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.50"
+          },
+          {
+            "index": 8,
+            "name": "Stereo Pan",
+            "value": 0.5,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.50"
+          },
+          {
+            "index": 9,
+            "name": "ADSR-Attack",
+            "value": 0.06344972550868988,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.06"
+          },
+          {
+            "index": 10,
+            "name": "ADSR-Decay",
+            "value": 0.38200536370277405,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.38"
+          },
+          {
+            "index": 11,
+            "name": "ADSR-Sustain",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "1.00"
+          },
+          {
+            "index": 12,
+            "name": "ADSR-Release",
+            "value": 0.8790159225463867,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.88"
+          },
+          {
+            "index": 13,
+            "name": "Global Gain",
+            "value": 0.629921555519104,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.63"
+          },
+          {
+            "index": 14,
+            "name": "Global Pan",
+            "value": 0.5,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.50"
+          },
+          {
+            "index": 15,
+            "name": "Global Tune",
+            "value": 0.5,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.50"
+          },
+          {
+            "index": 16,
+            "name": "Stereo Flip",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 17,
+            "name": "Stereo Spread",
+            "value": 0.5,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.50"
+          },
+          {
+            "index": 18,
+            "name": "Variation",
+            "value": 0.5039370059967041,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.50"
+          },
+          {
+            "index": 19,
+            "name": "Delay",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 20,
+            "name": "Amount",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 21,
+            "name": "Disortion",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 22,
+            "name": "Lush Verb",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 23,
+            "name": "Pedal Vol",
+            "value": 0.5,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.50"
+          },
+          {
+            "index": 24,
+            "name": "Pedal Dyn",
+            "value": 0.5,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.50"
+          },
+          {
+            "index": 25,
+            "name": "Length",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 26,
+            "name": "Time Machine",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 27,
+            "name": "Stretch",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 28,
+            "name": "Soft Pedal",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 29,
+            "name": "Response",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 30,
+            "name": "Mallet",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 31,
+            "name": "Stop/Mute",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 32,
+            "name": "Direction",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 33,
+            "name": "LowPass Filter",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 34,
+            "name": "Portmento",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 35,
+            "name": "General Purpose 1",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 36,
+            "name": "General Purpose 2",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 37,
+            "name": "General Purpose 3",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 38,
+            "name": "General Purpose 4",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 39,
+            "name": "General Purpose 5",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 40,
+            "name": "General Purpose 6",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 41,
+            "name": "General Purpose 7",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 42,
+            "name": "General Purpose 8",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 43,
+            "name": "General Purpose 9",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 44,
+            "name": "Speed",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 45,
+            "name": "Mic: Main",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "1.00"
+          },
+          {
+            "index": 46,
+            "name": "Mic: Alt1",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 47,
+            "name": "Mic: Alt2",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 48,
+            "name": "Mic: Alt3",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          }
+        ]
+      }
+    ]
+  }
+}
