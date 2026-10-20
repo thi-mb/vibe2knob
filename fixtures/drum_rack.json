@@ -1,0 +1,289 @@
+{
+  "schema_version": 1,
+  "tempo": 126.0,
+  "track": {
+    "index": 5,
+    "name": "Beat",
+    "type": "midi",
+    "color": 16725558,
+    "is_grouped": false,
+    "mixer": {
+      "volume": 0.85,
+      "panning": 0.0,
+      "mute": false,
+      "solo": false,
+      "arm": false
+    },
+    "devices": [
+      {
+        "index": 0,
+        "name": "Drum Rack",
+        "class_name": "DrumGroupDevice",
+        "type": "rack",
+        "is_rack": true,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "Macro 1",
+            "value": 0,
+            "min": 0,
+            "max": 127,
+            "is_quantized": false,
+            "display": "0"
+          }
+        ],
+        "chains": [
+          {
+            "name": "Kick",
+            "devices": [
+              {
+                "index": 0,
+                "name": "Kick 909",
+                "class_name": "OriginalSimpler",
+                "type": "instrument",
+                "is_rack": false,
+                "parameters": [
+                  {
+                    "index": 0,
+                    "name": "Device On",
+                    "value": 1.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "is_quantized": true,
+                    "display": "On"
+                  },
+                  {
+                    "index": 1,
+                    "name": "Ve Attack",
+                    "value": 0.0,
+                    "min": 0,
+                    "max": 1,
+                    "is_quantized": false,
+                    "display": "0.00 ms"
+                  },
+                  {
+                    "index": 2,
+                    "name": "Ve Decay",
+                    "value": 0.6,
+                    "min": 0,
+                    "max": 1,
+                    "is_quantized": false,
+                    "display": "1.20 s"
+                  },
+                  {
+                    "index": 3,
+                    "name": "Ve Sustain",
+                    "value": 1.0,
+                    "min": 0,
+                    "max": 1,
+                    "is_quantized": false,
+                    "display": "0.0 dB"
+                  },
+                  {
+                    "index": 4,
+                    "name": "Ve Release",
+                    "value": 0.5,
+                    "min": 0,
+                    "max": 1,
+                    "is_quantized": false,
+                    "display": "300 ms"
+                  },
+                  {
+                    "index": 5,
+                    "name": "Volume",
+                    "value": 0.0,
+                    "min": -36,
+                    "max": 36,
+                    "is_quantized": false,
+                    "display": "0.0 dB"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Snare",
+            "devices": [
+              {
+                "index": 0,
+                "name": "Snare Room",
+                "class_name": "OriginalSimpler",
+                "type": "instrument",
+                "is_rack": false,
+                "parameters": [
+                  {
+                    "index": 0,
+                    "name": "Device On",
+                    "value": 1.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "is_quantized": true,
+                    "display": "On"
+                  },
+                  {
+                    "index": 1,
+                    "name": "Ve Attack",
+                    "value": 0.0,
+                    "min": 0,
+                    "max": 1,
+                    "is_quantized": false,
+                    "display": "0.00 ms"
+                  },
+                  {
+                    "index": 2,
+                    "name": "Ve Decay",
+                    "value": 0.6,
+                    "min": 0,
+                    "max": 1,
+                    "is_quantized": false,
+                    "display": "900 ms"
+                  },
+                  {
+                    "index": 3,
+                    "name": "Ve Sustain",
+                    "value": 1.0,
+                    "min": 0,
+                    "max": 1,
+                    "is_quantized": false,
+                    "display": "0.0 dB"
+                  },
+                  {
+                    "index": 4,
+                    "name": "Ve Release",
+                    "value": 0.5,
+                    "min": 0,
+                    "max": 1,
+                    "is_quantized": false,
+                    "display": "300 ms"
+                  },
+                  {
+                    "index": 5,
+                    "name": "Volume",
+                    "value": 0.0,
+                    "min": -36,
+                    "max": 36,
+                    "is_quantized": false,
+                    "display": "0.0 dB"
+                  }
+                ]
+              },
+              {
+                "index": 1,
+                "name": "Reverb",
+                "class_name": "Reverb",
+                "type": "audio_effect",
+                "is_rack": false,
+                "parameters": [
+                  {
+                    "index": 0,
+                    "name": "Device On",
+                    "value": 1.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "is_quantized": true,
+                    "display": "On"
+                  },
+                  {
+                    "index": 2,
+                    "name": "Decay Time",
+                    "value": 0.5,
+                    "min": 0,
+                    "max": 1,
+                    "is_quantized": false,
+                    "display": "2.40 s"
+                  },
+                  {
+                    "index": 5,
+                    "name": "Dry/Wet",
+                    "value": 0.3,
+                    "min": 0,
+                    "max": 1,
+                    "is_quantized": false,
+                    "display": "30 %"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Closed Hat",
+            "devices": [
+              {
+                "index": 0,
+                "name": "Hat Closed",
+                "class_name": "OriginalSimpler",
+                "type": "instrument",
+                "is_rack": false,
+                "parameters": [
+                  {
+                    "index": 0,
+                    "name": "Device On",
+                    "value": 1.0,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "is_quantized": true,
+                    "display": "On"
+                  },
+                  {
+                    "index": 1,
+                    "name": "Ve Attack",
+                    "value": 0.0,
+                    "min": 0,
+                    "max": 1,
+                    "is_quantized": false,
+                    "display": "0.00 ms"
+                  },
+                  {
+                    "index": 2,
+                    "name": "Ve Decay",
+                    "value": 0.6,
+                    "min": 0,
+                    "max": 1,
+                    "is_quantized": false,
+                    "display": "250 ms"
+                  },
+                  {
+                    "index": 3,
+                    "name": "Ve Sustain",
+                    "value": 1.0,
+                    "min": 0,
+                    "max": 1,
+                    "is_quantized": false,
+                    "display": "0.0 dB"
+                  },
+                  {
+                    "index": 4,
+                    "name": "Ve Release",
+                    "value": 0.5,
+                    "min": 0,
+                    "max": 1,
+                    "is_quantized": false,
+                    "display": "300 ms"
+                  },
+                  {
+                    "index": 5,
+                    "name": "Volume",
+                    "value": 0.0,
+                    "min": -36,
+                    "max": 36,
+                    "is_quantized": false,
+                    "display": "0.0 dB"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
