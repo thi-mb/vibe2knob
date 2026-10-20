@@ -129,6 +129,8 @@ class TrackState(_Open):
         """Compact, readable summary for the prompt."""
         t = self.track
         head = [f"Track: \"{t.name}\" ({t.type} track)"]
+        if self.live_version:
+            head.append(f"Live version: {self.live_version}")
         if self.tempo:
             head.append(f"Tempo: {self.tempo:g} BPM")
         if t.is_grouped:

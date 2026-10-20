@@ -43,8 +43,11 @@ def check_advice(advice: Advice, state: TrackState) -> list[str]:
     warnings = []
     on_chain = {canonical(d.class_name) or canonical(d.name) or d.name for d in state.all_devices()}
     on_chain |= {d.name for d in state.all_devices()}
+    plugins = {d.name for d in state.all_devices() if d.is_plugin}
     for i, step in enumerate(advice.steps, 1):
         name = canonical(step.device)
+        if name is None and step.device in plugins and step.action != "add_device":
+            continue  # adjusting a plugin that is already on the track is fine
         if name is None:
             warnings.append(f"Step {i}: '{step.device}' is not a stock Live device.")
             continue

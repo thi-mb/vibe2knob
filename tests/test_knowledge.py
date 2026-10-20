@@ -36,6 +36,7 @@ def test_render_map_mentions_devices():
 
 def test_canonical_names():
     assert canonical("StereoGain") == "Utility"
-    assert canonical("chorus") == "Chorus-Ensemble"
+    assert canonical("chorus ensemble") == "Chorus-Ensemble"
+    assert canonical("Chorus") == "Chorus"  # legacy device in older sets
     assert canonical("eq eight") == "EQ Eight"
     assert canonical("Serum") is None

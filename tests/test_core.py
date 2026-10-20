@@ -39,7 +39,7 @@ def test_non_stock_and_missing_devices_are_flagged(fake):
 
 def test_device_names_are_normalised(fake):
     answer = copy.deepcopy(WIDER_PAD)
-    answer["steps"][1]["device"] = "chorus"
+    answer["steps"][1]["device"] = "chorus ensemble"
     advice = ask(pad(), "wider", fake(answer))
     assert advice.steps[1].device == "Chorus-Ensemble"
     assert advice.warnings == []
@@ -86,3 +86,24 @@ def test_cli_json_with_provider(monkeypatch, capsys, fake):
 def test_cli_reports_errors(capsys):
     assert main(["ask", "wider", "-s", "does-not-exist.json"]) == 2
     assert "error:" in capsys.readouterr().err
+
+
+def test_adjusting_a_plugin_on_the_track_is_allowed(fake):
+    state = TrackState.load(FIXTURES / "acoustic_native_fx.json")
+    answer = copy.deepcopy(WIDER_PAD)
+    answer["steps"][0].update(device="Ozone Imager 2", parameter="Width", on_track=True)
+    answer["steps"][1].update(device="Chorus", parameter="Delay 2 Time", on_track=True)
+    advice = ask(state, "wider", fake(answer))
+    assert advice.warnings == []
+    assert advice.steps[1].device == "Chorus"  # legacy device, not Chorus-Ensemble
+
+    answer["steps"][0]["action"] = "add_device"
+    advice = ask(state, "wider", fake(answer))
+    assert any("not a stock" in w for w in advice.warnings)
+
+
+def test_prompt_flags_live_12_only_devices(fake):
+    provider = fake(WIDER_PAD)
+    ask(pad(), "wider", provider)
+    system = provider.calls[0][0]
+    assert "only in Live 12" in system and "Roar" in system
