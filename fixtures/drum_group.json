@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "tempo": 128.0,
+  "track": {
+    "index": 4,
+    "name": "Drums",
+    "type": "group",
+    "color": 16725558,
+    "is_grouped": false,
+    "mixer": {
+      "volume": 0.85,
+      "panning": 0.0,
+      "mute": false,
+      "solo": false,
+      "arm": false
+    },
+    "devices": [
+      {
+        "index": 0,
+        "name": "EQ Eight",
+        "class_name": "Eq8",
+        "type": "audio_effect",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "1 Filter On A",
+            "value": 1.0,
+            "min": 0,
+            "max": 1,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 2,
+            "name": "1 Filter Type A",
+            "value": 0.0,
+            "min": 0,
+            "max": 7,
+            "is_quantized": true,
+            "display": "Low Cut 12"
+          },
+          {
+            "index": 3,
+            "name": "1 Frequency A",
+            "value": 0.1,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "30.0 Hz"
+          },
+          {
+            "index": 40,
+            "name": "Output Gain",
+            "value": 0.0,
+            "min": -12,
+            "max": 12,
+            "is_quantized": false,
+            "display": "0.00 dB"
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "name": "Glue Compressor",
+        "class_name": "GlueCompressor",
+        "type": "audio_effect",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "Threshold",
+            "value": 0.7,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "-6.0 dB"
+          },
+          {
+            "index": 2,
+            "name": "Ratio",
+            "value": 0,
+            "min": 0,
+            "max": 2,
+            "is_quantized": true,
+            "display": "2"
+          },
+          {
+            "index": 3,
+            "name": "Attack",
+            "value": 3,
+            "min": 0,
+            "max": 6,
+            "is_quantized": true,
+            "display": "10 ms"
+          },
+          {
+            "index": 4,
+            "name": "Release",
+            "value": 6,
+            "min": 0,
+            "max": 6,
+            "is_quantized": true,
+            "display": "Auto"
+          },
+          {
+            "index": 5,
+            "name": "Makeup",
+            "value": 0.0,
+            "min": 0,
+            "max": 20,
+            "is_quantized": false,
+            "display": "1.00 dB"
+          },
+          {
+            "index": 6,
+            "name": "Dry/Wet",
+            "value": 1.0,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "100 %"
+          },
+          {
+            "index": 7,
+            "name": "Soft Clip",
+            "value": 0,
+            "min": 0,
+            "max": 1,
+            "is_quantized": true,
+            "display": "Off"
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Group holding kick, snare, hats and percussion audio tracks."
+}

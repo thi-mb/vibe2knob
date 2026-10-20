@@ -1,0 +1,111 @@
+# Advice test cases. Run with: vibe2knob eval
+#
+# Each case is a real-ish track (fixture) plus a request, and the checks a
+# good answer must pass. Every case also gets the standard checks: 2-5 steps,
+# stock devices only, consistent with the chain, every step explained, starting
+# values given, and an A/B listening tip.
+#
+#   expect_any_device    at least one step uses one of these devices
+#   expect_on_track_any  at least one step works with one of these devices already on the track
+#   forbid_devices       no step may use these
+#   mention_any          the advice must mention at least one of these words (case-insensitive)
+#   why                  what the case is testing, for humans
+#
+# Fixture paths are relative to this file.
+
+[[case]]
+id = "vocal-wider"
+fixture = "../fixtures/lead_vocal.json"
+request = "make this wider"
+why = "A lead vocal is mono and should stay anchored in the centre. Utility Width alone does nothing on a mono source, so good advice widens with effects (delay, chorus, reverb) and keeps the dry voice centred."
+expect_any_device = ["Chorus-Ensemble", "Delay", "Echo", "Reverb", "Hybrid Reverb", "Utility"]
+mention_any = ["mono", "centre", "center", "middle"]
+
+[[case]]
+id = "vocal-upfront"
+fixture = "../fixtures/lead_vocal.json"
+request = "the vocal feels too far back, bring it more up front"
+why = "The chain already has EQ, compression and reverb. A good answer works with them (less reverb, more compression or presence) before adding gear."
+expect_on_track_any = ["EQ Eight", "Compressor", "Reverb"]
+
+[[case]]
+id = "vocal-muddy"
+fixture = "../fixtures/lead_vocal.json"
+request = "it sounds a bit muddy"
+why = "Mud is fixed by cutting low mids, and EQ Eight is already on the track."
+expect_on_track_any = ["EQ Eight"]
+mention_any = ["200", "250", "300", "400", "low mid", "low-mid"]
+
+[[case]]
+id = "pad-wider"
+fixture = "../fixtures/synth_pad.json"
+request = "make this wider"
+why = "A stereo pad with Chorus-Ensemble and Utility on it. The obvious, correct moves are the Utility width and the chorus already there."
+expect_on_track_any = ["Utility", "Chorus-Ensemble", "Wavetable"]
+mention_any = ["mono"]
+
+[[case]]
+id = "pad-trippier"
+fixture = "../fixtures/synth_pad.json"
+request = "make it trippier"
+why = "Trippy means movement: modulation, sweeps, smeared delays."
+expect_any_device = ["Phaser-Flanger", "Echo", "Delay", "Grain Delay", "Auto Filter", "Chorus-Ensemble", "Wavetable", "Auto Pan"]
+
+[[case]]
+id = "pad-dreamy"
+fixture = "../fixtures/synth_pad.json"
+request = "I want this to feel dreamy and washed out"
+why = "Long modulated tails and a softened top."
+expect_any_device = ["Reverb", "Hybrid Reverb", "Grain Delay", "Echo", "Auto Filter", "Chorus-Ensemble"]
+
+[[case]]
+id = "bass-wider"
+fixture = "../fixtures/sub_bass.json"
+request = "can you make the bass wider?"
+why = "The classic trap. Widening sub bass hurts mono playback, so the answer must keep the lows mono (widen only the upper harmonics, or advise against it)."
+mention_any = ["mono", "phase", "sub"]
+
+[[case]]
+id = "bass-warmer"
+fixture = "../fixtures/sub_bass.json"
+request = "warmer please"
+why = "Saturator is already on the chain at a low drive; turning it up or changing its curve is the natural first move."
+expect_on_track_any = ["Saturator", "Operator"]
+
+[[case]]
+id = "drums-punchier"
+fixture = "../fixtures/drum_group.json"
+request = "make the drums punchier"
+why = "On a drum group, punch comes from transient shaping and slow-attack compression. The Glue Compressor is already there."
+expect_any_device = ["Drum Buss", "Compressor", "Glue Compressor"]
+mention_any = ["attack", "transient"]
+
+[[case]]
+id = "drums-glue"
+fixture = "../fixtures/drum_group.json"
+request = "the drums don't feel glued together"
+why = "Glue Compressor is on the group but barely working (threshold -6 dB). Adjust it before adding things."
+expect_on_track_any = ["Glue Compressor"]
+
+[[case]]
+id = "rack-tighter"
+fixture = "../fixtures/drum_rack.json"
+request = "the beat feels loose, make it tighter"
+why = "A Drum Rack with long Simpler decays and a 2.4 s snare reverb inside its chains. The fix is at the source: shorter envelopes and a shorter tail."
+expect_on_track_any = ["Simpler", "Reverb", "Drum Rack"]
+mention_any = ["decay", "release", "tail"]
+
+[[case]]
+id = "plugins-warmer"
+fixture = "../fixtures/guitar_plugins.json"
+request = "make this warmer"
+why = "Real dump from Live: a guitar through Guitar Rig 6 with hidden parameters, then a Tuner. Advice must stay on stock devices and not invent settings for the plugin."
+expect_any_device = ["Saturator", "Dynamic Tube", "EQ Eight", "Channel EQ", "Pedal", "Roar"]
+
+[[case]]
+id = "unmatched-underwater"
+fixture = "../fixtures/synth_pad.json"
+request = "make it sound like it's underwater"
+why = "No knowledge-map term matches. The model must map it itself (low-pass, slow modulation)."
+expect_any_device = ["Auto Filter", "EQ Eight", "Chorus-Ensemble", "Phaser-Flanger", "Wavetable"]
+mention_any = ["low-pass", "low pass", "lowpass", "filter"]

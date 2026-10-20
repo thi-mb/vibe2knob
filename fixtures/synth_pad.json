@@ -1,0 +1,254 @@
+{
+  "schema_version": 1,
+  "tempo": 122.0,
+  "track": {
+    "index": 2,
+    "name": "Warm Pad",
+    "type": "midi",
+    "color": 16725558,
+    "is_grouped": false,
+    "mixer": {
+      "volume": 0.85,
+      "panning": 0.0,
+      "mute": false,
+      "solo": false,
+      "arm": false
+    },
+    "devices": [
+      {
+        "index": 0,
+        "name": "Wavetable",
+        "class_name": "InstrumentVector",
+        "type": "instrument",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "Osc 1 Pos",
+            "value": 0.3,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "30 %"
+          },
+          {
+            "index": 2,
+            "name": "Osc 2 On",
+            "value": 1.0,
+            "min": 0,
+            "max": 1,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 3,
+            "name": "Osc 2 Transp",
+            "value": 0.5,
+            "min": -48,
+            "max": 48,
+            "is_quantized": false,
+            "display": "+12 st"
+          },
+          {
+            "index": 4,
+            "name": "Filter 1 Freq",
+            "value": 0.6,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "2.40 kHz"
+          },
+          {
+            "index": 5,
+            "name": "Filter 1 Res",
+            "value": 0.2,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "20 %"
+          },
+          {
+            "index": 6,
+            "name": "Amp Attack",
+            "value": 0.6,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "650 ms"
+          },
+          {
+            "index": 7,
+            "name": "Amp Release",
+            "value": 0.7,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "1.80 s"
+          },
+          {
+            "index": 8,
+            "name": "Unison Mode",
+            "value": 0.0,
+            "min": 0,
+            "max": 6,
+            "is_quantized": true,
+            "display": "None"
+          },
+          {
+            "index": 9,
+            "name": "Unison Amount",
+            "value": 0.0,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "0.0 %"
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "name": "Chorus-Ensemble",
+        "class_name": "Chorus2",
+        "type": "audio_effect",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "Mode",
+            "value": 0.0,
+            "min": 0,
+            "max": 2,
+            "is_quantized": true,
+            "display": "Classic"
+          },
+          {
+            "index": 2,
+            "name": "Rate",
+            "value": 0.3,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "0.50 Hz"
+          },
+          {
+            "index": 3,
+            "name": "Amount",
+            "value": 0.2,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "20 %"
+          },
+          {
+            "index": 4,
+            "name": "Feedback",
+            "value": 0.0,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "0.0 %"
+          },
+          {
+            "index": 5,
+            "name": "Width",
+            "value": 1.0,
+            "min": 0,
+            "max": 2,
+            "is_quantized": false,
+            "display": "100 %"
+          },
+          {
+            "index": 6,
+            "name": "Dry/Wet",
+            "value": 0.25,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "25 %"
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "name": "Utility",
+        "class_name": "StereoGain",
+        "type": "audio_effect",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "Gain",
+            "value": 0.0,
+            "min": -35,
+            "max": 35,
+            "is_quantized": false,
+            "display": "0.0 dB"
+          },
+          {
+            "index": 2,
+            "name": "Stereo Width",
+            "value": 0.25,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "100 %"
+          },
+          {
+            "index": 3,
+            "name": "Mono",
+            "value": 0.0,
+            "min": 0,
+            "max": 1,
+            "is_quantized": true,
+            "display": "Off"
+          },
+          {
+            "index": 4,
+            "name": "Bass Mono",
+            "value": 0.0,
+            "min": 0,
+            "max": 1,
+            "is_quantized": true,
+            "display": "Off"
+          },
+          {
+            "index": 5,
+            "name": "Bass Freq",
+            "value": 0.3,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "120 Hz"
+          }
+        ]
+      }
+    ]
+  }
+}
