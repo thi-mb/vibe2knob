@@ -9,7 +9,7 @@ from __future__ import annotations
 
 AUDIO_EFFECTS = {
     "Align Delay", "Amp", "Audio Effect Rack", "Auto Filter", "Auto Pan",
-    "Auto Pan-Tremolo", "Auto Shift", "Beat Repeat", "Cabinet", "Channel EQ",
+    "Auto Pan-Tremolo", "Auto Shift", "Beat Repeat", "Cabinet", "Channel EQ", "Chorus",
     "Chorus-Ensemble", "Color Limiter", "Compressor", "Corpus", "Delay", "Drum Buss",
     "Dynamic Tube", "Echo", "EQ Eight", "EQ Three", "Erosion", "Filter Delay", "Gate",
     "Gated Delay", "Glue Compressor", "Grain Delay", "Hybrid Reverb", "Limiter",
@@ -32,11 +32,19 @@ MIDI_EFFECTS = {
 
 STOCK_DEVICES = AUDIO_EFFECTS | INSTRUMENTS | MIDI_EFFECTS
 
+# Not in Live 11 (best-effort). "Chorus" above is the legacy device that older
+# sets still load; Live 11+ offers Chorus-Ensemble in the browser instead.
+LIVE_12_ONLY = {
+    "Auto Pan-Tremolo", "Auto Shift", "Drum Sampler", "Gated Delay", "Meld",
+    "Pitch Hack", "Re-Enveloper", "Roar", "Shifter", "Spectral Blur",
+}
+
 CLASS_NAMES = {
     "AutoFilter": "Auto Filter",
     "AutoPan": "Auto Pan",
     "BeatRepeat": "Beat Repeat",
     "ChannelEq": "Channel EQ",
+    "Chorus": "Chorus",
     "Chorus2": "Chorus-Ensemble",
     "Compressor2": "Compressor",
     "Delay": "Delay",
@@ -68,7 +76,7 @@ CLASS_NAMES = {
 
 # Older names the model may use; map to the current name.
 ALIASES = {
-    "chorus": "Chorus-Ensemble",
+    "chorus ensemble": "Chorus-Ensemble",
     "phaser": "Phaser-Flanger",
     "flanger": "Phaser-Flanger",
     "eq 8": "EQ Eight",

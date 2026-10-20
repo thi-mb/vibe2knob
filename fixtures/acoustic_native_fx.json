@@ -1,0 +1,712 @@
+{
+  "schema_version": 1,
+  "track": {
+    "index": 2,
+    "name": "acoustic-pick",
+    "type": "audio",
+    "color": 16749734,
+    "is_grouped": false,
+    "mixer": {
+      "volume": 0.624942421913147,
+      "panning": 0.29424309730529785,
+      "mute": false,
+      "solo": false,
+      "arm": false
+    },
+    "devices": [
+      {
+        "index": 0,
+        "name": "Chorus",
+        "class_name": "Chorus",
+        "type": "audio_effect",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "Delay 1 Time",
+            "value": 0.37328454852104187,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "3.00 ms"
+          },
+          {
+            "index": 2,
+            "name": "Delay 1 HiPass",
+            "value": 0.5909335017204285,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "1.00 kHz"
+          },
+          {
+            "index": 3,
+            "name": "Delay 2 Time",
+            "value": 0.582267165184021,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "7.00 ms"
+          },
+          {
+            "index": 4,
+            "name": "Delay 2 Mode",
+            "value": 2.0,
+            "min": 0.0,
+            "max": 2.0,
+            "is_quantized": true,
+            "display": "Mod"
+          },
+          {
+            "index": 5,
+            "name": "Link On",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "Off"
+          },
+          {
+            "index": 6,
+            "name": "LFO Amount",
+            "value": 0.5406548976898193,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "1.90 ms"
+          },
+          {
+            "index": 7,
+            "name": "LFO Rate",
+            "value": 0.27827444672584534,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "1.01 Hz"
+          },
+          {
+            "index": 8,
+            "name": "LFO Extend On",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "Off"
+          },
+          {
+            "index": 9,
+            "name": "Feedback",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 0.949999988079071,
+            "is_quantized": false,
+            "display": "0.0 %"
+          },
+          {
+            "index": 10,
+            "name": "Polarity",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "+"
+          },
+          {
+            "index": 11,
+            "name": "Dry/Wet",
+            "value": 0.3253968358039856,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "33 %"
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "name": "Compressor",
+        "class_name": "Compressor2",
+        "type": "audio_effect",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "Threshold",
+            "value": 0.5321100950241089,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "-12.7 dB"
+          },
+          {
+            "index": 2,
+            "name": "Ratio",
+            "value": 0.738095223903656,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "3.82 : 1"
+          },
+          {
+            "index": 3,
+            "name": "Expansion Ratio",
+            "value": 1.149999976158142,
+            "min": 1.0,
+            "max": 2.0,
+            "is_quantized": false,
+            "display": "1 : 1.15"
+          },
+          {
+            "index": 4,
+            "name": "Attack",
+            "value": 0.460206001996994,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "2.00 ms"
+          },
+          {
+            "index": 5,
+            "name": "Release",
+            "value": 0.19996516406536102,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "50.0 ms"
+          },
+          {
+            "index": 6,
+            "name": "Auto Release On/Off",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "Off"
+          },
+          {
+            "index": 7,
+            "name": "Output Gain",
+            "value": 6.699164867401123,
+            "min": -36.0,
+            "max": 36.0,
+            "is_quantized": false,
+            "display": "6.70 dB"
+          },
+          {
+            "index": 8,
+            "name": "Makeup",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 9,
+            "name": "Dry/Wet",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "100 %"
+          },
+          {
+            "index": 10,
+            "name": "Model",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 2.0,
+            "is_quantized": true,
+            "display": "Peak"
+          },
+          {
+            "index": 11,
+            "name": "Env Mode",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "Log"
+          },
+          {
+            "index": 12,
+            "name": "Knee",
+            "value": 6.0,
+            "min": 0.0,
+            "max": 18.0,
+            "is_quantized": false,
+            "display": "6.0 dB"
+          },
+          {
+            "index": 13,
+            "name": "LookAhead",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 2.0,
+            "is_quantized": true,
+            "display": "0 ms"
+          },
+          {
+            "index": 14,
+            "name": "S/C Listen",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "Off"
+          },
+          {
+            "index": 15,
+            "name": "S/C On",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "Off"
+          },
+          {
+            "index": 16,
+            "name": "S/C Gain",
+            "value": 0.4000000059604645,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00 dB"
+          },
+          {
+            "index": 17,
+            "name": "S/C Mix",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "100 %"
+          },
+          {
+            "index": 18,
+            "name": "S/C EQ Type",
+            "value": 5.0,
+            "min": 0.0,
+            "max": 5.0,
+            "is_quantized": true,
+            "display": "High pass"
+          },
+          {
+            "index": 19,
+            "name": "S/C EQ On",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "Off"
+          },
+          {
+            "index": 20,
+            "name": "S/C EQ Freq",
+            "value": 0.3052678406238556,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "200 Hz"
+          },
+          {
+            "index": 21,
+            "name": "S/C EQ Gain",
+            "value": 0.0,
+            "min": -15.0,
+            "max": 15.0,
+            "is_quantized": false,
+            "display": "0.00 dB"
+          },
+          {
+            "index": 22,
+            "name": "S/C EQ Q",
+            "value": 0.40856707096099854,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.71"
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "name": "Reverb",
+        "class_name": "Reverb",
+        "type": "audio_effect",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "Predelay",
+            "value": 0.095238097012043,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.90 ms"
+          },
+          {
+            "index": 2,
+            "name": "In LowCut On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 3,
+            "name": "In HighCut On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 4,
+            "name": "In Filter Freq",
+            "value": 0.7575756907463074,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "4.32 kHz"
+          },
+          {
+            "index": 5,
+            "name": "In Filter Width",
+            "value": 0.625,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "5.81 "
+          },
+          {
+            "index": 6,
+            "name": "ER Spin On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 7,
+            "name": "ER Spin Rate",
+            "value": 0.48569256067276,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.30 Hz"
+          },
+          {
+            "index": 8,
+            "name": "ER Spin Amount",
+            "value": 0.6544755101203918,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "17.50 "
+          },
+          {
+            "index": 9,
+            "name": "ER Shape",
+            "value": 0.5,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.50 "
+          },
+          {
+            "index": 10,
+            "name": "HiFilter On",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "Off"
+          },
+          {
+            "index": 11,
+            "name": "HiFilter Type",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "Shelf"
+          },
+          {
+            "index": 12,
+            "name": "HiFilter Freq",
+            "value": 0.8102341890335083,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "4.50 kHz"
+          },
+          {
+            "index": 13,
+            "name": "HiShelf Gain",
+            "value": 0.625,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.70 "
+          },
+          {
+            "index": 14,
+            "name": "LowShelf On",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "Off"
+          },
+          {
+            "index": 15,
+            "name": "LowShelf Freq",
+            "value": 0.227199524641037,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "90.0 Hz"
+          },
+          {
+            "index": 16,
+            "name": "LowShelf Gain",
+            "value": 0.6875,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.75 "
+          },
+          {
+            "index": 17,
+            "name": "Chorus On",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "Off"
+          },
+          {
+            "index": 18,
+            "name": "Chorus Rate",
+            "value": 0.10369296371936798,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.02 Hz"
+          },
+          {
+            "index": 19,
+            "name": "Chorus Amount",
+            "value": 0.002506265649572015,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.02 "
+          },
+          {
+            "index": 20,
+            "name": "Decay Time",
+            "value": 0.16666674613952637,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "517 ms"
+          },
+          {
+            "index": 21,
+            "name": "Diffusion",
+            "value": 0.6246089935302734,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "60 %"
+          },
+          {
+            "index": 22,
+            "name": "Scale",
+            "value": 0.3684210479259491,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "40 %"
+          },
+          {
+            "index": 23,
+            "name": "Freeze On",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "Off"
+          },
+          {
+            "index": 24,
+            "name": "Flat On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 25,
+            "name": "Cut On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 26,
+            "name": "Room Size",
+            "value": 0.5634920001029968,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "17.20 "
+          },
+          {
+            "index": 27,
+            "name": "Size Smoothing",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 2.0,
+            "is_quantized": true,
+            "display": "None"
+          },
+          {
+            "index": 28,
+            "name": "Stereo Image",
+            "value": 0.8333333134651184,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "100.00 "
+          },
+          {
+            "index": 29,
+            "name": "Density",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 3.0,
+            "is_quantized": true,
+            "display": "Low"
+          },
+          {
+            "index": 30,
+            "name": "Reflect Level",
+            "value": 0.49356332421302795,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.0 dB"
+          },
+          {
+            "index": 31,
+            "name": "Diffuse Level",
+            "value": 0.49356332421302795,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.0 dB"
+          },
+          {
+            "index": 32,
+            "name": "Dry/Wet",
+            "value": 0.3333333432674408,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "33 %"
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "name": "Ozone Imager 2",
+        "class_name": "PluginDevice",
+        "type": "audio_effect",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "Global Bypass",
+            "value": 0.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.00"
+          },
+          {
+            "index": 2,
+            "name": "Enable Stereoize",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "1.00"
+          },
+          {
+            "index": 3,
+            "name": "Stereoize Amt",
+            "value": 0.2631579041481018,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.26"
+          },
+          {
+            "index": 4,
+            "name": "Width",
+            "value": 0.5,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": false,
+            "display": "0.50"
+          }
+        ]
+      }
+    ]
+  }
+}
