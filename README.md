@@ -141,5 +141,18 @@ Chats and settings live in `~/Library/Application Support/vibe2knob/` (or `$VIBE
 API key goes in the Keychain, and an `ANTHROPIC_API_KEY` in the environment or a `.env` file wins.
 With `--fake` or `--fake-model`, chats go to a temporary folder instead.
 
+### Panel window
+
+`vibe2knob panel --window` opens the panel in a slim always-on-top window to sit beside Live,
+instead of a browser tab. It needs the `[window]` extra (`pip install -e '.[window]'`, which adds
+pywebview). It takes the same flags, so `--window --fake` works without Live or a key, and
+`--window --dev` shows the Vite dev server.
+
+Closing the window stops the hub, and Ctrl-C in the terminal closes the window. The window's size
+and position are saved in `settings.json` and restored on the next launch. **Window > Toggle
+Always on Top** turns on-top off or on, and that's remembered too. (With `--fake` the settings go
+to a temporary folder, so add `--data-dir` to keep the window's place between fake runs.) If a hub is already running on
+the port, a second `vibe2knob panel` says so and exits.
+
 The hub opens the panel at `/?token=...`. A client connects to `/ws?token=...`; a wrong token, Host
 or Origin closes the socket with code 4401.
