@@ -11,11 +11,17 @@ Action = Literal["add_device", "adjust", "enable", "disable", "remove", "reorder
 
 class Step(BaseModel):
     action: Action
-    device: str = Field(description="Stock Live device name, e.g. 'Utility'.")
+    device: str = Field(
+        description="Exact name as listed on the chain, or the stock device name when adding one."
+    )
+    chain: str | None = Field(default=None, description="Rack chain the device is in, or null.")
     on_track: bool = Field(description="True when the device is already on the track.")
     parameter: str | None = Field(description="Parameter as labelled in Live, or null.")
     value_range: str | None = Field(description="Starting point, e.g. '120-140 %'.")
     explanation: str = Field(description="What it does and why it fits, one or two sentences.")
+    stock_device: str | None = Field(
+        default=None, description="Stock device this step uses; filled in by vibe2knob's checks."
+    )
 
 
 class Advice(BaseModel):
@@ -46,7 +52,7 @@ ADVICE_SCHEMA: dict = {
                 "type": "object",
                 "additionalProperties": False,
                 "required": [
-                    "action", "device", "on_track", "parameter", "value_range", "explanation",
+                    "action", "device", "chain", "on_track", "parameter", "value_range", "explanation",
                 ],
                 "properties": {
                     "action": {
@@ -54,6 +60,7 @@ ADVICE_SCHEMA: dict = {
                         "enum": ["add_device", "adjust", "enable", "disable", "remove", "reorder"],
                     },
                     "device": {"type": "string"},
+                    "chain": _nullable("string"),
                     "on_track": {"type": "boolean"},
                     "parameter": _nullable("string"),
                     "value_range": _nullable("string"),
@@ -80,6 +87,8 @@ def format_advice(advice: Advice) -> str:
             "reorder": "Move",
         }[s.action]
         head = f"{i}. {verb} {s.device}"
+        if s.chain:
+            head += f" (in the {s.chain} chain)"
         if s.parameter:
             head += f" > {s.parameter}"
         if s.value_range:

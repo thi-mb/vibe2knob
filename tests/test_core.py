@@ -107,3 +107,31 @@ def test_prompt_flags_live_12_only_devices(fake):
     ask(pad(), "wider", provider)
     system = provider.calls[0][0]
     assert "only in Live 12" in system and "Roar" in system
+
+
+def test_device_added_by_an_earlier_step_can_be_adjusted(fake):
+    answer = copy.deepcopy(WIDER_PAD)
+    added = {**answer["steps"][0], "action": "add_device", "device": "Hybrid Reverb", "on_track": False}
+    tweak = {**added, "action": "adjust", "parameter": "Decay"}
+    answer["steps"] = [added, tweak]
+    advice = ask(pad(), "dreamy", fake(answer))
+    assert advice.warnings == []
+
+
+def test_decorated_names_resolve_to_chain_devices(fake):
+    # Seen from a real model: notes appended to the device name.
+    state = TrackState.load(FIXTURES / "drum_rack.json")
+    answer = copy.deepcopy(WIDER_PAD)
+    answer["steps"][0].update(device="Kick 909 (OriginalSimpler, Kick chain)", parameter="Ve Decay")
+    answer["steps"][1].update(device="Reverb (in Snare chain)", parameter="Decay Time")
+    advice = ask(state, "tighter", fake(answer))
+    assert advice.warnings == []
+    assert [s.device for s in advice.steps] == ["Kick 909", "Reverb"]
+    assert [s.stock_device for s in advice.steps] == ["Simpler", "Reverb"]
+
+
+def test_new_device_marked_on_track_is_flagged(fake):
+    answer = copy.deepcopy(WIDER_PAD)
+    answer["steps"][0].update(action="add_device", device="Auto Filter", on_track=True)
+    advice = ask(pad(), "dreamy", fake(answer))
+    assert any("marks it as already on the track" in w for w in advice.warnings)
