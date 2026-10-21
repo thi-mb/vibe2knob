@@ -226,6 +226,90 @@
       "title": "ChatDone",
       "type": "object"
     },
+    "ChatHistory": {
+      "additionalProperties": false,
+      "description": "A chat's turns, oldest first, in answer to chat.open.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "chat.history",
+          "default": "chat.history",
+          "type": "string"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "chat_id": {
+          "type": "string"
+        },
+        "turns": {
+          "items": {
+            "$ref": "#/$defs/ChatTurn"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "request_id",
+        "chat_id",
+        "turns"
+      ],
+      "title": "ChatHistory",
+      "type": "object"
+    },
+    "ChatOpen": {
+      "additionalProperties": false,
+      "description": "Ask for a chat's turns, e.g. when a tab is shown after a reload or reconnect.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "type": {
+          "const": "chat.open",
+          "default": "chat.open",
+          "type": "string"
+        },
+        "chat_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "chat_id"
+      ],
+      "title": "ChatOpen",
+      "type": "object"
+    },
     "ChatSend": {
       "additionalProperties": false,
       "properties": {
@@ -371,6 +455,84 @@
       "title": "ChatSummary",
       "type": "object"
     },
+    "ChatTurn": {
+      "description": "One turn of a saved chat, as chat.history replays it.",
+      "properties": {
+        "id": {
+          "description": "For an assistant turn, the turn_id its deltas carried.",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "user",
+            "assistant"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "created_at": {
+          "description": "ISO 8601 time the turn started.",
+          "type": "string"
+        },
+        "steps": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Step"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Null when no steps were suggested."
+        },
+        "listen_for": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "caution": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "text",
+        "created_at",
+        "steps",
+        "listen_for",
+        "caution",
+        "warnings"
+      ],
+      "title": "ChatTurn",
+      "type": "object"
+    },
     "ChatUpdate": {
       "additionalProperties": false,
       "properties": {
@@ -436,9 +598,11 @@
         "mapping": {
           "chat.close": "#/$defs/ChatClose",
           "chat.create": "#/$defs/ChatCreate",
+          "chat.open": "#/$defs/ChatOpen",
           "chat.send": "#/$defs/ChatSend",
           "chat.update": "#/$defs/ChatUpdate",
           "hello": "#/$defs/Hello",
+          "live.use_example": "#/$defs/LiveUseExample",
           "settings.test": "#/$defs/SettingsTest",
           "settings.update": "#/$defs/SettingsUpdate",
           "tracks.list": "#/$defs/TracksList"
@@ -459,6 +623,9 @@
           "$ref": "#/$defs/ChatUpdate"
         },
         {
+          "$ref": "#/$defs/ChatOpen"
+        },
+        {
           "$ref": "#/$defs/ChatClose"
         },
         {
@@ -469,6 +636,9 @@
         },
         {
           "$ref": "#/$defs/SettingsTest"
+        },
+        {
+          "$ref": "#/$defs/LiveUseExample"
         }
       ],
       "title": "ClientEnvelope"
@@ -553,6 +723,30 @@
         },
         "message": {
           "type": "string"
+        },
+        "chat_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set when a chat's turn failed."
+        },
+        "turn_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The failed turn; chat.done for it follows."
         }
       },
       "required": [
@@ -560,7 +754,9 @@
         "type",
         "request_id",
         "code",
-        "message"
+        "message",
+        "chat_id",
+        "turn_id"
       ],
       "title": "ErrorMessage",
       "type": "object"
@@ -615,6 +811,7 @@
           "chat.closed": "#/$defs/ChatClosed",
           "chat.delta": "#/$defs/ChatDelta",
           "chat.done": "#/$defs/ChatDone",
+          "chat.history": "#/$defs/ChatHistory",
           "chat.steps": "#/$defs/ChatSteps",
           "error": "#/$defs/ErrorMessage",
           "live.status": "#/$defs/LiveStatusChanged",
@@ -639,6 +836,9 @@
         },
         {
           "$ref": "#/$defs/ChatClosed"
+        },
+        {
+          "$ref": "#/$defs/ChatHistory"
         },
         {
           "$ref": "#/$defs/ChatDelta"
@@ -685,12 +885,25 @@
           ],
           "default": null,
           "description": "Why Live isn't reachable, if it isn't."
+        },
+        "example": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the example track in use instead of Live, if any."
         }
       },
       "required": [
         "connected",
         "selected_track",
-        "detail"
+        "detail",
+        "example"
       ],
       "title": "LiveStatus",
       "type": "object"
@@ -720,6 +933,52 @@
         "live"
       ],
       "title": "LiveStatusChanged",
+      "type": "object"
+    },
+    "LiveUseExample": {
+      "additionalProperties": false,
+      "description": "Use an example track instead of Live (null goes back to Live). The hub answers with\nlive.status, so every client sees the switch.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "type": {
+          "const": "live.use_example",
+          "default": "live.use_example",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "One of welcome.examples' names, or null."
+        }
+      },
+      "required": [
+        "type",
+        "name"
+      ],
+      "title": "LiveUseExample",
       "type": "object"
     },
     "Settings": {
@@ -1048,13 +1307,21 @@
             }
           ],
           "default": null
+        },
+        "devices": {
+          "description": "Device names in chain order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "required": [
         "index",
         "name",
         "type",
-        "color"
+        "color",
+        "devices"
       ],
       "title": "TrackRef",
       "type": "object"
@@ -1161,6 +1428,13 @@
         },
         "settings": {
           "$ref": "#/$defs/Settings"
+        },
+        "examples": {
+          "description": "Example tracks to try while Live is offline.",
+          "items": {
+            "$ref": "#/$defs/TrackRef"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -1169,7 +1443,8 @@
         "hub_version",
         "chats",
         "live",
-        "settings"
+        "settings",
+        "examples"
       ],
       "title": "Welcome",
       "type": "object"

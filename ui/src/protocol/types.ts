@@ -7,7 +7,16 @@
  * via the `definition` "ClientEnvelope".
  */
 export type ClientEnvelope =
-  Hello | ChatCreate | ChatSend | ChatUpdate | ChatClose | TracksList | SettingsUpdate | SettingsTest;
+  | Hello
+  | ChatCreate
+  | ChatSend
+  | ChatUpdate
+  | ChatOpen
+  | ChatClose
+  | TracksList
+  | SettingsUpdate
+  | SettingsTest
+  | LiveUseExample;
 /**
  * Any message the hub may send.
  *
@@ -20,6 +29,7 @@ export type HubEnvelope =
   | Tracks
   | ChatChanged
   | ChatClosed
+  | ChatHistory
   | ChatDelta
   | ChatSteps
   | ChatDone
@@ -117,6 +127,24 @@ export interface ChatUpdate {
   context?: ContextSetInput | null;
 }
 /**
+ * Ask for a chat's turns, e.g. when a tab is shown after a reload or reconnect.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "ChatOpen".
+ */
+export interface ChatOpen {
+  /**
+   * Protocol version.
+   */
+  v?: 1;
+  /**
+   * Set by the client; echoed on the hub's reply or error.
+   */
+  request_id?: string | null;
+  type: "chat.open";
+  chat_id: string;
+}
+/**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
  * via the `definition` "ChatClose".
  */
@@ -184,6 +212,28 @@ export interface SettingsTest {
   type: "settings.test";
 }
 /**
+ * Use an example track instead of Live (null goes back to Live). The hub answers with
+ * live.status, so every client sees the switch.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "LiveUseExample".
+ */
+export interface LiveUseExample {
+  /**
+   * Protocol version.
+   */
+  v?: 1;
+  /**
+   * Set by the client; echoed on the hub's reply or error.
+   */
+  request_id?: string | null;
+  type: "live.use_example";
+  /**
+   * One of welcome.examples' names, or null.
+   */
+  name: string | null;
+}
+/**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
  * via the `definition` "Welcome".
  */
@@ -197,6 +247,10 @@ export interface Welcome {
   chats: ChatSummary[];
   live: LiveStatus;
   settings: Settings;
+  /**
+   * Example tracks to try while Live is offline.
+   */
+  examples: TrackRef[];
 }
 /**
  * A chat as a tab shows it.
@@ -243,6 +297,10 @@ export interface LiveStatus {
    * Why Live isn't reachable, if it isn't.
    */
   detail: string | null;
+  /**
+   * Name of the example track in use instead of Live, if any.
+   */
+  example: string | null;
 }
 /**
  * A track as the session list and the context chips show it.
@@ -255,6 +313,10 @@ export interface TrackRef {
   name: string;
   type: "audio" | "midi" | "group" | "return" | "master";
   color: number | null;
+  /**
+   * Device names in chain order.
+   */
+  devices: string[];
 }
 /**
  * Settings as the client sees them. The API key itself never leaves the hub.
@@ -321,36 +383,42 @@ export interface ChatClosed {
   chat_id: string;
 }
 /**
- * A piece of the assistant's prose, streamed as it is written.
+ * A chat's turns, oldest first, in answer to chat.open.
  *
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
- * via the `definition` "ChatDelta".
+ * via the `definition` "ChatHistory".
  */
-export interface ChatDelta {
+export interface ChatHistory {
   /**
    * Protocol version.
    */
   v: 1;
-  type: "chat.delta";
+  type: "chat.history";
+  request_id: string | null;
   chat_id: string;
-  turn_id: string;
-  text: string;
+  turns: ChatTurn[];
 }
 /**
- * The steps the model suggested. Optional: a prose-only answer sends none.
+ * One turn of a saved chat, as chat.history replays it.
  *
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
- * via the `definition` "ChatSteps".
+ * via the `definition` "ChatTurn".
  */
-export interface ChatSteps {
+export interface ChatTurn {
   /**
-   * Protocol version.
+   * For an assistant turn, the turn_id its deltas carried.
    */
-  v: 1;
-  type: "chat.steps";
-  chat_id: string;
-  turn_id: string;
-  steps: Step[];
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  /**
+   * ISO 8601 time the turn started.
+   */
+  created_at: string;
+  /**
+   * Null when no steps were suggested.
+   */
+  steps: Step[] | null;
   listen_for: string | null;
   caution: string | null;
   warnings: string[];
@@ -399,6 +467,41 @@ export interface Step {
   track_index?: number | null;
 }
 /**
+ * A piece of the assistant's prose, streamed as it is written.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "ChatDelta".
+ */
+export interface ChatDelta {
+  /**
+   * Protocol version.
+   */
+  v: 1;
+  type: "chat.delta";
+  chat_id: string;
+  turn_id: string;
+  text: string;
+}
+/**
+ * The steps the model suggested. Optional: a prose-only answer sends none.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "ChatSteps".
+ */
+export interface ChatSteps {
+  /**
+   * Protocol version.
+   */
+  v: 1;
+  type: "chat.steps";
+  chat_id: string;
+  turn_id: string;
+  steps: Step[];
+  listen_for: string | null;
+  caution: string | null;
+  warnings: string[];
+}
+/**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
  * via the `definition` "ChatDone".
  */
@@ -441,4 +544,12 @@ export interface ErrorMessage {
   request_id: string | null;
   code: "bad_request" | "unsupported_version" | "not_found" | "provider" | "live" | "internal";
   message: string;
+  /**
+   * Set when a chat's turn failed.
+   */
+  chat_id: string | null;
+  /**
+   * The failed turn; chat.done for it follows.
+   */
+  turn_id: string | null;
 }
