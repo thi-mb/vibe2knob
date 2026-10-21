@@ -14,6 +14,15 @@ Parked ideas that are not part of v0.1. They came up while designing the chat pa
 - **"Whole mix" context.** Every track with full detail.
 - **Context experiments.** Compare focus-only, focus plus session summary, and full session using the evals.
 
+## Voice, control and reach
+
+These came up on 2026-10-21. The hub-and-clients architecture leaves room for each of them.
+
+- **Speech to text** for the chat input. The client records, and the hub transcribes with local Whisper or a provider's speech API. A push-to-talk hotkey that works while Live has focus probably needs a native shell such as Tauri.
+- **Do mode (voice control).** For people who already know Live: "solo the guitar", "slow LFO on a high-pass on the vocal group". The agent proposes actions, the user confirms them, and they can be undone. Solo, mute and parameters work through AbletonOSC. Loading devices on Live 11 needs our own remote script. The API can't map an LFO device to a parameter, so use Auto Filter's built-in LFO.
+- **More model providers.** OpenAI first, through Sign in with ChatGPT, which lets users spend their plan in partner apps (we'd need access). Each provider is an adapter with its own sign-in method.
+- **Phone app.** A PWA served by the hub and paired by QR code over the local network. A relay for reaching it from outside the network can come later.
+
 ## v0.1 scope, for reference
 
 - Chats in tabs.

@@ -1,0 +1,1154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Vibe2knobProtocol",
+  "description": "vibe2knob hub protocol v1",
+  "type": "object",
+  "properties": {
+    "client": {
+      "$ref": "#/$defs/ClientEnvelope"
+    },
+    "hub": {
+      "$ref": "#/$defs/HubEnvelope"
+    }
+  },
+  "$defs": {
+    "ChatChanged": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "chat.changed",
+          "default": "chat.changed",
+          "type": "string"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "chat": {
+          "$ref": "#/$defs/ChatSummary"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "request_id",
+        "chat"
+      ],
+      "title": "ChatChanged",
+      "type": "object"
+    },
+    "ChatClose": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "type": {
+          "const": "chat.close",
+          "default": "chat.close",
+          "type": "string"
+        },
+        "chat_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "chat_id"
+      ],
+      "title": "ChatClose",
+      "type": "object"
+    },
+    "ChatClosed": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "chat.closed",
+          "default": "chat.closed",
+          "type": "string"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "chat_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "request_id",
+        "chat_id"
+      ],
+      "title": "ChatClosed",
+      "type": "object"
+    },
+    "ChatCreate": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "type": {
+          "const": "chat.create",
+          "default": "chat.create",
+          "type": "string"
+        },
+        "context": {
+          "$ref": "#/$defs/ContextSetInput"
+        }
+      },
+      "title": "ChatCreate",
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "ChatDelta": {
+      "additionalProperties": false,
+      "description": "A piece of the assistant's prose, streamed as it is written.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "chat.delta",
+          "default": "chat.delta",
+          "type": "string"
+        },
+        "chat_id": {
+          "type": "string"
+        },
+        "turn_id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "chat_id",
+        "turn_id",
+        "text"
+      ],
+      "title": "ChatDelta",
+      "type": "object"
+    },
+    "ChatDone": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "chat.done",
+          "default": "chat.done",
+          "type": "string"
+        },
+        "chat_id": {
+          "type": "string"
+        },
+        "turn_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "chat_id",
+        "turn_id"
+      ],
+      "title": "ChatDone",
+      "type": "object"
+    },
+    "ChatSend": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "type": {
+          "const": "chat.send",
+          "default": "chat.send",
+          "type": "string"
+        },
+        "chat_id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "chat_id",
+        "text"
+      ],
+      "title": "ChatSend",
+      "type": "object"
+    },
+    "ChatSteps": {
+      "additionalProperties": false,
+      "description": "The steps the model suggested. Optional: a prose-only answer sends none.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "chat.steps",
+          "default": "chat.steps",
+          "type": "string"
+        },
+        "chat_id": {
+          "type": "string"
+        },
+        "turn_id": {
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "type": "array"
+        },
+        "listen_for": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "caution": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "chat_id",
+        "turn_id",
+        "steps",
+        "listen_for",
+        "caution",
+        "warnings"
+      ],
+      "title": "ChatSteps",
+      "type": "object"
+    },
+    "ChatSummary": {
+      "description": "A chat as a tab shows it.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Topic title; null until named."
+        },
+        "context": {
+          "$ref": "#/$defs/ContextSet"
+        },
+        "updated_at": {
+          "description": "ISO 8601 time of the last change.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "context",
+        "updated_at"
+      ],
+      "title": "ChatSummary",
+      "type": "object"
+    },
+    "ChatUpdate": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "type": {
+          "const": "chat.update",
+          "default": "chat.update",
+          "type": "string"
+        },
+        "chat_id": {
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextSetInput"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "chat_id"
+      ],
+      "title": "ChatUpdate",
+      "type": "object"
+    },
+    "ClientEnvelope": {
+      "description": "Any message a client may send.",
+      "discriminator": {
+        "mapping": {
+          "chat.close": "#/$defs/ChatClose",
+          "chat.create": "#/$defs/ChatCreate",
+          "chat.send": "#/$defs/ChatSend",
+          "chat.update": "#/$defs/ChatUpdate",
+          "hello": "#/$defs/Hello",
+          "settings.test": "#/$defs/SettingsTest",
+          "settings.update": "#/$defs/SettingsUpdate",
+          "tracks.list": "#/$defs/TracksList"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Hello"
+        },
+        {
+          "$ref": "#/$defs/ChatCreate"
+        },
+        {
+          "$ref": "#/$defs/ChatSend"
+        },
+        {
+          "$ref": "#/$defs/ChatUpdate"
+        },
+        {
+          "$ref": "#/$defs/ChatClose"
+        },
+        {
+          "$ref": "#/$defs/TracksList"
+        },
+        {
+          "$ref": "#/$defs/SettingsUpdate"
+        },
+        {
+          "$ref": "#/$defs/SettingsTest"
+        }
+      ],
+      "title": "ClientEnvelope"
+    },
+    "ContextSet": {
+      "description": "What a chat looks at, besides the light session summary it always gets.",
+      "properties": {
+        "follow_selection": {
+          "default": true,
+          "description": "Include whichever track is selected in Live.",
+          "type": "boolean"
+        },
+        "pinned": {
+          "description": "Track indexes pinned with @.",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "follow_selection",
+        "pinned"
+      ],
+      "title": "ContextSet",
+      "type": "object"
+    },
+    "ContextSetInput": {
+      "description": "What a chat looks at, besides the light session summary it always gets.",
+      "properties": {
+        "follow_selection": {
+          "default": true,
+          "description": "Include whichever track is selected in Live.",
+          "type": "boolean"
+        },
+        "pinned": {
+          "description": "Track indexes pinned with @.",
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "title": "ContextSetInput",
+      "type": "object"
+    },
+    "ErrorMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "error",
+          "default": "error",
+          "type": "string"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "code": {
+          "enum": [
+            "bad_request",
+            "unsupported_version",
+            "not_found",
+            "provider",
+            "live",
+            "internal"
+          ],
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "request_id",
+        "code",
+        "message"
+      ],
+      "title": "ErrorMessage",
+      "type": "object"
+    },
+    "Hello": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "type": {
+          "const": "hello",
+          "default": "hello",
+          "type": "string"
+        },
+        "client": {
+          "enum": [
+            "panel",
+            "browser",
+            "phone"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "client"
+      ],
+      "title": "Hello",
+      "type": "object"
+    },
+    "HubEnvelope": {
+      "description": "Any message the hub may send.",
+      "discriminator": {
+        "mapping": {
+          "chat.changed": "#/$defs/ChatChanged",
+          "chat.closed": "#/$defs/ChatClosed",
+          "chat.delta": "#/$defs/ChatDelta",
+          "chat.done": "#/$defs/ChatDone",
+          "chat.steps": "#/$defs/ChatSteps",
+          "error": "#/$defs/ErrorMessage",
+          "live.status": "#/$defs/LiveStatusChanged",
+          "settings": "#/$defs/SettingsChanged",
+          "tracks": "#/$defs/Tracks",
+          "welcome": "#/$defs/Welcome"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Welcome"
+        },
+        {
+          "$ref": "#/$defs/LiveStatusChanged"
+        },
+        {
+          "$ref": "#/$defs/Tracks"
+        },
+        {
+          "$ref": "#/$defs/ChatChanged"
+        },
+        {
+          "$ref": "#/$defs/ChatClosed"
+        },
+        {
+          "$ref": "#/$defs/ChatDelta"
+        },
+        {
+          "$ref": "#/$defs/ChatSteps"
+        },
+        {
+          "$ref": "#/$defs/ChatDone"
+        },
+        {
+          "$ref": "#/$defs/SettingsChanged"
+        },
+        {
+          "$ref": "#/$defs/ErrorMessage"
+        }
+      ],
+      "title": "HubEnvelope"
+    },
+    "LiveStatus": {
+      "properties": {
+        "connected": {
+          "type": "boolean"
+        },
+        "selected_track": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrackRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Why Live isn't reachable, if it isn't."
+        }
+      },
+      "required": [
+        "connected",
+        "selected_track",
+        "detail"
+      ],
+      "title": "LiveStatus",
+      "type": "object"
+    },
+    "LiveStatusChanged": {
+      "additionalProperties": false,
+      "description": "Sent when Live connects or disconnects, or the selected track changes.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "live.status",
+          "default": "live.status",
+          "type": "string"
+        },
+        "live": {
+          "$ref": "#/$defs/LiveStatus"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "live"
+      ],
+      "title": "LiveStatusChanged",
+      "type": "object"
+    },
+    "Settings": {
+      "description": "Settings as the client sees them. The API key itself never leaves the hub.",
+      "properties": {
+        "provider": {
+          "default": "claude",
+          "enum": [
+            "claude",
+            "ollama"
+          ],
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "api_key_set": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "api_key_set"
+      ],
+      "title": "Settings",
+      "type": "object"
+    },
+    "SettingsChanged": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "settings",
+          "default": "settings",
+          "type": "string"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "settings": {
+          "$ref": "#/$defs/Settings"
+        },
+        "test_result": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Outcome of a settings.test."
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "request_id",
+        "settings",
+        "test_result"
+      ],
+      "title": "SettingsChanged",
+      "type": "object"
+    },
+    "SettingsTest": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "type": {
+          "const": "settings.test",
+          "default": "settings.test",
+          "type": "string"
+        }
+      },
+      "title": "SettingsTest",
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "SettingsUpdate": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "type": {
+          "const": "settings.update",
+          "default": "settings.update",
+          "type": "string"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "enum": [
+                "claude",
+                "ollama"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Stored in the Keychain, never echoed."
+        }
+      },
+      "title": "SettingsUpdate",
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "Step": {
+      "properties": {
+        "action": {
+          "enum": [
+            "add_device",
+            "adjust",
+            "enable",
+            "disable",
+            "remove",
+            "reorder"
+          ],
+          "type": "string"
+        },
+        "device": {
+          "description": "Exact name as listed on the chain, or the stock device name when adding one.",
+          "type": "string"
+        },
+        "chain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Rack chain the device is in, or null."
+        },
+        "on_track": {
+          "description": "True when the device is already on the track.",
+          "type": "boolean"
+        },
+        "parameter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Parameter as labelled in Live, or null."
+        },
+        "value_range": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Starting point, e.g. '120-140 %'."
+        },
+        "explanation": {
+          "description": "What it does and why it fits, one or two sentences.",
+          "type": "string"
+        },
+        "stock_device": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Stock device this step uses; filled in by vibe2knob's checks."
+        }
+      },
+      "required": [
+        "action",
+        "device",
+        "on_track",
+        "parameter",
+        "value_range",
+        "explanation"
+      ],
+      "title": "Step",
+      "type": "object"
+    },
+    "TrackRef": {
+      "description": "A track as the session list and the context chips show it.",
+      "properties": {
+        "index": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "audio",
+            "midi",
+            "group",
+            "return",
+            "master"
+          ],
+          "type": "string"
+        },
+        "color": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "index",
+        "name",
+        "type",
+        "color"
+      ],
+      "title": "TrackRef",
+      "type": "object"
+    },
+    "Tracks": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "tracks",
+          "default": "tracks",
+          "type": "string"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tracks": {
+          "items": {
+            "$ref": "#/$defs/TrackRef"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "request_id",
+        "tracks"
+      ],
+      "title": "Tracks",
+      "type": "object"
+    },
+    "TracksList": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "type": {
+          "const": "tracks.list",
+          "default": "tracks.list",
+          "type": "string"
+        }
+      },
+      "title": "TracksList",
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "Welcome": {
+      "additionalProperties": false,
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "welcome",
+          "default": "welcome",
+          "type": "string"
+        },
+        "hub_version": {
+          "type": "string"
+        },
+        "chats": {
+          "items": {
+            "$ref": "#/$defs/ChatSummary"
+          },
+          "type": "array"
+        },
+        "live": {
+          "$ref": "#/$defs/LiveStatus"
+        },
+        "settings": {
+          "$ref": "#/$defs/Settings"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "hub_version",
+        "chats",
+        "live",
+        "settings"
+      ],
+      "title": "Welcome",
+      "type": "object"
+    }
+  }
+}
