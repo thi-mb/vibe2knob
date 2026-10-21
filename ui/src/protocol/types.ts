@@ -362,6 +362,10 @@ export interface ChatSteps {
 export interface Step {
   action: "add_device" | "adjust" | "enable" | "disable" | "remove" | "reorder";
   /**
+   * Track the step is on, as named in the chat's context; null for the only track.
+   */
+  track?: string | null;
+  /**
    * Exact name as listed on the chain, or the stock device name when adding one.
    */
   device: string;
@@ -389,6 +393,10 @@ export interface Step {
    * Stock device this step uses; filled in by vibe2knob's checks.
    */
   stock_device?: string | null;
+  /**
+   * Live's index of the track the step is on; filled in by vibe2knob's checks, null when the track name is missing or matches more than one track.
+   */
+  track_index?: number | null;
 }
 /**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
