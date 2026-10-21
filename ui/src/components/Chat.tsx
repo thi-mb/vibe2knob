@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { parseTarget } from "../lib/knob";
+import { type Inline, parseMarkdown } from "../lib/markdown";
 import { trackColor } from "../lib/live";
 import { load, save } from "../lib/storage";
 import type { Step } from "../protocol/types";
@@ -7,16 +8,46 @@ import type { Turn } from "../state/store";
 import { Icon } from "./Icon";
 import { Knob } from "./Knob";
 
+function Inlines({ nodes }: { nodes: Inline[] }) {
+  return nodes.map((n, i) => {
+    if (typeof n === "string") return n;
+    const Tag = n.type;
+    return (
+      <Tag key={i}>
+        <Inlines nodes={n.children} />
+      </Tag>
+    );
+  });
+}
+
 function Prose({ text, streaming }: { text: string; streaming: boolean }) {
-  const paragraphs = text.split(/\n{2,}/);
+  const blocks = parseMarkdown(text, streaming);
+  const cursor = streaming && <span className="cursor" aria-hidden="true" />;
   return (
     <div className="prose">
-      {paragraphs.map((p, i) => (
-        <p key={i}>
-          {p}
-          {streaming && i === paragraphs.length - 1 && <span className="cursor" aria-hidden="true" />}
-        </p>
-      ))}
+      {blocks.map((b, i) => {
+        const end = i === blocks.length - 1 && cursor;
+        if (b.type === "p")
+          return (
+            <p key={i}>
+              <Inlines nodes={b.children} />
+              {end}
+            </p>
+          );
+        const items = b.items.map((item, k) => (
+          <li key={k}>
+            <Inlines nodes={item} />
+            {k === b.items.length - 1 && end}
+          </li>
+        ));
+        return b.type === "ul" ? (
+          <ul key={i}>{items}</ul>
+        ) : (
+          <ol key={i} start={b.start}>
+            {items}
+          </ol>
+        );
+      })}
     </div>
   );
 }
