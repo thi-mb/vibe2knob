@@ -1,0 +1,64 @@
+import json
+
+import pytest
+from pydantic import ValidationError
+
+from vibe2knob import protocol
+from vibe2knob.protocol import (
+    ChatDelta, ChatSend, ChatSteps, Settings, parse_client, parse_hub, schema,
+)
+
+from .conftest import ROOT
+
+
+def test_client_message_round_trip():
+    msg = parse_client('{"v": 1, "type": "chat.send", "chat_id": "c1", "text": "wider"}')
+    assert isinstance(msg, ChatSend)
+    assert msg.text == "wider"
+
+
+def test_version_defaults_and_is_enforced():
+    assert parse_client('{"type": "tracks.list"}').v == 1
+    with pytest.raises(ValidationError):
+        parse_client('{"v": 2, "type": "tracks.list"}')
+
+
+def test_unknown_type_and_extra_fields_are_rejected():
+    with pytest.raises(ValidationError):
+        parse_client('{"type": "live.delete_everything"}')
+    with pytest.raises(ValidationError):
+        parse_client('{"type": "chat.send", "chat_id": "c1", "text": "x", "surprise": 1}')
+
+
+def test_hub_messages_serialize_with_version_and_type():
+    data = json.loads(ChatDelta(chat_id="c1", turn_id="t1", text="Spread").model_dump_json())
+    assert data == {"v": 1, "type": "chat.delta", "chat_id": "c1", "turn_id": "t1", "text": "Spread"}
+    assert isinstance(parse_hub(json.dumps(data)), ChatDelta)
+
+
+def test_steps_message_carries_the_advice_step_shape():
+    step = {
+        "action": "adjust", "device": "Utility", "chain": None, "on_track": True,
+        "parameter": "Width", "value_range": "120-140 %", "explanation": "Wider sides.",
+    }
+    msg = parse_hub(json.dumps({"type": "chat.steps", "chat_id": "c", "turn_id": "t", "steps": [step]}))
+    assert isinstance(msg, ChatSteps)
+    assert msg.steps[0].parameter == "Width"
+
+
+def test_settings_never_carry_the_key():
+    assert "api_key" not in Settings.model_fields
+
+
+def test_ui_schema_is_up_to_date():
+    """ui/src/protocol/schema.json is generated; run `npm run gen:types` in ui/ after a change."""
+    committed = json.loads((ROOT / "ui" / "src" / "protocol" / "schema.json").read_text())
+    assert committed == schema(), "Protocol changed: run `npm run gen:types` in ui/"
+
+
+def test_schema_marks_type_required_for_narrowing():
+    defs = schema()["$defs"]
+    for name in ("ChatSend", "Hello", "ChatDelta", "ErrorMessage"):
+        assert "type" in defs[name]["required"], name
+    assert "v" in defs["ChatDelta"]["required"]
+    assert protocol.PROTOCOL_VERSION == 1

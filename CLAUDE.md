@@ -1,0 +1,37 @@
+# vibe2knob
+
+An AI producer mate that sits next to Ableton Live. It reads the session through AbletonOSC and turns subjective asks ("wider") into steps with Live's stock devices. It teaches; the user turns the knobs.
+
+## Shape
+
+One local **hub** (Python) owns the Live connection, the model calls and the chats. Every surface is a thin **client** of the hub: the desktop panel now, a browser tab, and later a phone. Clients only render and send input.
+
+- `src/vibe2knob/`: the hub. `core.py`, `advice.py`, `prompt.py` and `knowledge/` hold the advice engine, `providers/` holds the model adapters, and `protocol.py` defines the hub <-> client messages.
+- `live_bridge/`: reads Live through AbletonOSC. Every OSC address is kept in `client.py`.
+- `ui/`: the panel, built with React + TypeScript + Vite. `ui/src/protocol/` is generated, so don't edit it by hand.
+- `fixtures/`: real track dumps from Live 11. `evals/` holds model eval cases.
+
+## Rules
+
+- **The protocol is the contract.** Change `src/vibe2knob/protocol.py`, then run `npm run gen:types` in `ui/` and commit both. CI fails on drift. Adding optional fields or new message types is fine. Renaming, removing or retyping a field means bumping `PROTOCOL_VERSION`.
+- **Version persisted data.** Saved chats and settings carry a `schema_version`, and old files are migrated, never broken.
+- **The API key never leaves the hub.** It's kept in the Keychain or the environment, and clients only see `api_key_set`.
+- **No telemetry.** The model gets track names, devices and parameters, and never audio.
+- **Teach is the default.** Anything that changes Live (the future Do mode) is shown to the user, confirmed and undoable.
+
+## Environment
+
+- Mac only for now, with Live 11 and 12 supported (tested on Live 11). Live 12-only APIs are optional extras.
+- v0.1 is for the maintainers only. The repo is private and has no license yet; pick one before it goes public.
+- Real-model evals need `ANTHROPIC_API_KEY`, which is only on Thiago's Mac. Pushes go from the cloud because a VPN blocks pushing from the Mac.
+
+## Commands
+
+```sh
+pip install -e '.[dev]' && pytest -q          # hub tests
+cd ui && npm ci && npm test && npm run build  # UI tests and build
+cd ui && npm run gen:types                    # regenerate protocol types after a protocol change
+vibe2knob eval --model claude-haiku-5-5       # real-model evals (needs a key)
+```
+
+Architecture and decisions: see the "vibe2knob architecture" doc in the project, and `docs/future-ideas.md`.
