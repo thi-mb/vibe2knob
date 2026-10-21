@@ -43,7 +43,8 @@ def test_settings(store):
     assert store.load_settings() == StoredSettings()
     store.save_settings(StoredSettings(provider="ollama", model="qwen"))
     data = json.loads(store.settings_path.read_text())
-    assert data == {"schema_version": 1, "provider": "ollama", "model": "qwen"}
+    assert {k: data[k] for k in ("schema_version", "provider", "model")} == {
+        "schema_version": 1, "provider": "ollama", "model": "qwen"}
     assert store.load_settings().model == "qwen"
     store.settings_path.write_text(json.dumps({"schema_version": 2}))
     with pytest.raises(ValueError, match="newer"):

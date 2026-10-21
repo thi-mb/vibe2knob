@@ -3,7 +3,8 @@
 Everything lives in one folder (by default ~/Library/Application Support/vibe2knob):
 - chats/<id>.json: one Chat each (chat.py versions and migrates them),
 - chats/closed/: chats whose tab was closed, kept so nothing is lost,
-- settings.json: provider and model, with its own schema_version.
+- settings.json: provider and model, and the panel window's size, position and on-top
+  switch, with its own schema_version.
 
 The Anthropic key is kept in the Keychain (via keyring), never in these files. An
 ANTHROPIC_API_KEY in the environment (or a .env file) wins over the Keychain.
@@ -17,7 +18,7 @@ import tempfile
 from pathlib import Path
 from typing import Callable, Literal, Protocol
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from .chat import Chat
 
@@ -33,12 +34,26 @@ def default_home() -> Path:
     return Path.home() / "Library" / "Application Support" / "vibe2knob"
 
 
+class WindowState(BaseModel):
+    """The `vibe2knob panel --window` window. Clients never see it: only the window uses it."""
+
+    width: int = 400
+    height: int = 860
+    x: int | None = None  # None: let the OS place it
+    y: int | None = None
+    on_top: bool = True
+
+
 class StoredSettings(BaseModel):
-    """settings.json. The client sees protocol.Settings, which adds api_key_set."""
+    """settings.json. The client sees protocol.Settings, which adds api_key_set.
+
+    Adding a field with a default needs no new schema_version: older files load as they are.
+    """
 
     schema_version: Literal[1] = SETTINGS_SCHEMA_VERSION
     provider: Literal["claude", "ollama"] = "claude"
     model: str | None = None
+    window: WindowState = Field(default_factory=WindowState)
 
 
 # One function per old schema_version, each upgrading a dict to the next version.
