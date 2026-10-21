@@ -182,7 +182,7 @@ function ChatView({ state, actions, pickerOpen, setPickerOpen }: ChatViewProps) 
   };
 
   return (
-    <>
+    <div className="chat-layout">
       <Tabs
         chats={state.chats}
         activeId={state.activeChatId}
@@ -191,77 +191,79 @@ function ChatView({ state, actions, pickerOpen, setPickerOpen }: ChatViewProps) 
         onClose={actions.closeChat}
         onNew={() => actions.newChat()}
       />
-      {state.notice && (
-        <div className="notice" role="alert">
-          <span>{state.notice}</span>
-          <button className="icon-button" aria-label="Dismiss" onClick={actions.dismissNotice}>
-            ×
-          </button>
-        </div>
-      )}
-      <ContextBar
-        context={context}
-        selected={state.live.selected_track}
-        tracks={state.tracks}
-        canSee={canSee}
-        example={state.live.example}
-        pickerOpen={pickerOpen}
-        onChange={setContext}
-        onPicker={(open) => {
-          if (open) actions.listTracks();
-          setPickerOpen(open);
-        }}
-      />
-      <Conversation
-        key={chat?.id ?? "none"}
-        chatId={chat?.id ?? "none"}
-        turns={turns}
-        trackColors={trackColors}
-        onAsk={actions.send}
-        after={
-          blocked && (turns?.length ?? 0) > 0 ? (
-            <OfflineCard live={state.live} examples={state.examples} onCheck={actions.listTracks} onExample={actions.useExample} />
-          ) : null
-        }
-        empty={
-          blocked ? (
-            <OfflineCard live={state.live} examples={state.examples} onCheck={actions.listTracks} onExample={actions.useExample} />
-          ) : (
-            <div className="card">
-              <h2>{general ? "Ask anything about Live" : "What should it feel like?"}</h2>
-              <div className="quiet">
-                {general
-                  ? "Setup, plugins, routing, workflow. Add a track with @ when you want advice on it."
-                  : state.live.selected_track
-                    ? `Say how ${state.live.selected_track.name} should sound: wider, warmer, punchier, trippier.`
-                    : "Select a track in Live, then say how it should sound: wider, warmer, punchier."}
+      <div className="chat-main">
+        {state.notice && (
+          <div className="notice" role="alert">
+            <span>{state.notice}</span>
+            <button className="icon-button" aria-label="Dismiss" onClick={actions.dismissNotice}>
+              ×
+            </button>
+          </div>
+        )}
+        <ContextBar
+          context={context}
+          selected={state.live.selected_track}
+          tracks={state.tracks}
+          canSee={canSee}
+          example={state.live.example}
+          pickerOpen={pickerOpen}
+          onChange={setContext}
+          onPicker={(open) => {
+            if (open) actions.listTracks();
+            setPickerOpen(open);
+          }}
+        />
+        <Conversation
+          key={chat?.id ?? "none"}
+          chatId={chat?.id ?? "none"}
+          turns={turns}
+          trackColors={trackColors}
+          onAsk={actions.send}
+          after={
+            blocked && (turns?.length ?? 0) > 0 ? (
+              <OfflineCard live={state.live} examples={state.examples} onCheck={actions.listTracks} onExample={actions.useExample} />
+            ) : null
+          }
+          empty={
+            blocked ? (
+              <OfflineCard live={state.live} examples={state.examples} onCheck={actions.listTracks} onExample={actions.useExample} />
+            ) : (
+              <div className="card">
+                <h2>{general ? "Ask anything about Live" : "What should it feel like?"}</h2>
+                <div className="quiet">
+                  {general
+                    ? "Setup, plugins, routing, workflow. Add a track with @ when you want advice on it."
+                    : state.live.selected_track
+                      ? `Say how ${state.live.selected_track.name} should sound: wider, warmer, punchier, trippier.`
+                      : "Select a track in Live, then say how it should sound: wider, warmer, punchier."}
+                </div>
+                {state.live.example && (
+                  <button className="link-button" style={{ alignSelf: "flex-start" }} onClick={() => actions.useExample(null)}>
+                    Stop using the example and go back to Live
+                  </button>
+                )}
               </div>
-              {state.live.example && (
-                <button className="link-button" style={{ alignSelf: "flex-start" }} onClick={() => actions.useExample(null)}>
-                  Stop using the example and go back to Live
-                </button>
-              )}
-            </div>
-          )
-        }
-      />
-      <Composer
-        disabled={blocked}
-        busy={streaming}
-        placeholder={
-          blocked
-            ? "Connect Live or pick an example"
-            : general
-              ? "Ask anything about Live… @ to add a track"
-              : "Describe the vibe… wider, warmer, trippier"
-        }
-        quickReplies={quick}
-        onSend={actions.send}
-        onAt={() => {
-          actions.listTracks();
-          setPickerOpen(true);
-        }}
-      />
-    </>
+            )
+          }
+        />
+        <Composer
+          disabled={blocked}
+          busy={streaming}
+          placeholder={
+            blocked
+              ? "Connect Live or pick an example"
+              : general
+                ? "Ask anything about Live… @ to add a track"
+                : "Describe the vibe… wider, warmer, trippier"
+          }
+          quickReplies={quick}
+          onSend={actions.send}
+          onAt={() => {
+            actions.listTracks();
+            setPickerOpen(true);
+          }}
+        />
+      </div>
+    </div>
   );
 }
