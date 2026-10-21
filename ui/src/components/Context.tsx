@@ -32,8 +32,8 @@ export function Tabs({ chats, activeId, busyIds, onSelect, onClose, onNew }: Tab
           </div>
         );
       })}
-      <button className="key" aria-label="New chat" onClick={onNew}>
-        +
+      <button className="key new-chat" aria-label="New chat" onClick={onNew}>
+        +<span className="new-chat-label"> New chat</span>
       </button>
     </nav>
   );
