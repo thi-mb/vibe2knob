@@ -133,3 +133,26 @@ test("a hub restart reconnects and reloads the chat", async ({ page }) => {
   await expect(page.getByText("Spread the pad around")).toBeVisible();
   await expect(page.locator(".status").first()).toContainText("Live");
 });
+
+test("the panel fills a wide window and moves tabs into a sidebar", async ({ page }) => {
+  await open(page, "chat");
+  const tabs = page.getByRole("navigation", { name: "Chats" });
+  const isSidebar = async () => {
+    const box = (await tabs.boundingBox())!;
+    return box.height > box.width;
+  };
+
+  await page.setViewportSize({ width: 800, height: 860 });
+  await expect(page.getByText("Spread the pad around")).toBeVisible();
+  expect(await isSidebar()).toBe(false);
+  await shoot(page, "11-medium");
+
+  await page.setViewportSize({ width: 1400, height: 860 });
+  await expect.poll(isSidebar).toBe(true);
+  await expect(page.getByRole("button", { name: "New chat" })).toContainText("New chat");
+  const composer = (await page.locator(".composer .input-row").boundingBox())!;
+  expect(composer.width).toBeLessThanOrEqual(760); // a readable column, not the full width
+  await page.getByRole("button", { name: "Low-end mud", exact: true }).click();
+  await expect(page.getByText("Three things fight under 200 Hz")).toBeVisible();
+  await shoot(page, "12-wide");
+});
