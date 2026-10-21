@@ -280,3 +280,22 @@ def test_cli_chat(monkeypatch, capsys, tmp_path):
     assert "1. On Utility on \"Warm Pad\" > Stereo Width: 120-140 %" in out
     assert "(topic: Scripted chat)" in out
     assert len(Chat.load(out_file).turns) == 2
+
+
+def test_engine_reads_the_real_fake_live():
+    from live_bridge.fake import FakeLive
+
+    live = FakeLive()  # every fixture, in file-name order
+    pad = next(t["index"] for t in live.session_summary()["tracks"] if t["name"] == "Warm Pad")
+    live.select(pad)
+    provider = FakeProvider([wider_reply()])
+    chat = Chat()
+    events = run(ChatEngine(provider), chat, "make this wider", live)
+    steps = next(e for e in events if isinstance(e, TurnSteps))
+    assert steps.warnings == [] and {s.track_index for s in steps.steps} == {pad}
+    msg = provider.calls[0]["messages"][-1]["content"]
+    assert "Session: Live 11.3" in msg and "Full detail (selected in Live):" in msg
+
+    live.set_connected(False)
+    run(ChatEngine(provider), chat, "and now?", live)
+    assert "Couldn't read the session from Live" in provider.calls[1]["messages"][-1]["content"]
