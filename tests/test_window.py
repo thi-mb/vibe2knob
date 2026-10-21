@@ -3,6 +3,7 @@
 The real window is checked by hand on a Mac; these cover everything around it.
 """
 
+import http.client
 import importlib
 import json
 import socket
@@ -22,7 +23,14 @@ from live_bridge import FakeLive  # noqa: E402
 from vibe2knob import cli  # noqa: E402
 from vibe2knob.hub import Hub  # noqa: E402
 from vibe2knob.providers.fake import FakeProvider  # noqa: E402
-from vibe2knob.server import Access, HubThread, _hub_on, create_app, run_panel  # noqa: E402
+from vibe2knob.server import (  # noqa: E402
+    Access,
+    HubThread,
+    _hub_on,
+    _port_free,
+    create_app,
+    run_panel,
+)
 from vibe2knob.store import MemoryKeys, Store, WindowState  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,6 +75,22 @@ def test_hub_thread_starts_and_stops(tmp_path):
     assert not thread.thread.is_alive()
     assert hub.stopped == 1
     assert not _hub_on(port)
+
+
+def test_the_port_is_free_again_right_after_a_stop(tmp_path):
+    # The hub closes the kept-alive connection, which leaves it in TIME_WAIT on our side.
+    port = free_port()
+    thread, _, _ = hub_thread(tmp_path, port)
+    thread.start()
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+    conn.request("GET", "/api/hub")
+    conn.getresponse().read()
+    thread.stop()
+    conn.close()
+    assert _port_free(port)
+    again, _, _ = hub_thread(tmp_path, port)  # and a new hub really can listen there
+    again.start()
+    again.stop()
 
 
 def test_hub_thread_that_cant_start_raises(tmp_path):
