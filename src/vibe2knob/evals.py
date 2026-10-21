@@ -64,7 +64,10 @@ def _text(advice: Advice) -> str:
 
 
 def grade(case: Case, advice: Advice) -> list[Check]:
-    devices = [s.device for s in advice.steps]
+    def names(steps):
+        return [n for s in steps for n in {s.device, s.stock_device} if n]
+
+    devices = names(advice.steps)
     checks = [
         Check(
             "step count",
@@ -97,7 +100,7 @@ def grade(case: Case, advice: Advice) -> list[Check]:
             )
         )
     if case.expect_on_track_any:
-        used = [s.device for s in advice.steps if s.on_track]
+        used = names(s for s in advice.steps if s.on_track)
         checks.append(
             Check(
                 "works with what's on the track",

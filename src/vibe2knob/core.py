@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from pydantic import ValidationError
 
@@ -10,7 +11,7 @@ from .advice import ADVICE_SCHEMA, Advice
 from .knowledge import Term, load_terms, match_terms
 from .prompt import build_system_prompt, build_user_prompt
 from .providers import Provider, ProviderError
-from .state import TrackState
+from .state import Device, TrackState
 from .stock_devices import canonical
 
 
@@ -39,23 +40,69 @@ def ask(
 
 
 def check_advice(advice: Advice, state: TrackState) -> list[str]:
-    """Cheap sanity checks on the model's steps against the real chain."""
+    """Cheap sanity checks on the model's steps against the real chain.
+
+    Also fills each step's `stock_device`, and normalises `device` to the name
+    shown on the chain (or the stock name for a new device).
+    """
     warnings = []
-    on_chain = {canonical(d.class_name) or canonical(d.name) or d.name for d in state.all_devices()}
-    on_chain |= {d.name for d in state.all_devices()}
-    plugins = {d.name for d in state.all_devices() if d.is_plugin}
+    by_name = {d.name: d for d in state.all_devices()}
+    # Stock names of what is on the track, plus anything earlier steps add.
+    present = {canonical(d.class_name) or canonical(d.name) for d in by_name.values()} - {None}
     for i, step in enumerate(advice.steps, 1):
-        name = canonical(step.device)
-        if name is None and step.device in plugins and step.action != "add_device":
-            continue  # adjusting a plugin that is already on the track is fine
-        if name is None:
-            warnings.append(f"Step {i}: '{step.device}' is not a stock Live device.")
+        device = _find_on_chain(step.device, by_name)
+        if step.action == "add_device" and device is not None and device.is_plugin:
+            warnings.append(f"Step {i}: adds {device.name}, which is not a stock Live device.")
             continue
-        step.device = name
-        if step.on_track and name not in on_chain and step.device not in on_chain:
-            warnings.append(f"Step {i}: says {name} is on the track, but it isn't.")
-        elif step.action in ("adjust", "enable", "disable", "remove", "reorder") and name not in on_chain:
-            warnings.append(f"Step {i}: asks to {step.action} {name}, which isn't on the track yet.")
+        if device is not None:
+            step.device = device.name
+            stock = None if device.is_plugin else canonical(device.class_name) or canonical(device.name)
+        else:
+            stock = canonical(_strip_notes(step.device))
+            if stock is None:
+                warnings.append(f"Step {i}: '{step.device}' is not a stock Live device.")
+                continue
+            step.device = stock
+        step.stock_device = stock
+        if step.action == "add_device":
+            if step.on_track:
+                warnings.append(f"Step {i}: adds {step.device} but marks it as already on the track.")
+            if stock:
+                present.add(stock)
+            continue
+        if device is not None and device.is_plugin:
+            continue  # adjusting a plugin that is already on the track is fine
+        if device is None and stock not in present:
+            if step.on_track:
+                warnings.append(f"Step {i}: says {step.device} is on the track, but it isn't.")
+            else:
+                warnings.append(
+                    f"Step {i}: asks to {step.action} {step.device}, which isn't on the track yet."
+                )
     if not advice.steps:
         warnings.append("No steps were suggested.")
     return warnings
+
+
+_NOTES = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]\s*$")
+
+
+def _strip_notes(name: str) -> str:
+    """'Kick 909 (Simpler, Kick chain)' -> 'Kick 909'. Strips trailing (...) and [...]."""
+    while True:
+        stripped = _NOTES.sub("", name).strip()
+        if stripped == name or not stripped:
+            return name
+        name = stripped
+
+
+def _find_on_chain(name: str, by_name: dict[str, Device]) -> Device | None:
+    """The chain device a step means, tolerating notes the model appends to the name."""
+    candidate = name.strip()
+    while True:
+        if candidate in by_name:
+            return by_name[candidate]
+        stripped = _NOTES.sub("", candidate).strip()
+        if stripped == candidate or not stripped:
+            return None
+        candidate = stripped

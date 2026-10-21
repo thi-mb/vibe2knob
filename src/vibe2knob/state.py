@@ -13,6 +13,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .stock_devices import canonical
+
 TrackType = Literal["audio", "midi", "group", "return", "master"]
 DeviceType = Literal["audio_effect", "instrument", "midi_effect", "rack", "unknown"]
 
@@ -149,13 +151,13 @@ class TrackState(_Open):
 def _describe_devices(devices: list[Device], lines: list[str], indent: int) -> None:
     pad = "  " * indent
     for i, d in enumerate(devices, 1):
-        label = d.name
-        if d.class_name and d.class_name != d.name:
-            label += f" [{d.class_name}]"
-        state = "" if d.enabled else " (OFF)"
+        lines.append(f"{pad}{i}. {d.name}{'' if d.enabled else ' (OFF)'}")
         if d.is_plugin:
-            state += " (third-party plugin or Max device, not stock)"
-        lines.append(f"{pad}{i}. {label}{state}")
+            lines.append(f"{pad}   note: third-party plugin or Max device; values are raw 0..1")
+        else:
+            stock = canonical(d.class_name) or canonical(d.name)
+            if stock and stock != d.name:
+                lines.append(f"{pad}   note: this is Live's {stock}, renamed")
         params = [p for p in d.parameters if p.name != "Device On"]
         if d.is_plugin and not params:
             lines.append(f"{pad}   - parameters not visible (not configured in Live)")
