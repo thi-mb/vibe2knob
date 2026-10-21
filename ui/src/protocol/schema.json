@@ -925,6 +925,18 @@
           ],
           "type": "string"
         },
+        "track": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Track the step is on, as named in the chat's context; null for the only track."
+        },
         "device": {
           "description": "Exact name as listed on the chain, or the stock device name when adding one.",
           "type": "string"
@@ -982,6 +994,18 @@
           ],
           "default": null,
           "description": "Stock device this step uses; filled in by vibe2knob's checks."
+        },
+        "track_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Live's index of the track the step is on; filled in by vibe2knob's checks, null when the track name is missing or matches more than one track."
         }
       },
       "required": [

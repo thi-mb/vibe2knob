@@ -6,7 +6,7 @@ An AI producer mate that sits next to Ableton Live. It reads the session through
 
 One local **hub** (Python) owns the Live connection, the model calls and the chats. Every surface is a thin **client** of the hub: the desktop panel now, a browser tab, and later a phone. Clients only render and send input.
 
-- `src/vibe2knob/`: the hub. `core.py`, `advice.py`, `prompt.py` and `knowledge/` hold the advice engine, `providers/` holds the model adapters, and `protocol.py` defines the hub <-> client messages.
+- `src/vibe2knob/`: the hub. `core.py`, `advice.py`, `prompt.py` and `knowledge/` hold the advice engine, `chat.py` runs multi-turn chats (with `tools.py` for the model's tools and `session.py` for what it reads from Live), `providers/` holds the model adapters (`providers/fake.py` is a scripted one for tests and keyless runs), and `protocol.py` defines the hub <-> client messages.
 - `live_bridge/`: reads Live through AbletonOSC. Every OSC address is kept in `client.py`.
 - `ui/`: the panel, built with React + TypeScript + Vite. `ui/src/protocol/` is generated, so don't edit it by hand.
 - `fixtures/`: real track dumps from Live 11. `evals/` holds model eval cases.
@@ -31,7 +31,8 @@ One local **hub** (Python) owns the Live connection, the model calls and the cha
 pip install -e '.[dev]' && pytest -q          # hub tests
 cd ui && npm ci && npm test && npm run build  # UI tests and build
 cd ui && npm run gen:types                    # regenerate protocol types after a protocol change
-vibe2knob eval --model claude-haiku-5-5       # real-model evals (needs a key)
+vibe2knob eval --model claude-haiku-5-5       # real-model evals, one-shot ask path (needs a key)
+vibe2knob eval --chat --model claude-haiku-5-5  # the same cases plus chat-only ones, on the chat path
 ```
 
 Architecture and decisions: see the "vibe2knob architecture" doc in the project, and `docs/future-ideas.md`.
