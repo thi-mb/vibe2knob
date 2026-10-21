@@ -130,8 +130,10 @@ def test_decorated_names_resolve_to_chain_devices(fake):
     assert [s.stock_device for s in advice.steps] == ["Simpler", "Reverb"]
 
 
-def test_new_device_marked_on_track_is_flagged(fake):
+def test_new_device_marked_on_track_is_normalised(fake):
+    # Seen from a real model: add_device steps with on_track true.
     answer = copy.deepcopy(WIDER_PAD)
     answer["steps"][0].update(action="add_device", device="Auto Filter", on_track=True)
     advice = ask(pad(), "dreamy", fake(answer))
-    assert any("marks it as already on the track" in w for w in advice.warnings)
+    assert advice.warnings == []
+    assert advice.steps[0].on_track is False
