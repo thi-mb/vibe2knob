@@ -476,11 +476,36 @@ button:disabled {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.prose p {
+.prose p,
+.prose ul,
+.prose ol {
   margin: 0 0 8px;
 }
-.prose p:last-child {
+.prose ul,
+.prose ol {
+  padding-left: 20px;
+}
+.prose li + li {
+  margin-top: 4px;
+}
+.prose li::marker {
+  color: var(--text-quiet);
+  font: 12px var(--font-mono);
+}
+.prose > :last-child {
   margin-bottom: 0;
+}
+.prose strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.prose code {
+  font: 12px var(--font-mono);
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 4px;
 }
 
 .cursor {

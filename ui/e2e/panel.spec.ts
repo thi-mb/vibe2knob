@@ -77,6 +77,11 @@ test("a general chat has no tracks", async ({ page }) => {
   await page.getByLabel("Describe the vibe").fill("Guitar Rig doesn't show up in Live");
   await page.keyboard.press("Enter");
   await expect(page.getByText("only lists plugins from the formats")).toBeVisible();
+  // The answer's markdown renders, and no raw markers show.
+  await expect(page.locator(".prose ol li")).toHaveCount(2);
+  await expect(page.locator(".prose strong").last()).toHaveText("Rescan");
+  await expect(page.locator(".prose code")).toHaveText("Option");
+  await expect(page.locator(".prose")).not.toContainText("**");
   await expect(page.locator(".step")).toHaveCount(0);
   await shoot(page, "06-general");
 });

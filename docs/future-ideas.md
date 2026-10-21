@@ -7,6 +7,9 @@ Parked ideas that are not part of v0.1. They came up while designing the chat pa
 - **Custom accent color.** The default is the amber LED, and the user can pick their own in settings.
 - **Turn Live's knobs from the panel.** Link the knob on each step card to the real parameter in Live, so the user can turn it from vibe2knob. The user always does the turning. The model never moves a knob itself.
 - **Light theme.** A cream "hardware light" variant, for people who run Live with a light theme.
+- **Diagrams in answers.** Not free-form Mermaid or SVG from the model, which streams slowly, reads badly at 400 px and is a safety risk. Instead, a few typed visuals that the model fills through a tool call, like suggest_steps, and that the panel draws as its own cards:
+  - A **frequency map** first: a bar per track over 20 Hz to 20 kHz, with the clash zone highlighted, for answers like "these two fight around 2 to 4 kHz".
+  - A **signal flow** view: the device chain plus sends and returns. The hub already reads most of it from Live, so the model only points at what matters.
 
 ## Context
 
