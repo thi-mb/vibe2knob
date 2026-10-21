@@ -1,3 +1,6 @@
+import io
+import json
+import urllib.error
 from types import SimpleNamespace
 
 import pytest
@@ -41,3 +44,128 @@ def test_claude_refusal_raises():
 def test_unknown_provider():
     with pytest.raises(ProviderError):
         get_provider("gpt")
+
+
+# stream_chat
+
+
+from vibe2knob.providers import OllamaProvider  # noqa: E402
+from vibe2knob.providers.base import Done, Error, TextDelta, ToolCall, ToolSpec  # noqa: E402
+
+TOOLS = [ToolSpec("suggest_steps", "Show steps.", {"type": "object"})]
+
+
+class FakeStream:
+    def __init__(self, events, final):
+        self.events, self.final = events, final
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def __iter__(self):
+        return iter(self.events)
+
+    def get_final_message(self):
+        return self.final
+
+
+def stream_client(stop_reason="tool_use"):
+    def delta(text):
+        return SimpleNamespace(type="content_block_delta", delta=SimpleNamespace(type="text_delta", text=text))
+
+    final = SimpleNamespace(
+        stop_reason=stop_reason,
+        content=[
+            SimpleNamespace(type="text", text="Open it up."),
+            SimpleNamespace(type="tool_use", name="suggest_steps", id="toolu_1", input={"steps": []}),
+        ],
+        usage=SimpleNamespace(input_tokens=10, output_tokens=5, cache_read_input_tokens=900,
+                              cache_creation_input_tokens=0),
+    )
+    calls = {}
+
+    def stream(**kwargs):
+        calls.update(kwargs)
+        return FakeStream([delta("Open "), delta("it up.")], final)
+
+    return SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(stream=stream))), calls
+
+
+def test_claude_stream_chat():
+    client, kw = stream_client()
+    events = list(ClaudeProvider(client=client).stream_chat("sys", [{"role": "user", "content": "hi"}], TOOLS))
+    assert events[:2] == [TextDelta("Open "), TextDelta("it up.")]
+    assert events[2] == ToolCall("suggest_steps", {"steps": []}, "toolu_1")
+    assert isinstance(events[3], Done) and events[3].usage["cache_read_input_tokens"] == 900
+    assert kw["tools"] == [{"name": "suggest_steps", "description": "Show steps.",
+                            "input_schema": {"type": "object"}, "strict": True}]
+    assert kw["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert kw["fallbacks"] == "default"
+
+
+def test_claude_stream_cut_off_drops_tool_call():
+    client, _ = stream_client(stop_reason="max_tokens")
+    events = list(ClaudeProvider(client=client).stream_chat("s", [], TOOLS))
+    assert isinstance(events[-1], Error) and not any(isinstance(e, ToolCall) for e in events)
+
+
+class FakeResponse:
+    def __init__(self, body: bytes):
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def __iter__(self):
+        return iter(self.body.splitlines(keepends=True))
+
+    def read(self):
+        return self.body
+
+
+def test_ollama_stream_chat(monkeypatch):
+    lines = [
+        {"message": {"role": "assistant", "content": "Open "}, "done": False},
+        {"message": {"role": "assistant", "content": "it up."}, "done": False},
+        {"message": {"role": "assistant", "content": "", "tool_calls": [
+            {"function": {"name": "suggest_steps", "arguments": {"steps": []}}}]}, "done": False},
+        {"message": {"role": "assistant", "content": ""}, "done": True,
+         "prompt_eval_count": 12, "eval_count": 7},
+    ]
+    sent = []
+    provider = OllamaProvider()
+
+    def post(body):
+        sent.append(body)
+        return FakeResponse("\n".join(json.dumps(x) for x in lines).encode())
+
+    monkeypatch.setattr(provider, "_post", post)
+    events = list(provider.stream_chat("sys", [{"role": "user", "content": "hi"}], TOOLS))
+    assert events == [TextDelta("Open "), TextDelta("it up."), ToolCall("suggest_steps", {"steps": []}),
+                      Done({"input_tokens": 12, "output_tokens": 7}, "end_turn")]
+    assert sent[0]["messages"][0] == {"role": "system", "content": "sys"}
+    assert sent[0]["tools"][0]["function"]["name"] == "suggest_steps"
+
+
+def test_ollama_falls_back_to_json_without_tools(monkeypatch):
+    provider = OllamaProvider()
+    sent = []
+
+    def post(body):
+        sent.append(body)
+        if body["stream"]:
+            raise urllib.error.HTTPError("u", 400, "bad", {}, io.BytesIO(b'{"error":"llama2 does not support tools"}'))
+        answer = {"answer": "Open it up.", "suggest_steps": {"steps": [], "listen_for": "x", "caution": None}}
+        return FakeResponse(json.dumps({"message": {"content": json.dumps(answer)}}).encode())
+
+    monkeypatch.setattr(provider, "_post", post)
+    events = list(provider.stream_chat("sys", [], TOOLS))
+    assert events[0] == TextDelta("Open it up.")
+    assert events[1].name == "suggest_steps" and isinstance(events[2], Done)
+    assert sent[1]["format"]["required"] == ["answer", "suggest_steps"]

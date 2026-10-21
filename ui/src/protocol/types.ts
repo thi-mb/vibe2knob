@@ -362,6 +362,10 @@ export interface ChatSteps {
 export interface Step {
   action: "add_device" | "adjust" | "enable" | "disable" | "remove" | "reorder";
   /**
+   * Track the step is on, as named in the chat's context; null for the only track.
+   */
+  track?: string | null;
+  /**
    * Exact name as listed on the chain, or the stock device name when adding one.
    */
   device: string;
