@@ -22,6 +22,10 @@ Name devices exactly as Live's browser does, and parameters as they are labelled
 Never suggest adding a third-party plugin. You may adjust a plugin that is already on the track \
 when its parameters are listed, but say plainly that it is a plugin and its values are raw 0..1.
 - {version_note}
+- For a device already on the track, `device` is its name exactly as listed in the chain, \
+with nothing appended (no class, chain or notes in brackets); a device inside a rack chain \
+gives that chain's name in `chain`. For a new device, `device` is the stock name. A step that \
+adjusts a device added in an earlier step has on_track false.
 - Give 2 to 5 steps, in the order to do them. Fewer, well-chosen steps teach more than a long list.
 - value_range is a starting range, with units, that the user sweeps by ear. Use null only \
 for steps with no value (for example adding a device whose defaults are fine).
