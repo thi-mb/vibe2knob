@@ -1,0 +1,590 @@
+# vibe2knob knowledge map: subjective terms -> techniques with Live's stock devices.
+#
+# This file is meant to be edited by producers, not just programmers.
+# Each [[term]] has:
+#   id        a short name for the term
+#   words     what people actually type ("wider", "more width", "spread it out")
+#   meaning   what the word usually means in sound, in one or two sentences
+#   cautions  common ways the technique goes wrong
+# and one or more [[term.technique]] entries with:
+#   name      a short name for the technique
+#   devices   stock devices it uses (names as shown in Live's browser)
+#   how       what to do and why it works, in plain words
+#   params    starting points: device, parameter (as labelled in Live), range
+#   best_on   material where it shines (optional)
+#   avoid_on  material where it backfires (optional)
+#
+# Ranges are starting points for ears, not rules. If you know a better move,
+# open a PR. See CONTRIBUTING notes in README.md.
+
+[[term]]
+id = "wide"
+words = ["wide", "wider", "width", "stereo", "spread", "spacious", "bigger stereo", "panoramic"]
+meaning = "Energy spread across left and right instead of sitting in the centre, so the sound wraps around the listener."
+cautions = [
+  "Keep sub and bass content mono (roughly below 120-150 Hz); wide lows collapse or cancel on club systems and phones.",
+  "Check in mono (Utility Mono switch) after widening; if the sound gets thin or quieter, back off.",
+  "Width is relative: making everything wide makes nothing wide. Leave kick, bass and lead vocal mostly centred.",
+]
+
+  [[term.technique]]
+  name = "Utility width"
+  devices = ["Utility"]
+  how = "Raise Width above 100% to boost the side signal. Quick and mono-safe-ish at moderate amounts because it only rebalances what is already stereo."
+  params = [
+    { device = "Utility", parameter = "Width", range = "110-150 %" },
+    { device = "Utility", parameter = "Bass Mono", range = "on, 120-150 Hz" },
+  ]
+  best_on = ["pads", "stereo synths", "backing vocals", "group tracks"]
+  avoid_on = ["mono sources (Width does nothing on a mono signal)", "bass", "kick"]
+
+  [[term.technique]]
+  name = "Chorus or ensemble widening"
+  devices = ["Chorus-Ensemble"]
+  how = "Short modulated delays that differ between left and right create width even from a mono source. Ensemble mode is lusher, Classic is subtler."
+  params = [
+    { device = "Chorus-Ensemble", parameter = "Mode", range = "Classic or Ensemble" },
+    { device = "Chorus-Ensemble", parameter = "Rate", range = "0.3-1.0 Hz" },
+    { device = "Chorus-Ensemble", parameter = "Amount", range = "20-50 %" },
+    { device = "Chorus-Ensemble", parameter = "Dry/Wet", range = "20-40 %" },
+  ]
+  best_on = ["mono synths", "electric piano", "guitars", "backing vocals"]
+  avoid_on = ["bass (or use the device's high-pass on the wet signal)"]
+
+  [[term.technique]]
+  name = "Haas delay"
+  devices = ["Delay"]
+  how = "Delay one side by a few milliseconds with no feedback. The brain hears it as one wide sound rather than an echo. Turn Sync off and set a tiny time on one channel only."
+  params = [
+    { device = "Delay", parameter = "Sync", range = "off" },
+    { device = "Delay", parameter = "Delay Time (one side)", range = "8-25 ms" },
+    { device = "Delay", parameter = "Feedback", range = "0 %" },
+    { device = "Delay", parameter = "Dry/Wet", range = "30-50 %" },
+  ]
+  best_on = ["mono guitars", "mono synth leads", "percussion"]
+  avoid_on = ["anything that must stay mono-compatible, check in mono because it combs"]
+
+  [[term.technique]]
+  name = "Mid/side EQ"
+  devices = ["EQ Eight"]
+  how = "Put EQ Eight in M/S mode and gently boost highs on the Side channel. The edges get brighter so the image feels wider while the centre stays solid."
+  params = [
+    { device = "EQ Eight", parameter = "Mode", range = "M/S, edit Side" },
+    { device = "EQ Eight", parameter = "High shelf gain (Side)", range = "+1.5 to +3 dB from 4-8 kHz" },
+    { device = "EQ Eight", parameter = "Low cut (Side)", range = "high-pass Side below 150-250 Hz" },
+  ]
+  best_on = ["stereo groups", "pads", "overheads"]
+
+[[term]]
+id = "warm"
+words = ["warm", "warmer", "warmth", "cosy", "analog", "analogue", "round", "rounder", "softer highs"]
+meaning = "More low-mid body and gently rolled-off or saturated highs, the opposite of thin and harsh."
+cautions = [
+  "Warm is not muddy: lift around 150-400 Hz in small amounts and cut if it gets boxy.",
+  "Saturation adds level; match volume with the Output knob before judging.",
+]
+
+  [[term.technique]]
+  name = "Soft saturation"
+  devices = ["Saturator"]
+  how = "Gentle saturation adds low-order harmonics that read as warmth. Analog Clip or Soft Sine with low drive; turn Output down to match the original level."
+  params = [
+    { device = "Saturator", parameter = "Type", range = "Analog Clip or Soft Sine" },
+    { device = "Saturator", parameter = "Drive", range = "2-6 dB" },
+    { device = "Saturator", parameter = "Output", range = "minus the drive amount" },
+    { device = "Saturator", parameter = "Dry/Wet", range = "50-100 %" },
+  ]
+
+  [[term.technique]]
+  name = "Tube colour"
+  devices = ["Dynamic Tube"]
+  how = "Tube-style saturation that reacts to level. Low Drive with a little Bias gives a thicker, rounded tone."
+  params = [
+    { device = "Dynamic Tube", parameter = "Tube", range = "A or B" },
+    { device = "Dynamic Tube", parameter = "Drive", range = "low, 10-30 %" },
+    { device = "Dynamic Tube", parameter = "Bias", range = "10-30 %" },
+  ]
+  best_on = ["vocals", "keys", "bass"]
+
+  [[term.technique]]
+  name = "Tilt the EQ"
+  devices = ["EQ Eight", "Channel EQ"]
+  how = "Ease off the top end and add a broad, small low-mid lift. Removing harshness often sounds warmer than adding bass."
+  params = [
+    { device = "EQ Eight", parameter = "High shelf or low-pass", range = "-1 to -3 dB above 8-10 kHz, or low-pass at 12-16 kHz" },
+    { device = "EQ Eight", parameter = "Bell", range = "+1 to +2 dB around 200-300 Hz, Q 0.7" },
+    { device = "Channel EQ", parameter = "High", range = "slightly below 0 dB" },
+  ]
+
+[[term]]
+id = "bright"
+words = ["bright", "brighter", "air", "airy", "crisp", "sparkle", "shiny", "open up", "clearer top"]
+meaning = "More high-frequency energy, especially the 'air' band above 10 kHz, so the sound feels open and close."
+cautions = [
+  "Boosting 2-5 kHz quickly gets harsh; air lives higher, around 10-16 kHz.",
+  "Brightening a dull recording also brings up hiss; saturation can generate highs more naturally.",
+]
+
+  [[term.technique]]
+  name = "Air shelf"
+  devices = ["EQ Eight"]
+  how = "A wide high shelf high up adds sheen without harshness."
+  params = [
+    { device = "EQ Eight", parameter = "Band 8 (high shelf) Frequency", range = "10-14 kHz" },
+    { device = "EQ Eight", parameter = "Band 8 Gain", range = "+1.5 to +4 dB" },
+  ]
+
+  [[term.technique]]
+  name = "Harmonic brightness"
+  devices = ["Saturator", "Roar"]
+  how = "Saturating only the top end creates new high harmonics, which sounds more alive than an EQ boost on dull material. Use Roar's band or a high-passed Saturator in an Audio Effect Rack chain."
+  params = [
+    { device = "Saturator", parameter = "Drive", range = "3-8 dB on a high-passed parallel chain" },
+    { device = "Roar", parameter = "Drive", range = "low, with the stage's filter set to high-pass" },
+  ]
+  best_on = ["dull vocals", "pads", "drum groups"]
+
+[[term]]
+id = "punchy"
+words = ["punchy", "punch", "hit harder", "impact", "snappy", "slap", "more attack", "knock"]
+meaning = "A strong, fast front edge on each hit followed by controlled body, so transients cut through the mix."
+cautions = [
+  "Too fast an attack on a compressor kills punch; let the transient through first.",
+  "Punch comes from contrast: louder transient relative to sustain, not louder overall.",
+]
+
+  [[term.technique]]
+  name = "Slow-attack compression"
+  devices = ["Compressor", "Glue Compressor"]
+  how = "An attack slow enough to let the transient pass, then clamp the sustain, exaggerates the hit."
+  params = [
+    { device = "Compressor", parameter = "Attack", range = "10-30 ms" },
+    { device = "Compressor", parameter = "Release", range = "50-150 ms, or Auto" },
+    { device = "Compressor", parameter = "Ratio", range = "3:1 to 6:1" },
+    { device = "Compressor", parameter = "Threshold", range = "to get 3-6 dB of gain reduction" },
+  ]
+
+  [[term.technique]]
+  name = "Drum Buss transients"
+  devices = ["Drum Buss"]
+  how = "Drum Buss's Transients knob directly shapes attack versus sustain; Boom adds a tuned low thump for kicks."
+  params = [
+    { device = "Drum Buss", parameter = "Transients", range = "+20 to +50 %" },
+    { device = "Drum Buss", parameter = "Comp", range = "on for glue" },
+    { device = "Drum Buss", parameter = "Boom", range = "10-30 %, Freq tuned to the kick" },
+  ]
+  best_on = ["drum groups", "kicks", "snares"]
+
+  [[term.technique]]
+  name = "Re-shape the envelope at the source"
+  devices = ["Simpler", "Drum Rack"]
+  how = "On MIDI drums, shorten the sample's Decay or Release and trim silence at the start. A tight envelope often punches harder than any processing."
+  params = [
+    { device = "Simpler", parameter = "Decay", range = "shorter, until the tail stops overlapping the next hit" },
+    { device = "Simpler", parameter = "Start", range = "trim to the first transient" },
+  ]
+
+[[term]]
+id = "trippy"
+words = ["trippy", "trippier", "psychedelic", "weird", "wobbly", "warped", "woozy", "dizzy", "acid"]
+meaning = "Movement and instability: things that sweep, swirl, smear in time or pitch, so the sound feels like it is morphing."
+cautions = [
+  "Sync modulation rates to the tempo or use slow free rates; random fast wobble just sounds broken.",
+  "Automate or use Dry/Wet so the effect evolves; a constant effect becomes wallpaper.",
+]
+
+  [[term.technique]]
+  name = "Phaser or flanger sweep"
+  devices = ["Phaser-Flanger"]
+  how = "A slow sweeping notch (phaser) or comb (flanger) makes the sound swirl. Feedback makes it more resonant and psychedelic."
+  params = [
+    { device = "Phaser-Flanger", parameter = "Mode", range = "Phaser for swirl, Flanger for jet" },
+    { device = "Phaser-Flanger", parameter = "Rate", range = "1/2 to 2 bars synced, or 0.1-0.5 Hz" },
+    { device = "Phaser-Flanger", parameter = "Amount", range = "40-80 %" },
+    { device = "Phaser-Flanger", parameter = "Feedback", range = "30-60 %" },
+    { device = "Phaser-Flanger", parameter = "Dry/Wet", range = "40-70 %" },
+  ]
+
+  [[term.technique]]
+  name = "Modulated echoes"
+  devices = ["Echo", "Delay"]
+  how = "Ping-pong or dotted delays with modulation and filter make repeats wander in pitch and tone."
+  params = [
+    { device = "Echo", parameter = "Channel Mode", range = "Ping Pong" },
+    { device = "Echo", parameter = "Time", range = "1/8 dotted or 3/16" },
+    { device = "Echo", parameter = "Feedback", range = "40-60 %" },
+    { device = "Echo", parameter = "Modulation (Mod tab)", range = "Amount 10-30 %, slow rate" },
+    { device = "Echo", parameter = "Dry/Wet", range = "20-35 %" },
+  ]
+
+  [[term.technique]]
+  name = "Grain smear"
+  devices = ["Grain Delay"]
+  how = "Spray and random pitch scatter tiny grains, smearing the sound into a shimmering, unstable cloud."
+  params = [
+    { device = "Grain Delay", parameter = "Spray", range = "10-60 ms" },
+    { device = "Grain Delay", parameter = "Pitch", range = "+12 st for shimmer or -12 st for dark" },
+    { device = "Grain Delay", parameter = "Random Pitch", range = "5-30" },
+    { device = "Grain Delay", parameter = "Dry/Wet", range = "15-35 %" },
+  ]
+  best_on = ["vocals", "pads", "plucks"]
+
+  [[term.technique]]
+  name = "Resonant filter movement"
+  devices = ["Auto Filter"]
+  how = "An LFO sweeping a resonant filter gives an acid-like, vocal movement."
+  params = [
+    { device = "Auto Filter", parameter = "Resonance", range = "30-60 %" },
+    { device = "Auto Filter", parameter = "LFO Amount", range = "20-50 %" },
+    { device = "Auto Filter", parameter = "LFO Rate", range = "synced, 1/4 to 2 bars" },
+  ]
+
+[[term]]
+id = "spacey"
+words = ["spacey", "spacious", "ambient", "atmospheric", "big room", "huge", "epic", "in a hall", "more space", "deeper"]
+meaning = "The sound sits in a large space, with long tails and depth from front to back."
+cautions = [
+  "Use reverb on a return track so many tracks share one space and the mix stays coherent.",
+  "Filter the reverb (cut lows below 200-300 Hz) so the tail does not cloud the low end.",
+  "Pre-delay keeps the dry sound clear in front of the tail.",
+]
+
+  [[term.technique]]
+  name = "Long reverb with pre-delay"
+  devices = ["Reverb", "Hybrid Reverb"]
+  how = "A long decay with 20-60 ms pre-delay gives a big space without washing out the attack. Hybrid Reverb's convolution side sounds more real; its algorithmic side more lush."
+  params = [
+    { device = "Reverb", parameter = "Decay Time", range = "3-8 s" },
+    { device = "Reverb", parameter = "Predelay", range = "20-60 ms" },
+    { device = "Reverb", parameter = "Lo Cut / Input filter", range = "cut below 200-300 Hz" },
+    { device = "Reverb", parameter = "Dry/Wet", range = "100 % on a return, 15-30 % as an insert" },
+  ]
+
+  [[term.technique]]
+  name = "Delay into reverb"
+  devices = ["Echo", "Reverb"]
+  how = "Echo before reverb blurs repeats into the space, making it feel deeper rather than just longer."
+  params = [
+    { device = "Echo", parameter = "Reverb", range = "20-40 %" },
+    { device = "Echo", parameter = "Feedback", range = "40-60 %" },
+  ]
+
+[[term]]
+id = "dark"
+words = ["dark", "darker", "moody", "mellow", "duller", "less harsh", "smoother", "softer", "tame the highs"]
+meaning = "Less high-frequency content, so the sound feels distant, moody or calmer."
+cautions = [
+  "A low-pass on everything makes the mix muffled; darken the supporting parts, keep the focus bright.",
+]
+
+  [[term.technique]]
+  name = "Low-pass filter"
+  devices = ["Auto Filter", "EQ Eight"]
+  how = "Roll off the top with a gentle low-pass. A 12 dB slope sounds natural, a 24 dB slope sounds synthy."
+  params = [
+    { device = "Auto Filter", parameter = "Filter Type", range = "Low-pass" },
+    { device = "Auto Filter", parameter = "Frequency", range = "2-8 kHz" },
+    { device = "Auto Filter", parameter = "Resonance", range = "low, 0-20 %" },
+  ]
+
+  [[term.technique]]
+  name = "Tame harsh frequencies"
+  devices = ["EQ Eight"]
+  how = "Find the harsh band with a narrow boost-and-sweep, then cut it gently."
+  params = [
+    { device = "EQ Eight", parameter = "Bell cut", range = "-2 to -5 dB around 2.5-5 kHz, Q 2-4" },
+  ]
+
+[[term]]
+id = "clean"
+words = ["muddy", "less muddy", "clean", "cleaner", "clearer", "boomy", "boxy", "cluttered", "clarity", "mud"]
+meaning = "Usually too much overlapping energy around 150-500 Hz or rumble below the musical range; the fix is removing, not adding."
+cautions = [
+  "Cut narrow and small first; big wide cuts thin the sound.",
+  "Check the cut in context of the whole mix, not soloed.",
+]
+
+  [[term.technique]]
+  name = "High-pass the rumble"
+  devices = ["EQ Eight"]
+  how = "Remove low end that this part does not need, so the bass and kick have room."
+  params = [
+    { device = "EQ Eight", parameter = "Band 1 Low Cut Frequency", range = "80-200 Hz for non-bass parts" },
+    { device = "EQ Eight", parameter = "Band 1 slope", range = "48 dB/oct (low cut 4x) for a clean cut" },
+  ]
+  avoid_on = ["bass", "kick"]
+
+  [[term.technique]]
+  name = "Low-mid cut"
+  devices = ["EQ Eight", "Channel EQ"]
+  how = "A broad small dip in the mud zone clears space without changing the character."
+  params = [
+    { device = "EQ Eight", parameter = "Bell", range = "-2 to -4 dB around 200-400 Hz, Q 1-2" },
+  ]
+
+[[term]]
+id = "fat"
+words = ["fat", "fatter", "thick", "thicker", "full", "fuller", "beefy", "heavy", "big", "bigger"]
+meaning = "More body and density: low-mid weight, extra harmonics, and less dynamic range so the sound fills its space."
+cautions = [
+  "Fat often conflicts with other parts in the low mids; cut elsewhere to make room.",
+  "Unison and detune on bass can make the low end wobble in phase; keep the sub layer simple.",
+]
+
+  [[term.technique]]
+  name = "Parallel saturation"
+  devices = ["Saturator", "Roar"]
+  how = "Drive hard and blend it in with Dry/Wet. You keep the original transient and add dense harmonics underneath."
+  params = [
+    { device = "Saturator", parameter = "Drive", range = "8-15 dB" },
+    { device = "Saturator", parameter = "Dry/Wet", range = "20-40 %" },
+    { device = "Saturator", parameter = "Type", range = "Analog Clip or Medium Curve" },
+  ]
+
+  [[term.technique]]
+  name = "Unison and detune at the synth"
+  devices = ["Wavetable", "Operator", "Drift", "Analog"]
+  how = "On MIDI tracks, thickening the source beats processing it: add unison voices and a little detune."
+  params = [
+    { device = "Wavetable", parameter = "Unison Mode", range = "Classic or Shimmer, 3-5 voices" },
+    { device = "Wavetable", parameter = "Unison Amount", range = "15-35 %" },
+    { device = "Drift", parameter = "Osc 2 detune", range = "a few cents" },
+  ]
+  avoid_on = ["sub bass"]
+
+  [[term.technique]]
+  name = "Dense compression"
+  devices = ["Compressor", "Glue Compressor"]
+  how = "Lower the threshold with a moderate ratio and medium attack to bring up the body and sustain."
+  params = [
+    { device = "Glue Compressor", parameter = "Ratio", range = "4" },
+    { device = "Glue Compressor", parameter = "Attack", range = "3-10 ms" },
+    { device = "Glue Compressor", parameter = "Threshold", range = "for 3-6 dB gain reduction" },
+    { device = "Glue Compressor", parameter = "Makeup", range = "match the bypassed level" },
+  ]
+
+[[term]]
+id = "gritty"
+words = ["gritty", "grit", "dirty", "dirtier", "crunchy", "crunch", "distorted", "aggressive", "edgy", "angry", "nasty"]
+meaning = "Audible distortion and upper harmonics that give the sound an edge and attitude."
+cautions = [
+  "Distortion raises loudness; level-match before deciding it is better.",
+  "Filter after distortion to remove fizz above 8-10 kHz.",
+]
+
+  [[term.technique]]
+  name = "Multi-stage distortion"
+  devices = ["Roar"]
+  how = "Roar combines shapers, filters and feedback. Start with a single stage, raise Drive, and use its filter to focus the grit."
+  params = [
+    { device = "Roar", parameter = "Routing", range = "Single" },
+    { device = "Roar", parameter = "Shaper Amount / Drive", range = "30-60 %" },
+    { device = "Roar", parameter = "Dry/Wet", range = "50-100 %" },
+  ]
+
+  [[term.technique]]
+  name = "Pedal"
+  devices = ["Pedal"]
+  how = "Guitar-pedal style: Overdrive is warm, Distortion is tighter, Fuzz is wild. The Sub switch keeps low end."
+  params = [
+    { device = "Pedal", parameter = "Type", range = "OD, Distort or Fuzz" },
+    { device = "Pedal", parameter = "Gain", range = "20-60 %" },
+    { device = "Pedal", parameter = "Dry/Wet", range = "40-100 %" },
+  ]
+
+[[term]]
+id = "lofi"
+words = ["lofi", "lo-fi", "vintage", "old school", "tape", "dusty", "vinyl", "worn", "retro", "bitcrushed"]
+meaning = "Degradation: reduced bandwidth, noise, wobble and bit or sample-rate reduction that suggests old media."
+cautions = [
+  "Narrow the bandwidth first; most of the lo-fi feel is missing lows and highs.",
+]
+
+  [[term.technique]]
+  name = "Band-limit"
+  devices = ["EQ Eight", "Auto Filter"]
+  how = "High-pass around 150-300 Hz and low-pass around 4-8 kHz to imitate cheap speakers and old tape."
+  params = [
+    { device = "EQ Eight", parameter = "Low cut", range = "150-300 Hz" },
+    { device = "EQ Eight", parameter = "High cut", range = "4-8 kHz" },
+  ]
+
+  [[term.technique]]
+  name = "Vinyl and wobble"
+  devices = ["Vinyl Distortion", "Chorus-Ensemble"]
+  how = "Vinyl Distortion adds crackle and tracing distortion; a slow Vibrato mode on Chorus-Ensemble adds tape wow."
+  params = [
+    { device = "Vinyl Distortion", parameter = "Crackle Volume", range = "low, to taste" },
+    { device = "Chorus-Ensemble", parameter = "Mode", range = "Vibrato" },
+    { device = "Chorus-Ensemble", parameter = "Rate", range = "0.3-1 Hz" },
+    { device = "Chorus-Ensemble", parameter = "Amount", range = "5-20 %" },
+  ]
+
+  [[term.technique]]
+  name = "Bit and rate reduction"
+  devices = ["Redux"]
+  how = "Lower the sample rate and bit depth for digital crunch and aliasing."
+  params = [
+    { device = "Redux", parameter = "Rate (Downsample)", range = "8-20 kHz" },
+    { device = "Redux", parameter = "Bit Depth", range = "8-12 bits" },
+    { device = "Redux", parameter = "Dry/Wet", range = "30-70 %" },
+  ]
+
+[[term]]
+id = "glue"
+words = ["glue", "glued", "cohesive", "together", "gel", "sit together", "one unit", "polished"]
+meaning = "Several sounds behave as one: they breathe and move together because they share dynamics and space."
+cautions = [
+  "Glue works on groups and buses; on a single sound it is just compression.",
+  "1-3 dB of gain reduction is usually enough.",
+]
+
+  [[term.technique]]
+  name = "Bus compression"
+  devices = ["Glue Compressor"]
+  how = "Gentle compression on the group makes the parts move together. Slow attack keeps punch; Auto release follows the groove."
+  params = [
+    { device = "Glue Compressor", parameter = "Ratio", range = "2" },
+    { device = "Glue Compressor", parameter = "Attack", range = "10-30 ms" },
+    { device = "Glue Compressor", parameter = "Release", range = "Auto or 0.2-0.4 s" },
+    { device = "Glue Compressor", parameter = "Threshold", range = "for 1-3 dB gain reduction" },
+  ]
+  best_on = ["group tracks", "drum buses", "the master"]
+
+  [[term.technique]]
+  name = "Shared space"
+  devices = ["Reverb"]
+  how = "Send the parts to one short room reverb on a return. A shared space makes separate recordings sound like one performance."
+  params = [
+    { device = "Reverb", parameter = "Decay Time", range = "0.4-1.0 s" },
+    { device = "Reverb", parameter = "Dry/Wet", range = "100 % on the return" },
+  ]
+
+[[term]]
+id = "upfront"
+words = ["upfront", "up front", "present", "presence", "closer", "in your face", "cut through", "stand out", "louder in the mix", "more forward"]
+meaning = "The sound feels close and clear in front of the mix, with presence and controlled dynamics."
+cautions = [
+  "Turning the fader up is a valid first test; if that does not work the problem is masking.",
+  "Less reverb and shorter tails make things feel closer.",
+]
+
+  [[term.technique]]
+  name = "Presence boost"
+  devices = ["EQ Eight"]
+  how = "A small lift in the presence range helps a part cut through without being louder."
+  params = [
+    { device = "EQ Eight", parameter = "Bell", range = "+1.5 to +3 dB at 2-5 kHz, Q 1" },
+  ]
+
+  [[term.technique]]
+  name = "Even out dynamics"
+  devices = ["Compressor"]
+  how = "Steady compression keeps quiet syllables or notes from dropping back into the mix."
+  params = [
+    { device = "Compressor", parameter = "Ratio", range = "3:1 to 4:1" },
+    { device = "Compressor", parameter = "Attack", range = "3-10 ms" },
+    { device = "Compressor", parameter = "Threshold", range = "for 4-8 dB gain reduction on peaks" },
+  ]
+  best_on = ["vocals", "leads", "bass"]
+
+  [[term.technique]]
+  name = "Dry it up"
+  devices = ["Reverb", "Delay", "Echo"]
+  how = "Reduce Dry/Wet or send levels on existing reverbs and delays; the less ambience, the closer it sounds."
+  params = [
+    { device = "Reverb", parameter = "Dry/Wet", range = "lower by a third or more" },
+  ]
+
+[[term]]
+id = "tight"
+words = ["tight", "tighter", "controlled", "less boomy", "less loose", "cleaner low end", "focused"]
+meaning = "Short, controlled notes and low end with no overhang between hits."
+cautions = [
+  "Tightness often comes from note length and envelopes on MIDI tracks, before any effects.",
+]
+
+  [[term.technique]]
+  name = "Gate the tails"
+  devices = ["Gate"]
+  how = "A gate shuts the sound between hits, removing ring and room."
+  params = [
+    { device = "Gate", parameter = "Threshold", range = "just below the hits" },
+    { device = "Gate", parameter = "Release", range = "20-80 ms" },
+    { device = "Gate", parameter = "Floor", range = "-20 to -40 dB rather than full silence" },
+  ]
+
+  [[term.technique]]
+  name = "Shorter envelopes"
+  devices = ["Simpler", "Operator", "Wavetable", "Drift"]
+  how = "Lower the amp envelope's Decay or Release so notes stop before the next one starts."
+  params = [
+    { device = "Simpler", parameter = "Release", range = "short, under 100 ms" },
+    { device = "Wavetable", parameter = "Amp Release", range = "50-150 ms" },
+  ]
+
+  [[term.technique]]
+  name = "Mono the low end"
+  devices = ["Utility"]
+  how = "Stereo lows feel loose; Bass Mono focuses them."
+  params = [
+    { device = "Utility", parameter = "Bass Mono", range = "on, 100-150 Hz" },
+  ]
+
+[[term]]
+id = "dreamy"
+words = ["dreamy", "dreamier", "washed out", "hazy", "ethereal", "floaty", "blurry", "soft focus", "shimmer", "shimmery"]
+meaning = "Soft edges, long blurred tails, gentle movement and often a softened top: the sound feels distant and floating."
+cautions = [
+  "Washing out the lead and the bed at once loses the focus; pick the part that should float.",
+]
+
+  [[term.technique]]
+  name = "Shimmer and blur"
+  devices = ["Hybrid Reverb", "Grain Delay"]
+  how = "Long, modulated reverb tails, optionally fed by a pitched-up Grain Delay, create a shimmering haze."
+  params = [
+    { device = "Hybrid Reverb", parameter = "Algorithm", range = "Shimmer or Quartz" },
+    { device = "Hybrid Reverb", parameter = "Decay", range = "4-10 s" },
+    { device = "Hybrid Reverb", parameter = "Dry/Wet", range = "25-50 %" },
+    { device = "Grain Delay", parameter = "Pitch", range = "+12 st" },
+  ]
+
+  [[term.technique]]
+  name = "Soften and move"
+  devices = ["Auto Filter", "Chorus-Ensemble"]
+  how = "Low-pass the top and add slow chorus so the sound floats rather than pokes."
+  params = [
+    { device = "Auto Filter", parameter = "Frequency", range = "low-pass 4-8 kHz" },
+    { device = "Chorus-Ensemble", parameter = "Mode", range = "Ensemble" },
+    { device = "Chorus-Ensemble", parameter = "Dry/Wet", range = "30-50 %" },
+  ]
+
+[[term]]
+id = "bouncy"
+words = ["bouncy", "bounce", "groovy", "groove", "swing", "swingy", "more movement", "pumping", "pump", "breathing"]
+meaning = "Rhythmic movement in level or timing that makes the part dance with the beat."
+cautions = [
+  "Sidechain pumping is a style choice; subtle (1-3 dB) adds groove, heavy is an effect.",
+]
+
+  [[term.technique]]
+  name = "Sidechain pump"
+  devices = ["Compressor"]
+  how = "Compress this track keyed from the kick so it ducks on every beat and swells back."
+  params = [
+    { device = "Compressor", parameter = "Sidechain", range = "on, Audio From: the kick track" },
+    { device = "Compressor", parameter = "Ratio", range = "4:1 or higher" },
+    { device = "Compressor", parameter = "Attack", range = "0.1-1 ms" },
+    { device = "Compressor", parameter = "Release", range = "80-200 ms, tuned to the tempo" },
+  ]
+
+  [[term.technique]]
+  name = "Rhythmic tremolo"
+  devices = ["Auto Pan"]
+  how = "Auto Pan with Phase at 0 deg works as tremolo; synced to the beat it adds pulse. With Phase at 180 deg it bounces left-right."
+  params = [
+    { device = "Auto Pan", parameter = "Rate", range = "synced 1/8 or 1/16" },
+    { device = "Auto Pan", parameter = "Amount", range = "20-50 %" },
+    { device = "Auto Pan", parameter = "Phase", range = "0 deg for tremolo, 180 deg for panning" },
+  ]
