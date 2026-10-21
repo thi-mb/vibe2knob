@@ -216,7 +216,7 @@ def test_turn_error_carries_the_chat(tmp_path):
         assert error["chat_id"] == chat_id and error["turn_id"] == turn[-1]["turn_id"]
         ws.send_json({"v": 1, "type": "chat.open", "chat_id": chat_id})
         answer = until(ws, "chat.history")["turns"][1]
-    assert answer["warnings"] == ["The answer failed: overloaded"]
+    assert answer["error"] == "overloaded" and answer["warnings"] == []
 
 
 def test_no_key_is_a_provider_error(tmp_path):

@@ -432,11 +432,9 @@ def _track_ref(t: dict, devices: list | None = None) -> TrackRef:
 
 def _chat_turn(turn) -> ChatTurn:
     if isinstance(turn, AssistantTurn):
-        # ChatTurn has no error field, so a failed answer shows its error as a warning.
-        failed = [f"The answer failed: {turn.error}"] if turn.error else []
         return ChatTurn(id=turn.id, role="assistant", text=turn.text, created_at=turn.created_at,
                         steps=turn.steps or None, listen_for=turn.listen_for,
-                        caution=turn.caution, warnings=turn.warnings + failed)
+                        caution=turn.caution, warnings=turn.warnings, error=turn.error)
     return ChatTurn(id=turn.id, role="user", text=turn.text, created_at=turn.created_at)
 
 
