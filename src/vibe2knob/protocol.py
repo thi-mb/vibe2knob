@@ -52,6 +52,7 @@ class TrackRef(_Shape):
     name: str
     type: Literal["audio", "midi", "group", "return", "master"]
     color: int | None = None
+    devices: list[str] = Field(default_factory=list, description="Device names in chain order.")
 
 
 class ContextSet(_Shape):
@@ -76,6 +77,22 @@ class LiveStatus(_Shape):
     connected: bool
     selected_track: TrackRef | None = None
     detail: str | None = Field(default=None, description="Why Live isn't reachable, if it isn't.")
+    example: str | None = Field(
+        default=None, description="Name of the example track in use instead of Live, if any."
+    )
+
+
+class ChatTurn(_Shape):
+    """One turn of a saved chat, as chat.history replays it."""
+
+    id: str = Field(description="For an assistant turn, the turn_id its deltas carried.")
+    role: Literal["user", "assistant"]
+    text: str
+    created_at: str = Field(description="ISO 8601 time the turn started.")
+    steps: list[Step] | None = Field(default=None, description="Null when no steps were suggested.")
+    listen_for: str | None = None
+    caution: str | None = None
+    warnings: list[str] = Field(default_factory=list)
 
 
 class Settings(_Shape):
@@ -112,6 +129,13 @@ class ChatUpdate(_Request):
     context: ContextSet | None = None
 
 
+class ChatOpen(_Request):
+    """Ask for a chat's turns, e.g. when a tab is shown after a reload or reconnect."""
+
+    type: Literal["chat.open"] = "chat.open"
+    chat_id: str
+
+
 class ChatClose(_Request):
     type: Literal["chat.close"] = "chat.close"
     chat_id: str
@@ -132,9 +156,17 @@ class SettingsTest(_Request):
     type: Literal["settings.test"] = "settings.test"
 
 
+class LiveUseExample(_Request):
+    """Use an example track instead of Live (null goes back to Live). The hub answers with
+    live.status, so every client sees the switch."""
+
+    type: Literal["live.use_example"] = "live.use_example"
+    name: str | None = Field(description="One of welcome.examples' names, or null.")
+
+
 ClientMessage = Annotated[
-    Union[Hello, ChatCreate, ChatSend, ChatUpdate, ChatClose, TracksList, SettingsUpdate,
-          SettingsTest],
+    Union[Hello, ChatCreate, ChatSend, ChatUpdate, ChatOpen, ChatClose, TracksList,
+          SettingsUpdate, SettingsTest, LiveUseExample],
     Field(discriminator="type"),
 ]
 
@@ -148,6 +180,9 @@ class Welcome(_Message):
     chats: list[ChatSummary]
     live: LiveStatus
     settings: Settings
+    examples: list[TrackRef] = Field(
+        default_factory=list, description="Example tracks to try while Live is offline."
+    )
 
 
 class LiveStatusChanged(_Message):
@@ -173,6 +208,15 @@ class ChatClosed(_Message):
     type: Literal["chat.closed"] = "chat.closed"
     request_id: str | None = None
     chat_id: str
+
+
+class ChatHistory(_Message):
+    """A chat's turns, oldest first, in answer to chat.open."""
+
+    type: Literal["chat.history"] = "chat.history"
+    request_id: str | None = None
+    chat_id: str
+    turns: list[ChatTurn]
 
 
 class ChatDelta(_Message):
@@ -214,11 +258,15 @@ class ErrorMessage(_Message):
     request_id: str | None = None
     code: Literal["bad_request", "unsupported_version", "not_found", "provider", "live", "internal"]
     message: str
+    chat_id: str | None = Field(default=None, description="Set when a chat's turn failed.")
+    turn_id: str | None = Field(
+        default=None, description="The failed turn; chat.done for it follows."
+    )
 
 
 HubMessage = Annotated[
-    Union[Welcome, LiveStatusChanged, Tracks, ChatChanged, ChatClosed, ChatDelta, ChatSteps,
-          ChatDone, SettingsChanged, ErrorMessage],
+    Union[Welcome, LiveStatusChanged, Tracks, ChatChanged, ChatClosed, ChatHistory, ChatDelta,
+          ChatSteps, ChatDone, SettingsChanged, ErrorMessage],
     Field(discriminator="type"),
 ]
 
