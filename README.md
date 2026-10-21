@@ -125,3 +125,21 @@ pip install -e '.[dev]' && pytest -q
 cd ui && npm ci && npm test && npm run build
 cd ui && npm run gen:types   # after changing protocol.py
 ```
+
+### The panel
+
+`vibe2knob panel` starts the hub on 127.0.0.1:8765 and opens the panel in your browser. It needs
+the `[panel]` extra (`pip install -e '.[panel]'`) and a built UI (`cd ui && npm run build`).
+
+```sh
+vibe2knob panel                 # real Live, Claude with the key from Settings or ANTHROPIC_API_KEY
+vibe2knob panel --fake          # fixtures instead of Live, a scripted model: no Live, no key
+vibe2knob panel --fake --dev    # and work on the UI with hot reload: cd ui && npm run dev
+```
+
+Chats and settings live in `~/Library/Application Support/vibe2knob/` (or `$VIBE2KNOB_HOME`); the
+API key goes in the Keychain, and an `ANTHROPIC_API_KEY` in the environment or a `.env` file wins.
+With `--fake` or `--fake-model`, chats go to a temporary folder instead.
+
+The hub opens the panel at `/?token=...`. A client connects to `/ws?token=...`; a wrong token, Host
+or Origin closes the socket with code 4401.
