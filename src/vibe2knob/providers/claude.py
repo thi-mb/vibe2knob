@@ -19,11 +19,13 @@ class ClaudeProvider:
     name = "claude"
 
     def __init__(self, model: str | None = None, effort: str = "medium", client=None,
-                 title_model: str = TITLE_MODEL):
+                 title_model: str = TITLE_MODEL, api_key: str | None = None):
         self.model = model or os.environ.get("VIBE2KNOB_MODEL") or DEFAULT_MODEL
         self.effort = effort
         self.title_model = title_model
         self._client = client
+        # None lets the SDK find credentials itself (ANTHROPIC_API_KEY, `ant auth login`).
+        self.api_key = api_key
 
     @property
     def client(self):
@@ -34,7 +36,8 @@ class ClaudeProvider:
                 raise ProviderError(
                     "The Claude provider needs the anthropic package: pip install 'vibe2knob[claude]'"
                 ) from e
-            self._client = anthropic.Anthropic()
+            self._client = (anthropic.Anthropic(api_key=self.api_key) if self.api_key
+                            else anthropic.Anthropic())
         return self._client
 
     def _system(self, system: str) -> list[dict]:
