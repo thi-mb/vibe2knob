@@ -162,13 +162,17 @@ button:disabled {
   font-family: var(--font-mono);
 }
 
-/* Panel frame: one column, 360-480 px wide, filling the window's height. */
+/* Panel frame: fills the window at any width. Content keeps a readable column
+   centered in the panel, and from 1000 px the chat tabs become a sidebar. The layout follows
+   the panel's own width (a container query), so a browser tab behaves like the window. */
 
 .panel {
+  /* Side padding that centers a 760 px column, never under 16 px. Percent padding and
+     margins resolve against the parent's width, so this works on any child. */
+  --gutter: max(16px, calc((100% - 760px) / 2));
   height: 100%;
-  max-width: 480px;
   min-width: 320px;
-  margin: 0 auto;
+  container: panel / inline-size;
   display: flex;
   flex-direction: column;
   background: var(--bg);
@@ -315,10 +319,64 @@ button:disabled {
   color: var(--text);
 }
 
+/* Chat layout: tabs on top when narrow, a sidebar when wide */
+
+.chat-layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.chat-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.new-chat-label {
+  display: none;
+}
+
+@container panel (min-width: 1000px) {
+  .chat-layout {
+    flex-direction: row;
+  }
+  .chat-main {
+    min-width: 0;
+  }
+  .tabs {
+    flex: none;
+    width: 220px;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+    border-bottom: none;
+    border-right: 1px solid var(--line);
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .tab {
+    max-width: none;
+  }
+  .tab .tab-title {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+  }
+  .new-chat {
+    order: -1;
+    text-align: left;
+    margin-bottom: 6px;
+  }
+  .new-chat-label {
+    display: inline;
+  }
+}
+
 /* Context bar */
 
 .context {
-  margin: 12px 16px 0;
+  margin: 12px var(--gutter) 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -391,7 +449,7 @@ button:disabled {
   z-index: 10;
   top: 100%;
   left: 0;
-  right: 0;
+  width: min(100%, 440px);
   margin-top: 6px;
   background: var(--surface);
   border: 1px solid var(--line-strong);
@@ -454,7 +512,7 @@ button:disabled {
 .conversation {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 16px var(--gutter);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -702,7 +760,7 @@ button:disabled {
 }
 
 .notice {
-  margin: 8px 16px 0;
+  margin: 8px var(--gutter) 0;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -717,7 +775,7 @@ button:disabled {
 /* Composer */
 
 .composer {
-  padding: 12px 16px 16px;
+  padding: 12px var(--gutter) 16px;
   border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
@@ -992,9 +1050,10 @@ select.field {
 /* Settings */
 
 .settings {
+  --gutter: max(16px, calc((100% - 600px) / 2));
   flex: 1;
   overflow-y: auto;
-  padding: 8px 16px 16px;
+  padding: 8px var(--gutter) 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1021,9 +1080,10 @@ select.field {
 }
 
 .full-message {
+  --gutter: max(16px, calc((100% - 600px) / 2));
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 24px 16px;
+  padding: 24px var(--gutter);
 }
