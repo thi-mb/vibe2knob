@@ -1,0 +1,24 @@
+/* "Hardware" dark theme tokens. The light theme and a custom accent later swap these. */
+:root {
+  --bg: #16130f;
+  --panel: #1e1a15;
+  --line: #3a332a;
+  --text: #ece4d6;
+  --text-quiet: #9c9283;
+  --accent: #ff9a2e;
+  --led-on: #ff9a2e;
+  --led-ok: #7ccf6a;
+  --font-ui: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 var(--font-ui);
+}

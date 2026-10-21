@@ -105,3 +105,15 @@ Run `pytest` before opening a PR; it checks that every technique uses stock devi
 pip install -e '.[dev]'
 pytest
 ```
+
+## Development
+
+The hub is Python (`src/vibe2knob/`) and the panel is React + TypeScript (`ui/`). They talk over
+one WebSocket protocol, defined in `src/vibe2knob/protocol.py`. The UI's types are generated from
+that file:
+
+```sh
+pip install -e '.[dev]' && pytest -q
+cd ui && npm ci && npm test && npm run build
+cd ui && npm run gen:types   # after changing protocol.py
+```
