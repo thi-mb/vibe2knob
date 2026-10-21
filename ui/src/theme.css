@@ -472,6 +472,7 @@ button:disabled {
 }
 
 .prose {
+  max-width: 68ch; /* a readable line length when the panel is wide */
   color: var(--text-body);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
