@@ -51,7 +51,15 @@ Setup (Live 11+):
 python3 -m live_bridge                    # summary + JSON of the selected track
 python3 -m live_bridge --json --track 2   # JSON only, for a given track index
 python3 -m live_bridge --json | vibe2knob ask "make this wider" --state -
+python3 -m live_bridge --summary          # every track, light: names, types, devices, mixer
+python3 -m live_bridge --watch            # print connection and selection changes
 ```
+
+For the hub, `LiveBridge` is the one owner of the connection: a background loop receives
+everything on port 11001 and routes each reply to its request or each listener push to its
+subscribers, while a watcher pings Live every 3 s and follows the selected track.
+`FakeLive` gives the same interface from the files in `fixtures/`, for tests and work
+without Live. Writes (mute, solo, parameters) are part of the interface but not built yet.
 
 Known limits: only regular tracks can be read (not returns or master), devices inside racks
 aren't listed (only the rack itself and its macros), and a plugin's knobs show up only after
