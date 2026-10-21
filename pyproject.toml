@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vibe2knob"
+version = "0.1.0"
+description = "An open-source producer mate: turns subjective asks like 'wider' or 'trippier' into steps with Live's stock devices."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+claude = ["anthropic>=1.17"]
+dev = ["pytest>=8", "anthropic>=1.17"]
+
+[project.scripts]
+vibe2knob = "vibe2knob.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vibe2knob"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

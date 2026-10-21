@@ -1,0 +1,254 @@
+{
+  "schema_version": 1,
+  "tempo": 96.0,
+  "track": {
+    "index": 0,
+    "name": "Lead Vox",
+    "type": "audio",
+    "color": 16725558,
+    "is_grouped": false,
+    "mixer": {
+      "volume": 0.85,
+      "panning": 0.0,
+      "mute": false,
+      "solo": false,
+      "arm": false
+    },
+    "devices": [
+      {
+        "index": 0,
+        "name": "EQ Eight",
+        "class_name": "Eq8",
+        "type": "audio_effect",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "1 Filter On A",
+            "value": 1.0,
+            "min": 0,
+            "max": 1,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 2,
+            "name": "1 Filter Type A",
+            "value": 0.0,
+            "min": 0,
+            "max": 7,
+            "is_quantized": true,
+            "display": "Low Cut 48"
+          },
+          {
+            "index": 3,
+            "name": "1 Frequency A",
+            "value": 0.32,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "100 Hz"
+          },
+          {
+            "index": 11,
+            "name": "4 Filter On A",
+            "value": 1.0,
+            "min": 0,
+            "max": 1,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 12,
+            "name": "4 Filter Type A",
+            "value": 3.0,
+            "min": 0,
+            "max": 7,
+            "is_quantized": true,
+            "display": "Bell"
+          },
+          {
+            "index": 13,
+            "name": "4 Frequency A",
+            "value": 0.55,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "3.20 kHz"
+          },
+          {
+            "index": 14,
+            "name": "4 Gain A",
+            "value": 0.0,
+            "min": -15,
+            "max": 15,
+            "is_quantized": false,
+            "display": "0.00 dB"
+          },
+          {
+            "index": 15,
+            "name": "4 Resonance A",
+            "value": 0.7,
+            "min": 0.1,
+            "max": 18,
+            "is_quantized": false,
+            "display": "0.71"
+          },
+          {
+            "index": 40,
+            "name": "Output Gain",
+            "value": 0.0,
+            "min": -12,
+            "max": 12,
+            "is_quantized": false,
+            "display": "0.00 dB"
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "name": "Compressor",
+        "class_name": "Compressor2",
+        "type": "audio_effect",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "Threshold",
+            "value": 0.6,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "-18.0 dB"
+          },
+          {
+            "index": 2,
+            "name": "Ratio",
+            "value": 0.75,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "4.00 : 1"
+          },
+          {
+            "index": 3,
+            "name": "Attack",
+            "value": 0.3,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "5.00 ms"
+          },
+          {
+            "index": 4,
+            "name": "Release",
+            "value": 0.4,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "80.0 ms"
+          },
+          {
+            "index": 5,
+            "name": "Output Gain",
+            "value": 0.0,
+            "min": -36,
+            "max": 36,
+            "is_quantized": false,
+            "display": "3.00 dB"
+          },
+          {
+            "index": 6,
+            "name": "Dry/Wet",
+            "value": 1.0,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "100 %"
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "name": "Reverb",
+        "class_name": "Reverb",
+        "type": "audio_effect",
+        "is_rack": false,
+        "parameters": [
+          {
+            "index": 0,
+            "name": "Device On",
+            "value": 1.0,
+            "min": 0.0,
+            "max": 1.0,
+            "is_quantized": true,
+            "display": "On"
+          },
+          {
+            "index": 1,
+            "name": "PreDelay",
+            "value": 0.2,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "10.0 ms"
+          },
+          {
+            "index": 2,
+            "name": "Decay Time",
+            "value": 0.4,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "1.80 s"
+          },
+          {
+            "index": 3,
+            "name": "Room Size",
+            "value": 0.5,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "100"
+          },
+          {
+            "index": 4,
+            "name": "Stereo Image",
+            "value": 0.8,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "100"
+          },
+          {
+            "index": 5,
+            "name": "Dry/Wet",
+            "value": 0.18,
+            "min": 0,
+            "max": 1,
+            "is_quantized": false,
+            "display": "18 %"
+          }
+        ]
+      }
+    ]
+  }
+}
