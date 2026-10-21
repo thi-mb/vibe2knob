@@ -5,14 +5,28 @@ project depends on lives in this file. If Live or AbletonOSC changes, this is th
 only place that should need fixing.
 """
 
+import threading
+import time
+
+from .link import (CONNECTED, OFFLINE, RECONNECTING, SUMMARY_SCHEMA_VERSION, LiveError,
+                   LiveLink, NotSupportedYet)
 from .osc import OscClient
 
+__all__ = ["LiveBridge", "LiveError", "NotSupportedYet"]
+
 SCHEMA_VERSION = 1
+
+_SELECTED = "/live/view/get/selected_track"
+_LISTEN_SELECTED = "/live/view/start_listen/selected_track"
+_STOP_LISTEN_SELECTED = "/live/view/stop_listen/selected_track"
 
 # How many leading reply args identify the object (track id, device id, ...).
 _KEY_LEN = {
     "/live/test": 0,
-    "/live/view/get/selected_track": 0,
+    _SELECTED: 0,
+    "/live/song/get/num_tracks": 0,
+    "/live/song/get/tempo": 0,
+    "/live/application/get/version": 0,
     "/live/device/get/parameter/value_string": 3,
 }
 
@@ -30,49 +44,179 @@ _DEVICE_LISTS = [
 # Live's DeviceType enum, as AbletonOSC reports it.
 _DEVICE_TYPES = {0: "undefined", 1: "instrument", 2: "audio_effect", 4: "midi_effect"}
 
+# What session_summary() reads for every track, in one batch.
+_SUMMARY_PROPS = ["name", "color", "is_foldable", "has_midi_input", "volume", "panning", "mute",
+                  "devices/name"]
+
 for _p in _TRACK_PROPS + _TRACK_LISTS + ["arm"]:
     _KEY_LEN[f"/live/track/get/{_p}"] = 1
 for _p in _DEVICE_LISTS:
     _KEY_LEN[f"/live/device/get/{_p}"] = 2
 
 
-class LiveError(RuntimeError):
-    pass
+_NO_ANSWER = (
+    "No answer from AbletonOSC on port 11000. Is Live open with AbletonOSC selected as a "
+    "Control Surface?"
+)
+
+# Failed health pings in a row before "reconnecting" becomes "offline".
+_OFFLINE_AFTER = 3
 
 
-class LiveBridge:
-    def __init__(self, host="127.0.0.1", timeout=2.0):
-        self._osc = OscClient(host)
+def _track_type(is_foldable, has_midi_input):
+    if is_foldable:
+        return "group"
+    return "midi" if has_midi_input else "audio"
+
+
+class LiveBridge(LiveLink):
+    """The one owner of the AbletonOSC connection. Reads are serialised by a lock.
+
+    Reads work as soon as it's created. start() adds a watcher thread that pings Live
+    every few seconds, tracks the selected track (Live's listener plus a poll, since the
+    listener isn't proven on every Live + AbletonOSC version) and re-subscribes after Live
+    comes back.
+    """
+
+    def __init__(self, host="127.0.0.1", timeout=2.0, *, osc=None,
+                 health_interval=3.0, poll_interval=1.0, poll_selection=True):
+        super().__init__()
+        self._osc = osc or OscClient(host)
         self._timeout = timeout
+        # Short waits for the watcher, so a missing reply doesn't hold the lock for long.
+        self._quick = min(timeout, 1.0)
+        self._io_lock = threading.RLock()
+        self._health_interval = health_interval
+        self._poll_interval = poll_interval
+        self._poll_selection = poll_selection
+        self._stop = threading.Event()
+        self._watcher = None
+        self._unsubscribe_push = None
 
     def close(self):
+        self._stop.set()
+        if self._watcher:
+            self._watcher.join(timeout=self._health_interval + self._timeout + 1)
+        if self._unsubscribe_push:
+            self._unsubscribe_push()
+            try:
+                self._osc.send(_STOP_LISTEN_SELECTED)
+            except OSError:
+                pass
         self._osc.close()
 
-    def __enter__(self):
-        return self
+    def _batch(self, requests, timeout=None):
+        with self._io_lock:
+            return self._osc.request_many(requests, _KEY_LEN, timeout or self._timeout)
 
-    def __exit__(self, *exc):
-        self.close()
+    def _request(self, address, args=(), timeout=None):
+        address_args = list(args)
+        key = (address, *address_args[:_KEY_LEN.get(address, 0)])
+        return self._batch([(address, address_args)], timeout).get(key)
 
-    def _batch(self, requests):
-        return self._osc.request_many(requests, _KEY_LEN, self._timeout)
+    # Watching
+
+    def start(self):
+        if self._watcher:
+            return
+        self._unsubscribe_push = self._osc.subscribe(_SELECTED, self._on_selected_push)
+        self._watcher = threading.Thread(target=self._watch, name="live-watch", daemon=True)
+        self._watcher.start()
+
+    def _on_selected_push(self, args):
+        self._set_selected(int(args[0]) if args else None)
+
+    def _watch(self):
+        failures = 0
+        next_ping = 0.0
+        while not self._stop.is_set():
+            if time.monotonic() >= next_ping:
+                next_ping = time.monotonic() + self._health_interval
+                if self._request("/live/test", timeout=self._quick) is not None:
+                    failures = 0
+                    if self.status != CONNECTED:
+                        # A fresh start or Live came back: listeners don't survive a
+                        # restart of Live, so subscribe again.
+                        self._osc.send(_LISTEN_SELECTED)
+                        self._set_status(CONNECTED)
+                else:
+                    failures += 1
+                    self._set_selected(None)
+                    if self.status == CONNECTED or (
+                        self.status == RECONNECTING and failures < _OFFLINE_AFTER
+                    ):
+                        self._set_status(RECONNECTING, "Lost Live. Trying again.")
+                    else:
+                        self._set_status(OFFLINE, _NO_ANSWER)
+            if self.status == CONNECTED and self._poll_selection:
+                self._set_selected(self._read_selected(self._quick))
+            self._stop.wait(self._poll_interval)
+
+    # Reads
 
     def ping(self):
-        if self._osc.request("/live/test", timeout=self._timeout) is None:
-            raise LiveError(
-                "No answer from AbletonOSC on port 11000. Is Live open with AbletonOSC "
-                "selected as a Control Surface?"
-            )
+        if self._request("/live/test") is None:
+            raise LiveError(_NO_ANSWER)
+
+    def _read_selected(self, timeout=None):
+        reply = self._request(_SELECTED, timeout=timeout)
+        # AbletonOSC only indexes regular tracks; return tracks and the master make the
+        # request fail inside Live, so no reply comes back.
+        return int(reply[0]) if reply else None
 
     def selected_track_index(self):
-        reply = self._osc.request("/live/view/get/selected_track", timeout=self._timeout)
-        if not reply:
-            # AbletonOSC only indexes regular tracks; return tracks and the master
-            # make the request fail inside Live, so no reply comes back.
-            raise LiveError("Couldn't read the selected track. Select an audio, MIDI or group track.")
-        return int(reply[0])
+        return self._read_selected()
+
+    def session_summary(self):
+        with self._io_lock:
+            head = self._batch([
+                ("/live/song/get/num_tracks", []),
+                ("/live/song/get/tempo", []),
+                ("/live/application/get/version", []),
+            ])
+            num = head.get(("/live/song/get/num_tracks",))
+            if not num:
+                raise LiveError(_NO_ANSWER)
+            count = int(num[0])
+            replies = self._batch(
+                [(f"/live/track/get/{p}", [t]) for t in range(count) for p in _SUMMARY_PROPS]
+            )
+
+        tempo = head.get(("/live/song/get/tempo",))
+        version = head.get(("/live/application/get/version",))
+        tracks = []
+        for t in range(count):
+            def get(name, t=t):
+                return replies.get((f"/live/track/get/{name}", t))
+
+            def one(name, t=t):
+                value = get(name, t)
+                return value[0] if value else None
+
+            if get("name") is None:
+                raise LiveError(f"No reply for track {t}. Did the set change while reading?")
+            tracks.append({
+                "index": t,
+                "name": one("name"),
+                "type": _track_type(one("is_foldable"), one("has_midi_input")),
+                "color": one("color"),
+                "devices": list(get("devices/name") or []),
+                "volume": one("volume"),
+                "panning": one("panning"),
+                "mute": bool(one("mute")),
+            })
+        return {
+            "schema_version": SUMMARY_SCHEMA_VERSION,
+            "live_version": ".".join(str(v) for v in version[:2]) if version else None,
+            "tempo": tempo[0] if tempo else None,
+            "tracks": tracks,
+        }
 
     def track_state(self, track_index):
+        with self._io_lock:
+            return self._track_state(track_index)
+
+    def _track_state(self, track_index):
         t = track_index
         replies = self._batch(
             [(f"/live/track/get/{p}", [t]) for p in _TRACK_PROPS + _TRACK_LISTS]
@@ -87,12 +231,7 @@ class LiveBridge:
         def one(name):
             return prop(name)[0]
 
-        if one("is_foldable"):
-            track_type = "group"
-        elif one("has_midi_input"):
-            track_type = "midi"
-        else:
-            track_type = "audio"
+        track_type = _track_type(one("is_foldable"), one("has_midi_input"))
 
         arm = None
         if one("can_be_armed"):
@@ -166,6 +305,3 @@ class LiveBridge:
                 "display": display[0] if display else None,
             })
         return {"index": d, "parameters": parameters}
-
-    def selected_track_state(self):
-        return self.track_state(self.selected_track_index())
