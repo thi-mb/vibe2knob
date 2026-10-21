@@ -69,6 +69,7 @@ def test_steps_are_checked_and_stored():
     steps = next(e for e in events if isinstance(e, TurnSteps))
     assert steps.warnings == []
     assert [s.track for s in steps.steps] == ["Warm Pad", "Warm Pad"]
+    assert [s.track_index for s in steps.steps] == [2, 2]
     answer = chat.turns[-1]
     assert answer.listen_for and answer.caution and len(answer.steps) == 2
     assert set(answer.snapshots) == {"2"}
@@ -97,6 +98,29 @@ def test_steps_on_a_summary_only_track_are_checked():
     events = run(ChatEngine(provider), Chat(), "warmer bass", session())
     warnings = next(e for e in events if isinstance(e, TurnSteps)).warnings
     assert warnings == ["Step 2: says Reverb is on the track, but it isn't."]
+
+
+def test_summary_only_track_gets_its_index():
+    steps = copy.deepcopy(WIDER_PAD["steps"])[:1]
+    steps[0].update(track="sub bass", device="Saturator", parameter="Drive")
+    provider = FakeProvider([Reply.with_steps("Push it.", steps, "Bypass it.")])
+    events = run(ChatEngine(provider), Chat(), "warmer bass", session())
+    step = next(e for e in events if isinstance(e, TurnSteps)).steps[0]
+    assert (step.track, step.track_index) == ("Sub Bass", 1)
+
+
+def test_ambiguous_or_missing_track_leaves_index_empty():
+    pad, twin = load("synth_pad"), load("synth_pad")
+    twin.track.index = 5
+    live = StaticLive([pad, twin, load("lead_vocal")], selected=None)
+    steps = copy.deepcopy(WIDER_PAD["steps"])
+    steps[0]["track"] = "Warm Pad"  # two tracks have this name
+    provider = FakeProvider([Reply.with_steps("Widen it.", steps, "Bypass it.")])
+    events = run(ChatEngine(provider), Chat(context=ContextSet(pinned=[2, 5])), "wider", live)
+    got = next(e for e in events if isinstance(e, TurnSteps))
+    assert [s.track_index for s in got.steps] == [None, None]
+    assert "Step 1: 'Warm Pad' matches more than one track." in got.warnings
+    assert "Step 2: doesn't say which track it's on." in got.warnings
 
 
 def test_unknown_track_is_flagged():

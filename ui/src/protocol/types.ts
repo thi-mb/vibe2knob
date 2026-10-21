@@ -393,6 +393,10 @@ export interface Step {
    * Stock device this step uses; filled in by vibe2knob's checks.
    */
   stock_device?: string | null;
+  /**
+   * Live's index of the track the step is on; filled in by vibe2knob's checks, null when the track name is missing or matches more than one track.
+   */
+  track_index?: number | null;
 }
 /**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
