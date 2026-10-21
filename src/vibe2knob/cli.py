@@ -93,6 +93,7 @@ def cmd_panel(args: argparse.Namespace) -> int:
         token=args.token,
         dev=args.dev,
         open_browser=not args.no_browser,
+        window=args.window,
     )
 
 
@@ -148,7 +149,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--save", help="Write the chat to this JSON file when you quit.")
     p.set_defaults(func=cmd_chat)
 
-    p = sub.add_parser("panel", help="Start the hub and open the panel in the browser.")
+    p = sub.add_parser("panel", help="Start the hub and open the panel in the browser, or in a window.")
     p.add_argument("--port", type=int, default=8765)
     p.add_argument("--fake", action="store_true",
                    help="Fake Live (the fixtures) and a scripted model: no Live, no key.")
@@ -161,6 +162,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dev", action="store_true",
                    help="Also accept the Vite dev server (npm run dev) and open it instead.")
     p.add_argument("--no-browser", action="store_true", help="Don't open the browser.")
+    p.add_argument("--window", action="store_true",
+                   help="Open the panel in its own always-on-top window instead of the browser "
+                   "(needs the [window] extra). Closing it stops the hub.")
     p.set_defaults(func=cmd_panel)
 
     p = sub.add_parser("terms", help="List the subjective terms in the knowledge map.")
