@@ -2,6 +2,11 @@ import type { ClientEnvelope, HubEnvelope } from "../protocol/types";
 
 export const PROTOCOL_VERSION = 1;
 
+/** Close code the hub uses for a bad token, Origin or Host. */
+export const TOKEN_REJECTED = 4401;
+
+const OPEN = 1;
+
 type HubType = HubEnvelope["type"];
 type HubOf<T extends HubType> = Extract<HubEnvelope, { type: T }>;
 type Handler<T extends HubType> = (message: HubOf<T>) => void;
@@ -12,7 +17,7 @@ export interface SocketLike {
   send(data: string): void;
   close(): void;
   onopen: ((ev: unknown) => void) | null;
-  onclose: ((ev: unknown) => void) | null;
+  onclose: ((ev: { code?: number }) => void) | null;
   onmessage: ((ev: { data: unknown }) => void) | null;
 }
 
@@ -21,7 +26,7 @@ export class HubClient {
   private socket: SocketLike | null = null;
   private handlers = new Map<HubType, Set<(m: HubEnvelope) => void>>();
   private openHandlers = new Set<() => void>();
-  private closeHandlers = new Set<() => void>();
+  private closeHandlers = new Set<(code: number | undefined) => void>();
   private nextId = 1;
 
   constructor(
@@ -32,19 +37,23 @@ export class HubClient {
   connect(): void {
     const socket = this.makeSocket(this.url);
     socket.onopen = () => this.openHandlers.forEach((h) => h());
-    socket.onclose = () => this.closeHandlers.forEach((h) => h());
+    socket.onclose = (ev) => {
+      if (this.socket === socket) this.socket = null;
+      this.closeHandlers.forEach((h) => h(ev?.code));
+    };
     socket.onmessage = (ev) => this.dispatch(ev.data);
     this.socket = socket;
   }
 
   close(): void {
-    this.socket?.close();
+    const socket = this.socket;
     this.socket = null;
+    socket?.close();
   }
 
   /** Sends a message and returns its request_id, which the hub echoes on its reply. */
   send(message: ClientEnvelope): string {
-    if (!this.socket) throw new Error("Not connected to the hub");
+    if (!this.socket || this.socket.readyState !== OPEN) throw new Error("Not connected to the hub");
     const request_id = message.request_id ?? `r${this.nextId++}`;
     this.socket.send(JSON.stringify({ ...message, v: PROTOCOL_VERSION, request_id }));
     return request_id;
@@ -58,12 +67,19 @@ export class HubClient {
     return () => set.delete(h);
   }
 
-  onOpen(handler: () => void): void {
-    this.openHandlers.add(handler);
+  get connected(): boolean {
+    return this.socket?.readyState === OPEN;
   }
 
-  onClose(handler: () => void): void {
+  onOpen(handler: () => void): () => void {
+    this.openHandlers.add(handler);
+    return () => this.openHandlers.delete(handler);
+  }
+
+  /** Called with the close code: TOKEN_REJECTED, or anything else for "hub went away". */
+  onClose(handler: (code: number | undefined) => void): () => void {
     this.closeHandlers.add(handler);
+    return () => this.closeHandlers.delete(handler);
   }
 
   private dispatch(data: unknown): void {
