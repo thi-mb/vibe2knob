@@ -65,8 +65,8 @@ def check_advice(advice: Advice, state: TrackState) -> list[str]:
             step.device = stock
         step.stock_device = stock
         if step.action == "add_device":
-            if step.on_track:
-                warnings.append(f"Step {i}: adds {step.device} but marks it as already on the track.")
+            # Models often read on_track as "goes on this track"; a new device never is.
+            step.on_track = False
             if stock:
                 present.add(stock)
             continue
