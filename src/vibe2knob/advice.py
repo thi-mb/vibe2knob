@@ -27,6 +27,11 @@ class Step(BaseModel):
     stock_device: str | None = Field(
         default=None, description="Stock device this step uses; filled in by vibe2knob's checks."
     )
+    track_index: int | None = Field(
+        default=None,
+        description="Live's index of the track the step is on; filled in by vibe2knob's checks, "
+        "null when the track name is missing or matches more than one track.",
+    )
 
 
 class Advice(BaseModel):

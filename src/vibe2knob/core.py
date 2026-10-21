@@ -53,18 +53,19 @@ def check_steps(
     """Check each step against the track it names. A step naming no track is on `default`
     (the one track the chat looks at in full), or else on any track in context.
 
-    Also fills each step's `stock_device` and `track`, and normalises `device` to the name
+    Also fills each step's `stock_device`, `track` and `track_index`, and normalises `device` to the name
     shown on the chain (or the stock name for a new device).
     """
     warnings = []
     # Stock names of what is on each track, plus anything earlier steps add.
     present_by_target: dict[tuple, set[str]] = {}
     for i, step in enumerate(steps, 1):
-        targets = _target_tracks(step, states, default)
-        if step.track and len(targets) != 1:
-            warnings.append(f"Step {i}: names the track '{step.track}', which isn't in the chat.")
+        targets, problem = _target_tracks(step, states, default)
+        if problem:
+            warnings.append(f"Step {i}: {problem}")
         if len(targets) == 1:
             step.track = targets[0].track.name
+            step.track_index = targets[0].track.index
         by_name = {d.name: d for s in targets for d in s.all_devices()}
         key = tuple(id(s) for s in targets)
         if key not in present_by_target:
@@ -106,14 +107,23 @@ def check_steps(
 
 def _target_tracks(
     step: Step, states: list[TrackState], default: TrackState | None
-) -> list[TrackState]:
+) -> tuple[list[TrackState], str | None]:
+    """The track(s) a step is on, and what's wrong with its track name, if anything."""
     if len(states) == 1:
-        return states
+        return states, None
     if not step.track:
-        return [default] if default else states
+        if default:
+            return [default], None
+        if not states:
+            return [], None
+        return states, "doesn't say which track it's on."
     wanted = step.track.strip().strip('"').casefold()
     named = [s for s in states if s.track.name.casefold() == wanted]
-    return named[:1] or states
+    if len(named) == 1:
+        return named, None
+    if named:
+        return named, f"'{step.track}' matches more than one track."
+    return states, f"names the track '{step.track}', which isn't in the chat."
 
 
 _NOTES = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]\s*$")
