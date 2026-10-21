@@ -158,7 +158,15 @@ def create_app(hub: Hub, access: Access, ui_dir: Path | None = None,
 
 
 def _port_free(port: int) -> bool:
+    """Could the hub listen here? SO_REUSEADDR, as uvicorn binds, so a hub that just quit
+    (its closed connections linger in TIME_WAIT for a while) doesn't read as busy. macOS
+    lets that bind share a port with a listener on another address, so try connecting first."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        if s.connect_ex(("127.0.0.1", port)) == 0:
+            return False
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind(("127.0.0.1", port))
         except OSError:
