@@ -4,7 +4,7 @@ An open-source producer mate that sits next to Ableton Live. Tell it how you wan
 feel ("wider", "trippier", "warmer") and it looks at the selected track's device chain and walks
 you through the moves with Live's stock devices, explaining each one. It teaches; you turn the knobs.
 
-> Status: v0.1 in progress. This is the core and a CLI. The Live bridge and a chat UI are next.
+> Status: v0.1 in progress. This is the core, a CLI and a bridge that reads the selected track from Live. A chat UI is next.
 
 ## Try it
 
@@ -33,6 +33,29 @@ Watch out: Turn on Bass Mono so the low end of the pad stays mono.
 - `--state -` reads the track state from stdin, so you can pipe the Live bridge into it.
 - `--dry-run` prints the exact prompt without calling a model.
 - `vibe2knob terms` lists the subjective words it knows.
+
+## Reading the track from Live
+
+`live_bridge/` reads the selected track from Ableton Live through
+[AbletonOSC](https://github.com/ideoforms/AbletonOSC), a remote script that exposes Live's
+(unofficial) Python API over OSC. Every OSC address the project uses is in
+`live_bridge/client.py`, so API changes stay contained there. It needs no extra dependencies.
+
+Setup (Live 11+):
+
+1. Clone AbletonOSC into `~/Music/Ableton/User Library/Remote Scripts/AbletonOSC`.
+2. Restart Live, then pick **AbletonOSC** as a Control Surface in
+   Settings > Link, Tempo & MIDI.
+
+```sh
+python3 -m live_bridge                    # summary + JSON of the selected track
+python3 -m live_bridge --json --track 2   # JSON only, for a given track index
+python3 -m live_bridge --json | vibe2knob ask "make this wider" --state -
+```
+
+Known limits: only regular tracks can be read (not returns or master), devices inside racks
+aren't listed (only the rack itself and its macros), and a plugin's knobs show up only after
+you add them with its Configure button in Live.
 
 ## How it works
 
