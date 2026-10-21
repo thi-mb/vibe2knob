@@ -74,6 +74,7 @@ def test_chat_history_replays_turns_with_their_turn_ids():
     }))
     assert [t.id for t in msg.turns] == ["u1", "t1"]
     assert msg.turns[0].steps is None and msg.turns[0].warnings == []
+    assert msg.turns[1].error is None
     assert isinstance(parse_client('{"type": "chat.open", "chat_id": "c"}'), protocol.ChatOpen)
 
 

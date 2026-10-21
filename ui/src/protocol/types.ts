@@ -422,6 +422,10 @@ export interface ChatTurn {
   listen_for: string | null;
   caution: string | null;
   warnings: string[];
+  /**
+   * Why the turn failed, if it did.
+   */
+  error: string | null;
 }
 /**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema

@@ -93,6 +93,7 @@ class ChatTurn(_Shape):
     listen_for: str | None = None
     caution: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    error: str | None = Field(default=None, description="Why the turn failed, if it did.")
 
 
 class Settings(_Shape):

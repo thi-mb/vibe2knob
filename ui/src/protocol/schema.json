@@ -518,6 +518,18 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Why the turn failed, if it did."
         }
       },
       "required": [
@@ -528,7 +540,8 @@
         "steps",
         "listen_for",
         "caution",
-        "warnings"
+        "warnings",
+        "error"
       ],
       "title": "ChatTurn",
       "type": "object"
