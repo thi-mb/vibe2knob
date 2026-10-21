@@ -62,3 +62,24 @@ def test_schema_marks_type_required_for_narrowing():
         assert "type" in defs[name]["required"], name
     assert "v" in defs["ChatDelta"]["required"]
     assert protocol.PROTOCOL_VERSION == 1
+
+
+def test_chat_history_replays_turns_with_their_turn_ids():
+    msg = parse_hub(json.dumps({
+        "type": "chat.history", "chat_id": "c", "turns": [
+            {"id": "u1", "role": "user", "text": "wider", "created_at": "2026-10-21T10:00:00Z"},
+            {"id": "t1", "role": "assistant", "text": "Spread it.",
+             "created_at": "2026-10-21T10:00:01Z", "steps": None},
+        ],
+    }))
+    assert [t.id for t in msg.turns] == ["u1", "t1"]
+    assert msg.turns[0].steps is None and msg.turns[0].warnings == []
+    assert msg.turns[1].error is None
+    assert isinstance(parse_client('{"type": "chat.open", "chat_id": "c"}'), protocol.ChatOpen)
+
+
+def test_example_tracks_are_additive():
+    use = parse_client('{"type": "live.use_example", "name": null}')
+    assert isinstance(use, protocol.LiveUseExample) and use.name is None
+    ref = protocol.TrackRef(index=0, name="Warm Pad", type="midi")
+    assert ref.devices == [] and protocol.LiveStatus(connected=False).example is None
