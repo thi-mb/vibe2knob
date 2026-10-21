@@ -62,9 +62,9 @@ const WASHY = {
 };
 
 const GENERAL =
-  "On a Mac, Live 11 only lists plugins from the formats you've turned on. In Preferences › " +
-  "Plug-Ins, turn on Use Audio Units and Use VST3 Plug-In System Folders, then hold Option " +
-  "and click Rescan so Live doesn't skip plugins it gave up on before.";
+  "On a Mac, Live 11 only lists plugins from the formats you've turned on. In **Preferences › Plug-Ins**:\n\n" +
+  "1. Turn on *Use Audio Units* and *Use VST3 Plug-In System Folders*.\n" +
+  "2. Hold `Option` and click **Rescan**, so Live doesn't skip plugins it gave up on before.";
 
 function step(s: Partial<Step> & Pick<Step, "device" | "explanation">): Step {
   return {
