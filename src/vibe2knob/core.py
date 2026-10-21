@@ -7,7 +7,7 @@ import re
 
 from pydantic import ValidationError
 
-from .advice import ADVICE_SCHEMA, Advice
+from .advice import ADVICE_SCHEMA, Advice, Step
 from .knowledge import Term, load_terms, match_terms
 from .prompt import build_system_prompt, build_user_prompt
 from .providers import Provider, ProviderError
@@ -40,16 +40,38 @@ def ask(
 
 
 def check_advice(advice: Advice, state: TrackState) -> list[str]:
-    """Cheap sanity checks on the model's steps against the real chain.
+    """Cheap sanity checks on the model's steps against the real chain (see check_steps)."""
+    warnings = check_steps(advice.steps, [state])
+    if not advice.steps:
+        warnings.append("No steps were suggested.")
+    return warnings
 
-    Also fills each step's `stock_device`, and normalises `device` to the name
+
+def check_steps(
+    steps: list[Step], states: list[TrackState], default: TrackState | None = None
+) -> list[str]:
+    """Check each step against the track it names. A step naming no track is on `default`
+    (the one track the chat looks at in full), or else on any track in context.
+
+    Also fills each step's `stock_device` and `track`, and normalises `device` to the name
     shown on the chain (or the stock name for a new device).
     """
     warnings = []
-    by_name = {d.name: d for d in state.all_devices()}
-    # Stock names of what is on the track, plus anything earlier steps add.
-    present = {canonical(d.class_name) or canonical(d.name) for d in by_name.values()} - {None}
-    for i, step in enumerate(advice.steps, 1):
+    # Stock names of what is on each track, plus anything earlier steps add.
+    present_by_target: dict[tuple, set[str]] = {}
+    for i, step in enumerate(steps, 1):
+        targets = _target_tracks(step, states, default)
+        if step.track and len(targets) != 1:
+            warnings.append(f"Step {i}: names the track '{step.track}', which isn't in the chat.")
+        if len(targets) == 1:
+            step.track = targets[0].track.name
+        by_name = {d.name: d for s in targets for d in s.all_devices()}
+        key = tuple(id(s) for s in targets)
+        if key not in present_by_target:
+            present_by_target[key] = {
+                canonical(d.class_name) or canonical(d.name) for d in by_name.values()
+            } - {None}
+        present = present_by_target[key]
         device = _find_on_chain(step.device, by_name)
         if step.action == "add_device" and device is not None and device.is_plugin:
             warnings.append(f"Step {i}: adds {device.name}, which is not a stock Live device.")
@@ -79,9 +101,19 @@ def check_advice(advice: Advice, state: TrackState) -> list[str]:
                 warnings.append(
                     f"Step {i}: asks to {step.action} {step.device}, which isn't on the track yet."
                 )
-    if not advice.steps:
-        warnings.append("No steps were suggested.")
     return warnings
+
+
+def _target_tracks(
+    step: Step, states: list[TrackState], default: TrackState | None
+) -> list[TrackState]:
+    if len(states) == 1:
+        return states
+    if not step.track:
+        return [default] if default else states
+    wanted = step.track.strip().strip('"').casefold()
+    named = [s for s in states if s.track.name.casefold() == wanted]
+    return named[:1] or states
 
 
 _NOTES = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]\s*$")

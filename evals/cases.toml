@@ -124,3 +124,51 @@ fixture = "../fixtures/labs_plugin_instrument.json"
 request = "make it dreamier"
 why = "Real dump: a MIDI track playing the Spitfire LABS plugin, with its parameters visible as raw 0..1 values. Advice may use its Reverb or Lush Verb knobs, but any added device must be stock."
 expect_any_device = ["Reverb", "Hybrid Reverb", "Echo", "Delay", "Grain Delay", "Chorus-Ensemble", "Auto Filter", "LABS (64 Bit)"]
+
+# Chat-path cases. Run with: vibe2knob eval --chat
+# (The cases above run on both paths; chat_only cases run only with --chat.)
+#
+#   session          fixtures that make up the Live set (default: just `fixture`);
+#                    every track goes into the light summary
+#   fixture          the track selected in Live (full detail); empty for a general chat
+#   pinned           tracks pinned with @ (full detail)
+#   prior_request, prior_answer, prior_steps
+#                    a scripted earlier turn
+#   fixture_after    the selected track as the user left it after that turn (the refine diff)
+#   expect_no_steps  a prose-only answer is the right one
+
+[[case]]
+id = "chat-pad-refine"
+chat_only = true
+fixture = "../fixtures/synth_pad.json"
+prior_request = "make this wider"
+prior_answer = "The pad is already stereo, so open up the Utility and push the chorus that's already there."
+prior_steps = [
+  { action = "adjust", device = "Utility", on_track = true, parameter = "Stereo Width", value_range = "120-140 %", explanation = "Raises the side signal so the pad spreads wider around the centre." },
+  { action = "adjust", device = "Chorus-Ensemble", on_track = true, parameter = "Mode", value_range = "Ensemble", explanation = "Ensemble uses three modulated voices, which gives a lusher, wider spread." },
+]
+fixture_after = "fixtures/synth_pad_after_wider.json"
+request = "ok it's wider now, but the low end got weaker and kind of phasey"
+why = "Refine: the user set Stereo Width to 140 % and the chorus to Ensemble. A good answer notices those exact changes (from the diff) and fixes the lows from there, e.g. Bass Mono or backing the width off, instead of starting over."
+expect_on_track_any = ["Utility", "Chorus-Ensemble"]
+mention_any = ["140", "Ensemble"]
+min_steps = 1
+
+[[case]]
+id = "chat-vocal-vs-pad"
+chat_only = true
+session = ["../fixtures/lead_vocal.json", "../fixtures/sub_bass.json", "../fixtures/synth_pad.json", "../fixtures/drum_group.json"]
+fixture = "../fixtures/lead_vocal.json"
+request = "the vocal and the pad are fighting each other, how do I make room for the vocal?"
+why = "Two tracks: the vocal is selected (full detail), the pad is only in the session summary. A good answer uses the summary to see what's on the pad, works on both, and says it can't see the pad's settings."
+expect_any_device = ["EQ Eight", "Utility", "Compressor", "Auto Filter", "Chorus-Ensemble", "Wavetable"]
+mention_any = ["Warm Pad", "pad"]
+
+[[case]]
+id = "chat-general-question"
+chat_only = true
+fixture = ""
+request = "what's the difference between Echo and Delay in Live?"
+why = "A general chat with nothing in context. The answer is an explanation in prose, with no steps."
+expect_no_steps = true
+mention_any = ["Echo"]
