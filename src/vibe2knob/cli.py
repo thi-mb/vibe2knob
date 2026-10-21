@@ -78,6 +78,24 @@ def cmd_chat(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_panel(args: argparse.Namespace) -> int:
+    try:
+        from .server import run_panel
+    except ImportError as e:
+        print(f"error: the panel needs more packages ({e.name}): pip install 'vibe2knob[panel]'",
+              file=sys.stderr)
+        return 2
+    return run_panel(
+        args.port,
+        fake_live=args.fake or args.fake_live,
+        fake_model=args.fake or args.fake_model,
+        data_dir=args.data_dir,
+        token=args.token,
+        dev=args.dev,
+        open_browser=not args.no_browser,
+    )
+
+
 def cmd_terms(args: argparse.Namespace) -> int:
     for t in load_terms(args.terms):
         print(f"{t.id:10} {', '.join(t.words)}")
@@ -129,6 +147,21 @@ def build_parser() -> argparse.ArgumentParser:
     add_provider_args(p)
     p.add_argument("--save", help="Write the chat to this JSON file when you quit.")
     p.set_defaults(func=cmd_chat)
+
+    p = sub.add_parser("panel", help="Start the hub and open the panel in the browser.")
+    p.add_argument("--port", type=int, default=8765)
+    p.add_argument("--fake", action="store_true",
+                   help="Fake Live (the fixtures) and a scripted model: no Live, no key.")
+    p.add_argument("--fake-live", action="store_true", help="Use the fixtures instead of Live.")
+    p.add_argument("--fake-model", action="store_true",
+                   help="Use a scripted model; chats go to a temporary folder.")
+    p.add_argument("--data-dir", help="Where chats and settings live "
+                   "(default ~/Library/Application Support/vibe2knob, or $VIBE2KNOB_HOME).")
+    p.add_argument("--token", help="Use this access token instead of a random one (for tests).")
+    p.add_argument("--dev", action="store_true",
+                   help="Also accept the Vite dev server (npm run dev) and open it instead.")
+    p.add_argument("--no-browser", action="store_true", help="Don't open the browser.")
+    p.set_defaults(func=cmd_panel)
 
     p = sub.add_parser("terms", help="List the subjective terms in the knowledge map.")
     p.set_defaults(func=cmd_terms)

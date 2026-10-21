@@ -10,7 +10,9 @@ from pathlib import Path
 
 from .link import CONNECTED, OFFLINE, SUMMARY_SCHEMA_VERSION, LiveError, LiveLink
 
-FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
+# fixtures/ in a checkout; the wheel bundles them inside this package.
+_HERE = Path(__file__).resolve().parent
+FIXTURES = _HERE / "fixtures" if (_HERE / "fixtures").is_dir() else _HERE.parent / "fixtures"
 
 
 class FakeLive(LiveLink):
