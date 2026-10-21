@@ -20,7 +20,7 @@ dev = ["pytest>=8", "anthropic>=1.17"]
 vibe2knob = "vibe2knob.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/vibe2knob"]
+packages = ["src/vibe2knob", "live_bridge"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
