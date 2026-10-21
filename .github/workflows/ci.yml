@@ -47,3 +47,18 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Panel journeys against the fake hub
+        run: npm run e2e
+        env:
+          CI: "1"
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: panel-screenshots
+          path: |
+            ui/e2e/screenshots/
+            ui/e2e/report/
+          if-no-files-found: ignore

@@ -9,6 +9,7 @@ One local **hub** (Python) owns the Live connection, the model calls and the cha
 - `src/vibe2knob/`: the hub. `core.py`, `advice.py`, `prompt.py` and `knowledge/` hold the advice engine, `chat.py` runs multi-turn chats (with `tools.py` for the model's tools and `session.py` for what it reads from Live), `providers/` holds the model adapters (`providers/fake.py` is a scripted one for tests and keyless runs), and `protocol.py` defines the hub <-> client messages.
 - `live_bridge/`: reads Live through AbletonOSC. Every OSC address is kept in `client.py`.
 - `ui/`: the panel, built with React + TypeScript + Vite. `ui/src/protocol/` is generated, so don't edit it by hand.
+  `ui/src/hub/fake.ts` is a scripted fake hub for development and the Playwright journeys in `ui/e2e/`.
 - `fixtures/`: real track dumps from Live 11. `evals/` holds model eval cases.
 
 ## Rules
@@ -31,6 +32,8 @@ One local **hub** (Python) owns the Live connection, the model calls and the cha
 pip install -e '.[dev]' && pytest -q          # hub tests
 cd ui && npm ci && npm test && npm run build  # UI tests and build
 cd ui && npm run gen:types                    # regenerate protocol types after a protocol change
+cd ui && npm run dev:fake                     # the panel against a scripted fake hub (no Python, Live or key)
+cd ui && npm run e2e                          # Playwright journeys + screenshots against the fake hub
 vibe2knob eval --model claude-haiku-5-5       # real-model evals, one-shot ask path (needs a key)
 vibe2knob eval --chat --model claude-haiku-5-5  # the same cases plus chat-only ones, on the chat path
 ```
