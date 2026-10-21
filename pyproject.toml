@@ -14,13 +14,22 @@ dependencies = [
 
 [project.optional-dependencies]
 claude = ["anthropic>=1.17"]
-dev = ["pytest>=8", "anthropic>=1.17"]
+panel = ["anthropic>=1.17", "fastapi>=0.115", "uvicorn[standard]>=0.30", "keyring>=25"]
+dev = ["pytest>=8", "anthropic>=1.17", "fastapi>=0.115", "uvicorn[standard]>=0.30",
+       "keyring>=25", "httpx>=0.27"]
 
 [project.scripts]
 vibe2knob = "vibe2knob.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vibe2knob", "live_bridge"]
+
+[tool.hatch.build.targets.wheel.force-include]
+# The example tracks. The built panel UI (ui/dist -> vibe2knob/web) is added by
+# hatch_build.py when it exists, so a wheel built after `npm run build` serves it.
+"fixtures" = "live_bridge/fixtures"
+
+[tool.hatch.build.targets.wheel.hooks.custom]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
