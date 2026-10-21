@@ -6,3 +6,6 @@ __pycache__/
 dist/
 evals/reports/
 .env
+ui/e2e/results/
+ui/e2e/report/
+ui/e2e/screenshots/
