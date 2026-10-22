@@ -50,7 +50,7 @@ def test_unknown_provider():
 
 
 from vibe2knob.providers import OllamaProvider  # noqa: E402
-from vibe2knob.providers.base import Done, Error, TextDelta, ToolCall, ToolSpec  # noqa: E402
+from vibe2knob.providers.base import Done, Error, Phase, TextDelta, ToolCall, ToolSpec  # noqa: E402
 
 TOOLS = [ToolSpec("suggest_steps", "Show steps.", {"type": "object"})]
 
@@ -76,6 +76,9 @@ def stream_client(stop_reason="tool_use"):
     def delta(text):
         return SimpleNamespace(type="content_block_delta", delta=SimpleNamespace(type="text_delta", text=text))
 
+    def start(kind):
+        return SimpleNamespace(type="content_block_start", content_block=SimpleNamespace(type=kind))
+
     final = SimpleNamespace(
         stop_reason=stop_reason,
         content=[
@@ -89,7 +92,8 @@ def stream_client(stop_reason="tool_use"):
 
     def stream(**kwargs):
         calls.update(kwargs)
-        return FakeStream([delta("Open "), delta("it up.")], final)
+        return FakeStream([start("thinking"), start("text"), delta("Open "), delta("it up."),
+                           start("tool_use")], final)
 
     return SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(stream=stream))), calls
 
@@ -97,9 +101,10 @@ def stream_client(stop_reason="tool_use"):
 def test_claude_stream_chat():
     client, kw = stream_client()
     events = list(ClaudeProvider(client=client).stream_chat("sys", [{"role": "user", "content": "hi"}], TOOLS))
-    assert events[:2] == [TextDelta("Open "), TextDelta("it up.")]
-    assert events[2] == ToolCall("suggest_steps", {"steps": []}, "toolu_1")
-    assert isinstance(events[3], Done) and events[3].usage["cache_read_input_tokens"] == 900
+    # Only a tool call's start becomes a phase: the hub already says "thinking" until text.
+    assert events[:3] == [TextDelta("Open "), TextDelta("it up."), Phase("steps")]
+    assert events[3] == ToolCall("suggest_steps", {"steps": []}, "toolu_1")
+    assert isinstance(events[4], Done) and events[4].usage["cache_read_input_tokens"] == 900
     assert kw["tools"] == [{"name": "suggest_steps", "description": "Show steps.",
                             "input_schema": {"type": "object"}, "strict": True}]
     assert kw["system"][0]["cache_control"] == {"type": "ephemeral"}
