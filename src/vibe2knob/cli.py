@@ -18,6 +18,17 @@ def _read_state(path: str) -> TrackState:
     return TrackState.from_json(text)
 
 
+def _record_usage(records) -> None:
+    """Add calls from the terminal to the panel's usage ledger. Never fails the command."""
+    from .store import default_home
+    from .usage import Ledger
+
+    try:
+        Ledger(default_home() / "usage.jsonl").append(r for r in records if r is not None)
+    except OSError:
+        pass
+
+
 def cmd_ask(args: argparse.Namespace) -> int:
     state = _read_state(args.state)
     terms = load_terms(args.terms)
@@ -25,8 +36,16 @@ def cmd_ask(args: argparse.Namespace) -> int:
         system, user, matched = build_prompts(state, args.request, terms)
         print("=== system ===\n" + system + "\n=== user ===\n" + user)
         return 0
+    from .usage import UsageRecord
+
     provider = get_provider(args.provider, args.model)
-    advice = ask(state, args.request, provider, terms)
+    try:
+        advice = ask(state, args.request, provider, terms)
+    finally:
+        if getattr(provider, "last_usage", None):
+            _record_usage([UsageRecord.from_raw(
+                provider.last_usage, kind="ask", provider=provider.name,
+                model=getattr(provider, "model", None))])
     if args.json:
         print(advice.model_dump_json(indent=2))
     else:
@@ -36,7 +55,7 @@ def cmd_ask(args: argparse.Namespace) -> int:
 
 def cmd_chat(args: argparse.Namespace) -> int:
     from .advice import format_step
-    from .chat import Chat, ChatEngine, ChatTitled, TurnError, TurnSteps, TurnText
+    from .chat import Chat, ChatEngine, ChatTitled, TurnDone, TurnError, TurnSteps, TurnText
     from .protocol import ContextSet
     from .session import StaticLive
 
@@ -45,7 +64,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
     if live:
         live.selected = next(iter(live.states))  # the first --state is the selected track
     chat = Chat(context=ContextSet(follow_selection=bool(states)))
-    engine = ChatEngine(get_provider(args.provider, args.model), load_terms(args.terms))
+    provider = get_provider(args.provider, args.model)
+    engine = ChatEngine(provider, load_terms(args.terms))
     print("Chatting about: " + (", ".join(s.track.name for s in states) or "nothing (general chat)"))
     print("Ctrl-D to quit.\n")
     while True:
@@ -72,6 +92,9 @@ def cmd_chat(args: argparse.Namespace) -> int:
                 print(f"\nerror: {event.message}", file=sys.stderr)
             elif isinstance(event, ChatTitled):
                 print(f"\n(topic: {event.title})", end="")
+                _record_usage([event.record])
+            elif isinstance(event, TurnDone):
+                _record_usage([event.record])
         print("\n")
     if args.save:
         chat.save(args.save)
@@ -116,6 +139,32 @@ def cmd_eval(args: argparse.Namespace) -> int:
     failed = [r for r in results if not r.passed]
     print(f"\n{len(results) - len(failed)}/{len(results)} cases passed")
     return 1 if failed else 0
+
+
+def cmd_prices(args: argparse.Namespace) -> int:
+    """Show the price table, or with --check compare it with Anthropic's pricing page."""
+    from . import pricing
+
+    if not args.check:
+        print(f"Prices in US$ per million tokens, checked on {pricing.CHECKED_ON}:")
+        for model, p in pricing.PRICES.items():
+            print(f"  {model:20} in {p.input:>6}  cache write {p.cache_write:>6}  "
+                  f"cache read {p.cache_read:>5}  out {p.output:>6}")
+        return 0
+    import urllib.request
+
+    request = urllib.request.Request(pricing.PRICING_URL, headers={"User-Agent": "vibe2knob"})
+    with urllib.request.urlopen(request, timeout=30) as resp:
+        page = resp.read().decode("utf-8", errors="replace")
+    problems = pricing.check_prices(page)
+    if not problems:
+        print(f"The price table matches {pricing.PRICING_URL}. "
+              f"Set CHECKED_ON in pricing.py to today if it's a release.")
+        return 0
+    print("The price table differs from the pricing page:")
+    for problem in problems:
+        print(f"  {problem}")
+    return 1
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -169,6 +218,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("terms", help="List the subjective terms in the knowledge map.")
     p.set_defaults(func=cmd_terms)
+
+    p = sub.add_parser("prices", help="Show the price table behind the cost estimates.")
+    p.add_argument("--check", action="store_true",
+                   help="Compare it with Anthropic's pricing page (for maintainers, before a release).")
+    p.set_defaults(func=cmd_prices)
 
     p = sub.add_parser("eval", help="Run the advice test cases against a model.")
     p.add_argument("--cases", default="evals/cases.toml")

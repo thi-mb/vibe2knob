@@ -64,6 +64,36 @@ class ContextSet(_Shape):
     pinned: list[int] = Field(default_factory=list, description="Track indexes pinned with @.")
 
 
+UsagePart = Literal["instructions", "tools", "live", "history", "message", "thinking", "answer",
+                    "steps"]
+
+
+class Usage(_Shape):
+    """Tokens used by one turn, one chat or a period. Counted on the hub, never sent anywhere.
+
+    input_tokens is the uncached input only: the whole prompt is input + cache_read +
+    cache_write. thinking_tokens are part of output_tokens.
+    """
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    thinking_tokens: int = 0
+    parts: dict[UsagePart, int] = Field(
+        default_factory=dict,
+        description="Prompt and answer split into parts. Only instructions, tools and thinking "
+        "are exact; the rest are estimates by text length.",
+    )
+    model: str | None = Field(default=None, description="The model that answered; null if several.")
+    cost_usd: float | None = Field(
+        default=None, description="Estimated from the hub's price table; null if no price is known."
+    )
+    cost_complete: bool = Field(
+        default=True, description="False when some calls had no known price, so cost_usd is low."
+    )
+
+
 class ChatSummary(_Shape):
     """A chat as a tab shows it."""
 
@@ -71,6 +101,12 @@ class ChatSummary(_Shape):
     title: str | None = Field(default=None, description="Topic title; null until named.")
     context: ContextSet
     updated_at: str = Field(description="ISO 8601 time of the last change.")
+    usage: Usage | None = Field(default=None, description="Everything the chat used, titles included.")
+    context_tokens: int | None = Field(
+        default=None, description="Tokens the next message resends: the last answer's prompt plus "
+        "its output.",
+    )
+    context_window: int | None = Field(default=None, description="The model's context window.")
 
 
 class LiveStatus(_Shape):
@@ -94,6 +130,7 @@ class ChatTurn(_Shape):
     caution: str | None = None
     warnings: list[str] = Field(default_factory=list)
     error: str | None = Field(default=None, description="Why the turn failed, if it did.")
+    usage: Usage | None = Field(default=None, description="Set on assistant turns.")
 
 
 class Settings(_Shape):
@@ -157,6 +194,16 @@ class SettingsTest(_Request):
     type: Literal["settings.test"] = "settings.test"
 
 
+UsageRange = Literal["today", "7d", "30d", "all"]
+
+
+class UsageGet(_Request):
+    """Ask for the usage report, e.g. when the Usage section in Settings opens."""
+
+    type: Literal["usage.get"] = "usage.get"
+    range: UsageRange = "30d"
+
+
 class LiveUseExample(_Request):
     """Use an example track instead of Live (null goes back to Live). The hub answers with
     live.status, so every client sees the switch."""
@@ -167,7 +214,7 @@ class LiveUseExample(_Request):
 
 ClientMessage = Annotated[
     Union[Hello, ChatCreate, ChatSend, ChatUpdate, ChatOpen, ChatClose, TracksList,
-          SettingsUpdate, SettingsTest, LiveUseExample],
+          SettingsUpdate, SettingsTest, LiveUseExample, UsageGet],
     Field(discriminator="type"),
 ]
 
@@ -245,6 +292,41 @@ class ChatDone(_Message):
     type: Literal["chat.done"] = "chat.done"
     chat_id: str
     turn_id: str
+    usage: Usage | None = Field(default=None, description="What the turn used, if it got that far.")
+
+
+class UsageDay(_Shape):
+    date: str = Field(description="Local date, YYYY-MM-DD.")
+    usage: Usage
+
+
+class UsageGroup(_Shape):
+    key: str = Field(description="A model id, or a kind: chat, title or ask.")
+    usage: Usage
+
+
+class UsageChat(_Shape):
+    chat_id: str
+    title: str | None = None
+    open: bool = Field(description="False for a chat whose tab was closed.")
+    usage: Usage
+
+
+class UsageReport(_Message):
+    """Usage for a range, in answer to usage.get. Days run oldest first, with no gaps."""
+
+    type: Literal["usage.report"] = "usage.report"
+    request_id: str | None = None
+    range: UsageRange
+    totals: dict[UsageRange, Usage] = Field(description="Today, 7 and 30 days, and all time.")
+    days: list[UsageDay]
+    by_model: list[UsageGroup]
+    by_kind: list[UsageGroup]
+    chats: list[UsageChat] = Field(description="Most expensive first.")
+    cache_hit_rate: float | None = Field(
+        default=None, description="Share of the prompt served from cache, 0 to 1."
+    )
+    prices_checked_on: str = Field(description="When the price table was last checked, YYYY-MM-DD.")
 
 
 class SettingsChanged(_Message):
@@ -267,7 +349,7 @@ class ErrorMessage(_Message):
 
 HubMessage = Annotated[
     Union[Welcome, LiveStatusChanged, Tracks, ChatChanged, ChatClosed, ChatHistory, ChatDelta,
-          ChatSteps, ChatDone, SettingsChanged, ErrorMessage],
+          ChatSteps, ChatDone, SettingsChanged, UsageReport, ErrorMessage],
     Field(discriminator="type"),
 ]
 

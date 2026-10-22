@@ -16,7 +16,8 @@ export type ClientEnvelope =
   | TracksList
   | SettingsUpdate
   | SettingsTest
-  | LiveUseExample;
+  | LiveUseExample
+  | UsageGet;
 /**
  * Any message the hub may send.
  *
@@ -34,6 +35,7 @@ export type HubEnvelope =
   | ChatSteps
   | ChatDone
   | SettingsChanged
+  | UsageReport
   | ErrorMessage;
 
 /**
@@ -234,6 +236,24 @@ export interface LiveUseExample {
   name: string | null;
 }
 /**
+ * Ask for the usage report, e.g. when the Usage section in Settings opens.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "UsageGet".
+ */
+export interface UsageGet {
+  /**
+   * Protocol version.
+   */
+  v?: 1;
+  /**
+   * Set by the client; echoed on the hub's reply or error.
+   */
+  request_id?: string | null;
+  type: "usage.get";
+  range?: "today" | "7d" | "30d" | "all";
+}
+/**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
  * via the `definition` "Welcome".
  */
@@ -269,6 +289,18 @@ export interface ChatSummary {
    * ISO 8601 time of the last change.
    */
   updated_at: string;
+  /**
+   * Everything the chat used, titles included.
+   */
+  usage: Usage | null;
+  /**
+   * Tokens the next message resends: the last answer's prompt plus its output.
+   */
+  context_tokens: number | null;
+  /**
+   * The model's context window.
+   */
+  context_window: number | null;
 }
 /**
  * What a chat looks at, besides the light session summary it always gets.
@@ -285,6 +317,40 @@ export interface ContextSet {
    * Track indexes pinned with @.
    */
   pinned: number[];
+}
+/**
+ * Tokens used by one turn, one chat or a period. Counted on the hub, never sent anywhere.
+ *
+ * input_tokens is the uncached input only: the whole prompt is input + cache_read +
+ * cache_write. thinking_tokens are part of output_tokens.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "Usage".
+ */
+export interface Usage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  thinking_tokens: number;
+  /**
+   * Prompt and answer split into parts. Only instructions, tools and thinking are exact; the rest are estimates by text length.
+   */
+  parts: {
+    [k: string]: number;
+  };
+  /**
+   * The model that answered; null if several.
+   */
+  model: string | null;
+  /**
+   * Estimated from the hub's price table; null if no price is known.
+   */
+  cost_usd: number | null;
+  /**
+   * False when some calls had no known price, so cost_usd is low.
+   */
+  cost_complete: boolean;
 }
 /**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
@@ -426,6 +492,10 @@ export interface ChatTurn {
    * Why the turn failed, if it did.
    */
   error: string | null;
+  /**
+   * Set on assistant turns.
+   */
+  usage: Usage | null;
 }
 /**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
@@ -517,6 +587,10 @@ export interface ChatDone {
   type: "chat.done";
   chat_id: string;
   turn_id: string;
+  /**
+   * What the turn used, if it got that far.
+   */
+  usage: Usage | null;
 }
 /**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
@@ -534,6 +608,77 @@ export interface SettingsChanged {
    * Outcome of a settings.test.
    */
   test_result: string | null;
+}
+/**
+ * Usage for a range, in answer to usage.get. Days run oldest first, with no gaps.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "UsageReport".
+ */
+export interface UsageReport {
+  /**
+   * Protocol version.
+   */
+  v: 1;
+  type: "usage.report";
+  request_id: string | null;
+  range: "today" | "7d" | "30d" | "all";
+  /**
+   * Today, 7 and 30 days, and all time.
+   */
+  totals: {
+    [k: string]: Usage;
+  };
+  days: UsageDay[];
+  by_model: UsageGroup[];
+  by_kind: UsageGroup[];
+  /**
+   * Most expensive first.
+   */
+  chats: UsageChat[];
+  /**
+   * Share of the prompt served from cache, 0 to 1.
+   */
+  cache_hit_rate: number | null;
+  /**
+   * When the price table was last checked, YYYY-MM-DD.
+   */
+  prices_checked_on: string;
+}
+/**
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "UsageDay".
+ */
+export interface UsageDay {
+  /**
+   * Local date, YYYY-MM-DD.
+   */
+  date: string;
+  usage: Usage;
+}
+/**
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "UsageGroup".
+ */
+export interface UsageGroup {
+  /**
+   * A model id, or a kind: chat, title or ask.
+   */
+  key: string;
+  usage: Usage;
+}
+/**
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "UsageChat".
+ */
+export interface UsageChat {
+  chat_id: string;
+  title: string | null;
+  /**
+   * False for a chat whose tab was closed.
+   */
+  open: boolean;
+  usage: Usage;
 }
 /**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema

@@ -34,6 +34,7 @@ from .session import (LiveView, SessionSummary, as_summary, as_track_state, desc
                       read_arrangement)
 from .state import Device, TrackState
 from .tools import ToolContext, ToolRegistry, default_tools
+from .usage import Sizes, UsageRecord, split_parts
 
 log = logging.getLogger("vibe2knob.chat")
 
@@ -70,9 +71,18 @@ class AssistantTurn(BaseModel):
         default_factory=dict,
         description="Full-detail tracks this answer saw, keyed by track index.",
     )
-    usage: dict = Field(default_factory=dict)
+    usage: dict = Field(default_factory=dict, description="The provider's raw counts.")
+    parts: dict[str, int] = Field(
+        default_factory=dict, description="The usage split into parts (see usage.py)."
+    )
     error: str | None = None
     created_at: str = Field(default_factory=_now)
+
+    def usage_record(self, chat_id: str | None = None, provider: str | None = None,
+                     model: str | None = None) -> UsageRecord:
+        return UsageRecord.from_raw(self.usage, chat_id=chat_id, turn_id=self.id,
+                                    provider=provider, model=model, at=self.created_at,
+                                    parts=self.parts)
 
 
 Turn = Annotated[Union[UserTurn, AssistantTurn], Field(discriminator="role")]
@@ -162,11 +172,13 @@ class TurnError:
 class TurnDone:
     turn_id: str
     usage: dict = field(default_factory=dict)
+    record: UsageRecord | None = None  # None when the model never answered
 
 
 @dataclass
 class ChatTitled:
     title: str
+    record: UsageRecord | None = None  # what naming the chat used
 
 
 ChatEvent = Union[TurnStarted, TurnText, TurnSteps, TurnError, TurnDone, ChatTitled]
@@ -343,11 +355,13 @@ class ChatEngine:
         only = ctx.detail[0][2] if len(ctx.detail) == 1 else None
         tool_ctx = ToolContext(ctx.check_tracks(), only)
         prose: list[str] = []
+        steps_chars = 0
         for event in self._stream(messages):
             if isinstance(event, TextDelta):
                 prose.append(event.text)
                 yield TurnText(turn.id, event.text)
             elif isinstance(event, ToolCall):
+                steps_chars += len(json.dumps(event.input))
                 outcome = self.tools.handle(event.name, event.input, tool_ctx)
                 turn.warnings += outcome.warnings
                 if outcome.steps is not None and outcome.steps.steps:
@@ -362,14 +376,47 @@ class ChatEngine:
                 turn.error = event.message
                 yield TurnError(turn.id, event.message)
         turn.text = "".join(prose)
+        record = None
+        if turn.usage:
+            sizes = self._sizes(messages, text)
+            sizes.answer, sizes.steps = len(turn.text), steps_chars
+            record = turn.usage_record(chat.id, self.provider.name,
+                                       getattr(self.provider, "model", None))
+            turn.parts = record.parts = split_parts(record, sizes)
         chat.turns.append(turn)
         chat.updated_at = _now()
-        yield TurnDone(turn.id, turn.usage)
+        yield TurnDone(turn.id, turn.usage, record)
         if chat.title is None and turn.error is None:
             title = self.title_for(text, turn.text)
             if title:
                 chat.title = title
-                yield ChatTitled(title)
+                yield ChatTitled(title, self._last_record("title", chat.id))
+
+    def _sizes(self, messages: list[dict], request: str) -> Sizes:
+        """How long each part of the prompt was, plus exact counts if the provider has them."""
+        newest = messages[-1]["content"]
+        sizes = Sizes(
+            instructions=len(self.system),
+            tools=len(json.dumps([s.input_schema for s in self.tools.specs()])),
+            history=sum(len(m["content"]) for m in messages[:-1]),
+            message=len(request),
+            live=max(0, len(newest) - len(request)),
+        )
+        count_parts = getattr(self.provider, "count_parts", None)
+        if count_parts is not None:
+            try:
+                sizes.exact = count_parts(self.system, self.tools.specs()) or {}
+            except Exception:  # noqa: BLE001 - the split falls back to estimates
+                sizes.exact = {}
+        return sizes
+
+    def _last_record(self, kind: str, chat_id: str | None) -> UsageRecord | None:
+        """The usage of the provider's last generate_text call, if it reported one."""
+        raw = getattr(self.provider, "last_usage", None)
+        if not raw:
+            return None
+        return UsageRecord.from_raw(raw, kind=kind, chat_id=chat_id, provider=self.provider.name,
+                                    model=getattr(self.provider, "model", None))
 
     def _stream(self, messages: list[dict]) -> Iterator:
         try:
@@ -379,6 +426,8 @@ class ChatEngine:
 
     def title_for(self, request: str, answer: str) -> str | None:
         """A short topic title from one cheap call. None if the call fails."""
+        if hasattr(self.provider, "last_usage"):
+            self.provider.last_usage = None
         try:
             raw = self.provider.generate_text(
                 TITLE_SYSTEM, f"User: {request}\n\nAssistant: {answer[:800]}"
