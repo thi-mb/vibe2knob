@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass
 from typing import Iterator
 
-from .base import Done, Error, StreamEvent, TextDelta, ToolCall, ToolSpec
+from .base import Done, Error, Phase, StreamEvent, TextDelta, ToolCall, ToolSpec
 
 
 @dataclass
@@ -30,17 +30,20 @@ class FakeProvider:
     """Plays back scripted replies in order and records each call.
 
     The last reply repeats, or with `cycle` the replies go round. `delay` pauses between
-    words, so a UI can watch the answer stream in.
+    words, so a UI can watch the answer stream in, and `think` pauses before the first word
+    and before the steps, so it can watch the progress line too.
     """
 
     name = "fake"
     model = "scripted"
 
     def __init__(self, replies: list[Reply] | None = None, title: str = "Scripted chat",
-                 advice: dict | None = None, cycle: bool = False, delay: float = 0.0):
+                 advice: dict | None = None, cycle: bool = False, delay: float = 0.0,
+                 think: float = 0.0):
         self.replies = list(replies or [Reply("Scripted answer.")])
         self.cycle = cycle
         self.delay = delay
+        self.think = think
         self.title = title
         self.advice = advice
         self.calls: list[dict] = []
@@ -57,6 +60,8 @@ class FakeProvider:
         else:
             reply = self.replies.pop(0) if len(self.replies) > 1 else self.replies[0]
         words = re.findall(r"\s*\S+", reply.text)
+        if self.think:
+            time.sleep(self.think)
         for word in words:
             if self.delay:
                 time.sleep(self.delay)
@@ -64,6 +69,10 @@ class FakeProvider:
         if reply.error:
             yield Error(reply.error)
             return
+        if reply.tool_calls:
+            yield Phase("steps")
+            if self.think:
+                time.sleep(self.think)
         for name, payload in reply.tool_calls:
             yield ToolCall(name, payload, f"call_{len(self.calls)}")
         # Rough counts, about four characters a token, so the usage views have numbers.
@@ -82,7 +91,7 @@ class FakeProvider:
         return json.dumps(self.advice or {})
 
 
-def demo_provider(delay: float = 0.03) -> FakeProvider:
+def demo_provider(delay: float = 0.03, think: float = 1.5) -> FakeProvider:
     """Canned answers for running the panel with no model and no key (`panel --fake`)."""
     wider = Reply.with_steps(
         "Here's a gentle way to widen it without losing the centre. Start with the stereo "
@@ -107,4 +116,4 @@ def demo_provider(delay: float = 0.03) -> FakeProvider:
         "steps this time: a prose-only answer is fine too."
     )
     return FakeProvider([wider, chat], title="Wider without losing mono", cycle=True,
-                        delay=delay)
+                        delay=delay, think=think)

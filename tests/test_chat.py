@@ -10,6 +10,7 @@ from vibe2knob.chat import (
     TurnDone,
     TurnError,
     TurnStarted,
+    TurnStatus,
     TurnSteps,
     TurnText,
     diff_tracks,
@@ -60,6 +61,20 @@ def test_prose_only_answer():
     sent = provider.calls[0]["messages"][-1]["content"]
     assert "No tracks are in this chat's context." in sent
     assert [t.name for t in provider.calls[0]["tools"]] == ["suggest_steps"]
+
+
+def test_turn_reports_its_phases_before_anything_shows():
+    engine = ChatEngine(FakeProvider([wider_reply()]))
+    events = run(engine, Chat(), "make it wider", session())
+    started, reading, thinking = events[:3]
+    assert isinstance(started, TurnStarted)
+    assert (reading, thinking) == (TurnStatus(started.turn_id, "reading"),
+                                   TurnStatus(started.turn_id, "thinking"))
+    # The steps phase comes after the prose and before the steps themselves.
+    kinds = [type(e).__name__ for e in events]
+    assert kinds.index("TurnStatus", 3) > kinds.index("TurnText")
+    assert events[kinds.index("TurnStatus", 3)].phase == "steps"
+    assert kinds.index("TurnStatus", 3) < kinds.index("TurnSteps")
 
 
 def test_steps_are_checked_and_stored():

@@ -34,6 +34,13 @@ class ToolCall:
 
 
 @dataclass
+class Phase:
+    """What the model is on, for a progress line. Optional: "steps" when it starts a tool call."""
+
+    name: str
+
+
+@dataclass
 class Done:
     usage: dict = field(default_factory=dict)
     stop_reason: str | None = None
@@ -44,14 +51,16 @@ class Error:
     message: str
 
 
-StreamEvent = Union[TextDelta, ToolCall, Done, Error]
+StreamEvent = Union[TextDelta, ToolCall, Phase, Done, Error]
 
 
 class Provider(Protocol):
     """An LLM backend.
 
     `generate` returns JSON text matching `schema` (the one-shot `ask` path).
-    `stream_chat` streams a chat answer: prose deltas, then any tool calls, then Done.
+    `stream_chat` streams a chat answer: prose deltas, then any tool calls, then Done. It may
+    also yield Phase("steps") when the model starts writing a tool call, so the client can say
+    so before the call arrives.
     Messages are plain {"role": "user" | "assistant", "content": str} dicts.
     `generate_text` is a cheap plain-text call, used for chat titles.
 

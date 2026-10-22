@@ -25,7 +25,10 @@ from typing import Callable
 from pydantic import BaseModel, ValidationError
 
 from . import __version__, pricing
-from .chat import AssistantTurn, Chat, ChatEngine, ChatTitled, TurnDone, TurnError, TurnSteps, TurnText
+from .chat import (
+    AssistantTurn, Chat, ChatEngine, ChatTitled, TurnDone, TurnError, TurnStatus, TurnSteps,
+    TurnText,
+)
 from .knowledge import Term, load_terms
 from .protocol import (
     PROTOCOL_VERSION,
@@ -38,6 +41,7 @@ from .protocol import (
     ChatSend,
     ChatHistory,
     ChatOpen,
+    ChatStatus,
     ChatSteps,
     ChatSummary,
     ChatTurn,
@@ -436,7 +440,11 @@ class Hub:
         turn_id = None
         try:
             for event in engine.send(chat, text, self._live_view()):
-                if isinstance(event, TurnText):
+                if isinstance(event, TurnStatus):
+                    turn_id = event.turn_id
+                    self.publish(ChatStatus(chat_id=chat.id, turn_id=event.turn_id,
+                                            phase=event.phase))
+                elif isinstance(event, TurnText):
                     turn_id = event.turn_id
                     self.publish(ChatDelta(chat_id=chat.id, turn_id=event.turn_id,
                                            text=event.text))
@@ -461,7 +469,7 @@ class Hub:
                     self._record_usage(event.record)
                     self.store.save_chat(chat)
                     self.publish(ChatChanged(chat=self.summary(chat)))
-                else:  # TurnStarted: the first delta or steps carry the turn id
+                else:  # TurnStarted: its first status carries the turn id
                     turn_id = event.turn_id
         except Exception as e:  # noqa: BLE001 - a crashed turn must still end for the client
             log.exception("Turn failed in chat %s", chat.id)

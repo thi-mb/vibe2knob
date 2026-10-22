@@ -64,7 +64,7 @@ export function useHub(): [PanelState, HubActions] {
     };
     const types: HubEnvelope["type"][] = [
       "welcome", "live.status", "tracks", "chat.changed", "chat.closed", "chat.history",
-      "chat.delta", "chat.steps", "chat.done", "settings", "usage.report", "error",
+      "chat.status", "chat.delta", "chat.steps", "chat.done", "settings", "usage.report", "error",
     ];
     for (const t of types) offHandlers.push(client.on(t, route));
     offHandlers.push(

@@ -96,6 +96,33 @@ test("Live offline offers example tracks", async ({ page }) => {
   await expect(page.getByLabel("Describe the vibe")).toBeEnabled();
 });
 
+test("a progress line shows what the turn is on until the answer lands", async ({ page }) => {
+  await open(page, "empty");
+  const release = () => page.evaluate(() => window.__fakeHub!.release());
+  const progress = page.locator(".progress");
+  await page.evaluate(() => window.__fakeHub!.hold(["reading", "thinking", "steps"]));
+  await page.getByLabel("Describe the vibe").fill("make it wider");
+  await page.keyboard.press("Enter");
+  await expect(progress).toContainText("READING THE SESSION");
+  await expect(page.getByRole("button", { name: "Send" })).toBeDisabled();
+  await shoot(page, "16-progress-reading");
+
+  await release();
+  await expect(progress).toContainText("THINKING");
+  await expect(progress).toContainText("· 2s"); // the timer counts from the send
+  await shoot(page, "17-progress-thinking");
+
+  await release();
+  await expect(progress).toContainText("WRITING STEPS");
+  await expect(page.locator(".prose")).toContainText("Chorus-Ensemble");
+  await expect(page.locator(".cursor")).toHaveCount(0);
+  await shoot(page, "18-progress-steps");
+
+  await page.evaluate(() => window.__fakeHub!.release(true));
+  await expect(page.getByRole("listitem").filter({ hasText: "Chorus-Ensemble" })).toBeVisible();
+  await expect(progress).toHaveCount(0);
+});
+
 test("a failed turn shows its error inside the chat", async ({ page }) => {
   await open(page, "empty");
   await page.getByLabel("Describe the vibe").fill("this will fail");

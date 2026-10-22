@@ -2,6 +2,7 @@
 // here is pure so it can be tested without a browser.
 
 import type {
+  ChatStatus,
   ChatSummary,
   ChatTurn,
   HubEnvelope,
@@ -35,6 +36,18 @@ export interface Turn {
   usage: Usage | null;
 }
 
+/** What a running turn is on. "writing" is implied by its prose arriving. */
+export type Phase = ChatStatus["phase"] | "writing";
+
+/** A turn in flight, from the moment the user sends until chat.done. */
+export interface Progress {
+  /** When the user sent (or this client first heard of the turn), for the elapsed timer. */
+  since: string;
+  phase: Phase;
+  /** The chat.send's request_id, so an error answering it ends the wait. */
+  requestId: string | null;
+}
+
 export type View = "chat" | "settings";
 
 export interface PanelState {
@@ -51,6 +64,8 @@ export interface PanelState {
   activeChatId: string | null;
   /** A chat's turns, oldest first; missing until chat.history (or a new chat) fills it. */
   turns: Record<string, Turn[]>;
+  /** Turns in flight, by chat. */
+  progress: Record<string, Progress>;
   view: View;
   testResult: string | null;
   /** The request_id of a chat.create we sent, so its chat.changed opens the new tab. */
@@ -73,6 +88,7 @@ export const initialState: PanelState = {
   chats: [],
   activeChatId: null,
   turns: {},
+  progress: {},
   view: "chat",
   testResult: null,
   pendingCreate: null,
@@ -139,6 +155,23 @@ function withTurn(
   return { ...state, turns: { ...state.turns, [chatId]: next } };
 }
 
+function withPhase(state: PanelState, chatId: string, phase: Phase): PanelState {
+  const was = state.progress[chatId];
+  const since = was?.since ?? new Date().toISOString();
+  return { ...state, progress: { ...state.progress, [chatId]: { since, phase, requestId: was?.requestId ?? null } } };
+}
+
+/** Something the user can see arrived, so the progress line steps aside. */
+function writing(state: PanelState, chatId: string): PanelState {
+  return chatId in state.progress ? withPhase(state, chatId, "writing") : state;
+}
+
+function withoutProgress(state: PanelState, chatId: string): PanelState {
+  if (!(chatId in state.progress)) return state;
+  const { [chatId]: _done, ...progress } = state.progress;
+  return { ...state, progress };
+}
+
 function upsertChat(chats: ChatSummary[], chat: ChatSummary): ChatSummary[] {
   const i = chats.findIndex((c) => c.id === chat.id);
   return i === -1 ? [...chats, chat] : chats.map((c, j) => (j === i ? chat : c));
@@ -164,6 +197,8 @@ function onHub(state: PanelState, m: HubEnvelope): PanelState {
         activeChatId: keep ? state.activeChatId : mostRecent(m.chats),
         // A new connection may have missed deltas, so every chat reloads its history.
         turns: {},
+        // A turn still running on the hub says so again with its next chat.status.
+        progress: {},
         pendingCreate: null,
       };
     }
@@ -188,7 +223,7 @@ function onHub(state: PanelState, m: HubEnvelope): PanelState {
       const { [m.chat_id]: _gone, ...turns } = state.turns;
       let active = state.activeChatId;
       if (active === m.chat_id) active = chats[Math.min(i, chats.length - 1)]?.id ?? null;
-      return { ...state, chats, turns, activeChatId: active };
+      return withoutProgress({ ...state, chats, turns, activeChatId: active }, m.chat_id);
     }
     case "chat.history": {
       // Keep a turn that's still streaming if the history was saved before it started.
@@ -203,18 +238,29 @@ function onHub(state: PanelState, m: HubEnvelope): PanelState {
       );
       return { ...state, turns: { ...state.turns, [m.chat_id]: [...history, ...echoes] } };
     }
+    case "chat.status":
+      return withPhase(withTurn(state, m.chat_id, m.turn_id, (t) => t), m.chat_id, m.phase);
     case "chat.delta":
-      return withTurn(state, m.chat_id, m.turn_id, (t) => ({ ...t, text: t.text + m.text, pending: true }));
+      return writing(
+        withTurn(state, m.chat_id, m.turn_id, (t) => ({ ...t, text: t.text + m.text, pending: true })),
+        m.chat_id,
+      );
     case "chat.steps":
-      return withTurn(state, m.chat_id, m.turn_id, (t) => ({
-        ...t,
-        steps: m.steps,
-        listen_for: m.listen_for,
-        caution: m.caution,
-        warnings: m.warnings,
-      }));
+      return writing(
+        withTurn(state, m.chat_id, m.turn_id, (t) => ({
+          ...t,
+          steps: m.steps,
+          listen_for: m.listen_for,
+          caution: m.caution,
+          warnings: m.warnings,
+        })),
+        m.chat_id,
+      );
     case "chat.done":
-      return withTurn(state, m.chat_id, m.turn_id, (t) => ({ ...t, pending: false, usage: m.usage ?? t.usage }));
+      return withoutProgress(
+        withTurn(state, m.chat_id, m.turn_id, (t) => ({ ...t, pending: false, usage: m.usage ?? t.usage })),
+        m.chat_id,
+      );
     case "usage.report":
       return m.range === state.usageRange ? { ...state, usage: m } : state;
     case "settings":
@@ -223,11 +269,17 @@ function onHub(state: PanelState, m: HubEnvelope): PanelState {
         settings: m.settings,
         testResult: m.test_result ?? state.testResult,
       };
-    case "error":
+    case "error": {
       if (m.chat_id && m.turn_id) {
         return withTurn(state, m.chat_id, m.turn_id, (t) => ({ ...t, error: m.message }));
       }
-      return { ...state, notice: m.message };
+      // A send the hub refused (or a turn that crashed before it began) won't get chat.done.
+      const refused = Object.entries(state.progress).find(
+        ([id, p]) => id === m.chat_id || (m.request_id !== null && p.requestId === m.request_id),
+      );
+      const next = refused ? withoutProgress(state, refused[0]) : state;
+      return { ...next, notice: m.message };
+    }
   }
 }
 
@@ -248,7 +300,14 @@ export function reducer(state: PanelState, action: Action): PanelState {
     case "user-sent": {
       const turn: Turn = { ...blankTurn(`local-${action.requestId}`, "user", action.at), text: action.text };
       const turns = state.turns[action.chatId] ?? [];
-      return { ...state, turns: { ...state.turns, [action.chatId]: [...turns, turn] } };
+      return {
+        ...state,
+        turns: { ...state.turns, [action.chatId]: [...turns, turn] },
+        progress: {
+          ...state.progress,
+          [action.chatId]: { since: action.at, phase: "reading", requestId: action.requestId },
+        },
+      };
     }
     case "show":
       return { ...state, view: action.view, testResult: action.view === "settings" ? null : state.testResult };
@@ -267,7 +326,7 @@ export function activeChat(state: PanelState): ChatSummary | null {
 
 export function isStreaming(state: PanelState, chatId: string | null): boolean {
   if (!chatId) return false;
-  return (state.turns[chatId] ?? []).some((t) => t.pending);
+  return chatId in state.progress || (state.turns[chatId] ?? []).some((t) => t.pending);
 }
 
 /** Can the panel read tracks right now (Live, or an example track)? */
