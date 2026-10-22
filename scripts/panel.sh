@@ -12,7 +12,8 @@ if [[ -z "${PYTHON:-}" ]]; then
   if [[ -x .venv/bin/python ]]; then PYTHON=.venv/bin/python; else PYTHON=python3; fi
 fi
 
-[[ -n "${NO_PULL:-}" ]] || git pull --ff-only
+# Pull the same branch from origin by name, so it works without upstream tracking set.
+[[ -n "${NO_PULL:-}" ]] || git pull --ff-only origin "$(git branch --show-current)"
 "$PYTHON" -m pip install --quiet -e '.[window,dev]'
 (cd ui && npm ci --silent && npm run build --silent)
 
