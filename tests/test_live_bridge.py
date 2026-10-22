@@ -1,3 +1,4 @@
+import json
 import socket
 import threading
 import time
@@ -342,3 +343,92 @@ def test_fake_live_from_dicts():
     live = FakeLive([{"track": {"name": "Bass", "type": "midi"}}], selected=None)
     assert live.selected_track_index() is None
     assert live.session_summary()["tracks"][0]["devices"] == []
+
+
+# Arrangement
+
+
+class ProbeOSC(FakeAbletonOSC):
+    """Replays a probe of a real Live 11.3 set (fixtures/arrangement), group tracks unanswered."""
+
+    def __init__(self, probe, reply_port, *, arrangement_works=True):
+        self.probe = probe
+        self.arrangement_works = arrangement_works
+        super().__init__([], reply_port)
+
+    def _answer(self, address, args):
+        song = address.removeprefix("/live/song/get/")
+        if song in self.probe["song"]:
+            return self.probe["song"][song]
+        if address == "/live/song/get/num_tracks":
+            return [len(self.probe["tracks"])]
+        if address.startswith("/live/track/get/"):
+            prop = address.removeprefix("/live/track/get/")
+            if prop.startswith("arrangement_clips/") and not self.arrangement_works:
+                return None
+            value = self.probe["tracks"][args[0]].get(prop)
+            return None if value is None else [args[0], *value]
+        return super()._answer(address, args)
+
+
+@pytest.fixture
+def probe_set():
+    probe = json.loads((FIXTURES / "arrangement" / "probe_live11.json").read_text())
+    servers, bridges = [], []
+
+    def connect(**kwargs):
+        receive_port = _free_port()
+        server = ProbeOSC(probe, receive_port, **kwargs)
+        servers.append(server)
+        bridge = LiveBridge(osc=OscClient("127.0.0.1", server.port, receive_port), timeout=0.3)
+        bridges.append(bridge)
+        return server, bridge
+
+    yield connect
+    for bridge in bridges:
+        bridge.close()
+    for server in servers:
+        server.close()
+
+
+def test_arrangement_from_a_real_set(probe_set):
+    server, live = probe_set()
+    started = time.monotonic()
+    arrangement = live.arrangement()
+    # Group tracks aren't asked, so nothing waits out the timeout.
+    assert time.monotonic() - started < 0.3
+    assert arrangement["signature"] == [4, 4]
+    assert arrangement["song_length"] == 504.0
+    assert arrangement["locators"] == []
+    tracks = arrangement["tracks"]
+    assert len(tracks) == 39
+    vocals, chop, trumpet = tracks[0], tracks[1], tracks[19]
+    assert vocals["is_group"] and vocals["clips"] is None
+    assert chop["is_grouped"] and len(chop["clips"]) == 23
+    # Live reports these four clips as 24 beats each; each one ends where the next starts.
+    assert [(c["start"], c["end"]) for c in trumpet["clips"][-4:]] == [
+        (432.0, 450.0), (450.0, 452.0), (452.0, 454.0), (454.0, 478.0)]
+    assert tracks[35]["clips"] == []
+
+
+def test_arrangement_with_an_old_abletonosc(probe_set):
+    server, live = probe_set(arrangement_works=False)
+    assert live.arrangement() is None
+    asked = len(server.received)
+    assert live.arrangement() is None
+    assert len(server.received) == asked  # remembered, so later turns don't wait again
+
+
+def test_clip_spans():
+    from live_bridge.client import _clip_spans
+
+    spans = _clip_spans(["b", "a", "c"], [8.0, 0.0, 9.0], [4.0, 16.0, 0.0])
+    assert spans == [{"name": "a", "start": 0.0, "end": 8.0}, {"name": "b", "start": 8.0, "end": 9.0}]
+
+
+def test_fake_live_arrangement():
+    live = FakeLive()
+    arrangement = live.arrangement()
+    assert [c["name"] for c in arrangement["locators"]][:3] == ["Intro", "Verse", "Chorus"]
+    assert len(arrangement["tracks"]) == len(live._states)
+    assert FakeLive([FIXTURES / "synth_pad.json"]).arrangement() is None

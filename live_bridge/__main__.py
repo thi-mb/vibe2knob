@@ -3,6 +3,7 @@
     python3 -m live_bridge            # readable summary, then JSON
     python3 -m live_bridge --json     # JSON only, for piping into a file
     python3 -m live_bridge --summary  # every track, light, with its size and read time
+    python3 -m live_bridge --arrangement  # where clips sit in Arrangement view, with read time
     python3 -m live_bridge --watch    # print connection and selection changes until Ctrl-C
 """
 
@@ -46,6 +47,19 @@ def _print_summary(live):
     )
 
 
+def _print_arrangement(live):
+    started = time.monotonic()
+    arrangement = live.arrangement()
+    elapsed = time.monotonic() - started
+    if arrangement is None:
+        print("This AbletonOSC doesn't report arrangement clips.", file=sys.stderr)
+        return
+    print(json.dumps(arrangement, indent=2, ensure_ascii=False))
+    clips = sum(len(t["clips"] or []) for t in arrangement["tracks"])
+    print(f"{clips} clips, {len(arrangement['locators'])} locators, read in {elapsed:.2f} s",
+          file=sys.stderr)
+
+
 def _watch(live):
     def on_status(status, detail):
         print(f"{time.strftime('%H:%M:%S')} status {status}" + (f": {detail}" if detail else ""))
@@ -68,6 +82,8 @@ def main(argv=None):
     parser.add_argument("--json", action="store_true", help="print JSON only")
     parser.add_argument("--track", type=int, help="track index to read instead of the selected one")
     parser.add_argument("--summary", action="store_true", help="print the light session summary")
+    parser.add_argument("--arrangement", action="store_true",
+                        help="print where clips sit in Arrangement view")
     parser.add_argument("--watch", action="store_true", help="print status and selection changes")
     parser.add_argument("--no-poll", action="store_true",
                         help="with --watch, rely on Live's selection listener only")
@@ -83,6 +99,9 @@ def main(argv=None):
             live.ping()
             if args.summary:
                 _print_summary(live)
+                return 0
+            if args.arrangement:
+                _print_arrangement(live)
                 return 0
             if args.track is None:
                 state = live.selected_track_state()

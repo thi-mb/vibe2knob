@@ -6,7 +6,7 @@ An AI producer mate that sits next to Ableton Live. It reads the session through
 
 One local **hub** (Python) owns the Live connection, the model calls and the chats. Every surface is a thin **client** of the hub: the desktop panel now, a browser tab, and later a phone. Clients only render and send input.
 
-- `src/vibe2knob/`: the hub. `core.py`, `advice.py`, `prompt.py` and `knowledge/` hold the advice engine, `chat.py` runs multi-turn chats (with `tools.py` for the model's tools and `session.py` for what it reads from Live), `providers/` holds the model adapters (`providers/fake.py` is a scripted one for tests and keyless runs), `protocol.py` defines the hub <-> client messages, `hub.py` serves them (with `store.py` for chats, settings and the key), and `server.py` is the web server behind `vibe2knob panel`.
+- `src/vibe2knob/`: the hub. `core.py`, `advice.py`, `prompt.py` and `knowledge/` hold the advice engine, `chat.py` runs multi-turn chats (with `tools.py` for the model's tools and `session.py` for what it reads from Live and `arrangement.py` for when tracks play), `providers/` holds the model adapters (`providers/fake.py` is a scripted one for tests and keyless runs), `protocol.py` defines the hub <-> client messages, `hub.py` serves them (with `store.py` for chats, settings and the key), and `server.py` is the web server behind `vibe2knob panel`.
 - `live_bridge/`: reads Live through AbletonOSC. Every OSC address is kept in `client.py`.
 - `ui/`: the panel, built with React + TypeScript + Vite. `ui/src/protocol/` is generated, so don't edit it by hand.
   `ui/src/hub/fake.ts` is a scripted fake hub for development and the Playwright journeys in `ui/e2e/`.
