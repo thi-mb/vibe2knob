@@ -53,7 +53,7 @@ def test_prose_only_answer():
     assert isinstance(events[0], TurnStarted)
     assert "".join(e.text for e in events if isinstance(e, TurnText)).startswith("Echo is")
     assert not any(isinstance(e, TurnSteps) for e in events)
-    assert isinstance(events[-2], TurnDone) and events[-1] == ChatTitled("Scripted chat")
+    assert isinstance(events[-2], TurnDone) and events[-1].title == "Scripted chat"
     assert chat.title == "Scripted chat"
     user, answer = chat.turns
     assert user.text.startswith("what's") and answer.steps == [] and answer.error is None

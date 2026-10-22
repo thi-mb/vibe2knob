@@ -215,13 +215,26 @@
         },
         "turn_id": {
           "type": "string"
+        },
+        "usage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Usage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What the turn used, if it got that far."
         }
       },
       "required": [
         "v",
         "type",
         "chat_id",
-        "turn_id"
+        "turn_id",
+        "usage"
       ],
       "title": "ChatDone",
       "type": "object"
@@ -444,13 +457,52 @@
         "updated_at": {
           "description": "ISO 8601 time of the last change.",
           "type": "string"
+        },
+        "usage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Usage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Everything the chat used, titles included."
+        },
+        "context_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tokens the next message resends: the last answer's prompt plus its output."
+        },
+        "context_window": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The model's context window."
         }
       },
       "required": [
         "id",
         "title",
         "context",
-        "updated_at"
+        "updated_at",
+        "usage",
+        "context_tokens",
+        "context_window"
       ],
       "title": "ChatSummary",
       "type": "object"
@@ -530,6 +582,18 @@
           ],
           "default": null,
           "description": "Why the turn failed, if it did."
+        },
+        "usage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Usage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set on assistant turns."
         }
       },
       "required": [
@@ -541,7 +605,8 @@
         "listen_for",
         "caution",
         "warnings",
-        "error"
+        "error",
+        "usage"
       ],
       "title": "ChatTurn",
       "type": "object"
@@ -618,7 +683,8 @@
           "live.use_example": "#/$defs/LiveUseExample",
           "settings.test": "#/$defs/SettingsTest",
           "settings.update": "#/$defs/SettingsUpdate",
-          "tracks.list": "#/$defs/TracksList"
+          "tracks.list": "#/$defs/TracksList",
+          "usage.get": "#/$defs/UsageGet"
         },
         "propertyName": "type"
       },
@@ -652,6 +718,9 @@
         },
         {
           "$ref": "#/$defs/LiveUseExample"
+        },
+        {
+          "$ref": "#/$defs/UsageGet"
         }
       ],
       "title": "ClientEnvelope"
@@ -830,6 +899,7 @@
           "live.status": "#/$defs/LiveStatusChanged",
           "settings": "#/$defs/SettingsChanged",
           "tracks": "#/$defs/Tracks",
+          "usage.report": "#/$defs/UsageReport",
           "welcome": "#/$defs/Welcome"
         },
         "propertyName": "type"
@@ -864,6 +934,9 @@
         },
         {
           "$ref": "#/$defs/SettingsChanged"
+        },
+        {
+          "$ref": "#/$defs/UsageReport"
         },
         {
           "$ref": "#/$defs/ErrorMessage"
@@ -1412,6 +1485,311 @@
       "required": [
         "type"
       ]
+    },
+    "Usage": {
+      "description": "Tokens used by one turn, one chat or a period. Counted on the hub, never sent anywhere.\n\ninput_tokens is the uncached input only: the whole prompt is input + cache_read +\ncache_write. thinking_tokens are part of output_tokens.",
+      "properties": {
+        "input_tokens": {
+          "default": 0,
+          "type": "integer"
+        },
+        "output_tokens": {
+          "default": 0,
+          "type": "integer"
+        },
+        "cache_read_tokens": {
+          "default": 0,
+          "type": "integer"
+        },
+        "cache_write_tokens": {
+          "default": 0,
+          "type": "integer"
+        },
+        "thinking_tokens": {
+          "default": 0,
+          "type": "integer"
+        },
+        "parts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "Prompt and answer split into parts. Only instructions, tools and thinking are exact; the rest are estimates by text length.",
+          "propertyNames": {
+            "enum": [
+              "instructions",
+              "tools",
+              "live",
+              "history",
+              "message",
+              "thinking",
+              "answer",
+              "steps"
+            ]
+          },
+          "type": "object"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The model that answered; null if several."
+        },
+        "cost_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Estimated from the hub's price table; null if no price is known."
+        },
+        "cost_complete": {
+          "default": true,
+          "description": "False when some calls had no known price, so cost_usd is low.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "input_tokens",
+        "output_tokens",
+        "cache_read_tokens",
+        "cache_write_tokens",
+        "thinking_tokens",
+        "parts",
+        "model",
+        "cost_usd",
+        "cost_complete"
+      ],
+      "title": "Usage",
+      "type": "object"
+    },
+    "UsageChat": {
+      "properties": {
+        "chat_id": {
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "open": {
+          "description": "False for a chat whose tab was closed.",
+          "type": "boolean"
+        },
+        "usage": {
+          "$ref": "#/$defs/Usage"
+        }
+      },
+      "required": [
+        "chat_id",
+        "title",
+        "open",
+        "usage"
+      ],
+      "title": "UsageChat",
+      "type": "object"
+    },
+    "UsageDay": {
+      "properties": {
+        "date": {
+          "description": "Local date, YYYY-MM-DD.",
+          "type": "string"
+        },
+        "usage": {
+          "$ref": "#/$defs/Usage"
+        }
+      },
+      "required": [
+        "date",
+        "usage"
+      ],
+      "title": "UsageDay",
+      "type": "object"
+    },
+    "UsageGet": {
+      "additionalProperties": false,
+      "description": "Ask for the usage report, e.g. when the Usage section in Settings opens.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "type": {
+          "const": "usage.get",
+          "default": "usage.get",
+          "type": "string"
+        },
+        "range": {
+          "default": "30d",
+          "enum": [
+            "today",
+            "7d",
+            "30d",
+            "all"
+          ],
+          "type": "string"
+        }
+      },
+      "title": "UsageGet",
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "UsageGroup": {
+      "properties": {
+        "key": {
+          "description": "A model id, or a kind: chat, title or ask.",
+          "type": "string"
+        },
+        "usage": {
+          "$ref": "#/$defs/Usage"
+        }
+      },
+      "required": [
+        "key",
+        "usage"
+      ],
+      "title": "UsageGroup",
+      "type": "object"
+    },
+    "UsageReport": {
+      "additionalProperties": false,
+      "description": "Usage for a range, in answer to usage.get. Days run oldest first, with no gaps.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "usage.report",
+          "default": "usage.report",
+          "type": "string"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "range": {
+          "enum": [
+            "today",
+            "7d",
+            "30d",
+            "all"
+          ],
+          "type": "string"
+        },
+        "totals": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Usage"
+          },
+          "description": "Today, 7 and 30 days, and all time.",
+          "propertyNames": {
+            "enum": [
+              "today",
+              "7d",
+              "30d",
+              "all"
+            ]
+          },
+          "type": "object"
+        },
+        "days": {
+          "items": {
+            "$ref": "#/$defs/UsageDay"
+          },
+          "type": "array"
+        },
+        "by_model": {
+          "items": {
+            "$ref": "#/$defs/UsageGroup"
+          },
+          "type": "array"
+        },
+        "by_kind": {
+          "items": {
+            "$ref": "#/$defs/UsageGroup"
+          },
+          "type": "array"
+        },
+        "chats": {
+          "description": "Most expensive first.",
+          "items": {
+            "$ref": "#/$defs/UsageChat"
+          },
+          "type": "array"
+        },
+        "cache_hit_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Share of the prompt served from cache, 0 to 1."
+        },
+        "prices_checked_on": {
+          "description": "When the price table was last checked, YYYY-MM-DD.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "request_id",
+        "range",
+        "totals",
+        "days",
+        "by_model",
+        "by_kind",
+        "chats",
+        "cache_hit_rate",
+        "prices_checked_on"
+      ],
+      "title": "UsageReport",
+      "type": "object"
     },
     "Welcome": {
       "additionalProperties": false,

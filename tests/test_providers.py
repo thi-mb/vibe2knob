@@ -148,7 +148,7 @@ def test_ollama_stream_chat(monkeypatch):
     monkeypatch.setattr(provider, "_post", post)
     events = list(provider.stream_chat("sys", [{"role": "user", "content": "hi"}], TOOLS))
     assert events == [TextDelta("Open "), TextDelta("it up."), ToolCall("suggest_steps", {"steps": []}),
-                      Done({"input_tokens": 12, "output_tokens": 7}, "end_turn")]
+                      Done({"input_tokens": 12, "output_tokens": 7, "model": "llama3.1"}, "end_turn")]
     assert sent[0]["messages"][0] == {"role": "system", "content": "sys"}
     assert sent[0]["tools"][0]["function"]["name"] == "suggest_steps"
 
@@ -169,3 +169,37 @@ def test_ollama_falls_back_to_json_without_tools(monkeypatch):
     assert events[0] == TextDelta("Open it up.")
     assert events[1].name == "suggest_steps" and isinstance(events[2], Done)
     assert sent[1]["format"]["required"] == ["answer", "suggest_steps"]
+
+
+def test_claude_usage_names_the_model_and_thinking():
+    from vibe2knob.providers.claude import _usage
+
+    message = SimpleNamespace(model="claude-opus-5", usage=SimpleNamespace(
+        input_tokens=3, output_tokens=40, cache_read_input_tokens=None,
+        cache_creation_input_tokens=7, output_tokens_details=SimpleNamespace(thinking_tokens=30)))
+    assert _usage(message) == {"input_tokens": 3, "output_tokens": 40, "cache_read_input_tokens": 0,
+                               "cache_creation_input_tokens": 7, "thinking_tokens": 30,
+                               "model": "claude-opus-5"}
+
+
+def test_claude_count_parts_is_counted_once():
+    calls = []
+
+    def count_tokens(**kw):
+        calls.append(kw)
+        n = 5 + (100 if "system" in kw else 0) + (20 if "tools" in kw else 0)
+        return SimpleNamespace(input_tokens=n)
+
+    client = SimpleNamespace(messages=SimpleNamespace(count_tokens=count_tokens))
+    provider = ClaudeProvider(client=client)
+    assert provider.count_parts("sys", TOOLS) == {"instructions": 100, "tools": 20}
+    assert provider.count_parts("sys", TOOLS) == {"instructions": 100, "tools": 20}
+    assert len(calls) == 3
+
+
+def test_claude_count_parts_failure_is_none():
+    def boom(**kw):
+        raise RuntimeError("offline")
+
+    provider = ClaudeProvider(client=SimpleNamespace(messages=SimpleNamespace(count_tokens=boom)))
+    assert provider.count_parts("sys", TOOLS) is None

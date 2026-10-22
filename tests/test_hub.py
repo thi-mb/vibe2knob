@@ -358,3 +358,54 @@ def test_settings_test(setup):
         m = until(ws, "settings")
     assert m["request_id"] == "t"
     assert m["test_result"].startswith("Connected")
+
+
+def test_usage_reaches_the_tab_the_turn_and_the_report(setup, tmp_path):
+    with TestClient(setup.app) as client, connect(client) as ws:
+        hello(ws)
+        chat_id = create_chat(ws)
+        ws.send_json({"v": 1, "type": "chat.send", "chat_id": chat_id, "text": "make it wider"})
+        done = collect_turn(ws)[-1]
+        assert done["usage"]["model"] == "scripted" and done["usage"]["input_tokens"] > 0
+        titled = until(ws, "chat.changed")
+        while titled["chat"]["title"] is None:
+            titled = until(ws, "chat.changed")
+        tab = titled["chat"]
+        # The tab's total includes naming the chat.
+        assert tab["usage"]["output_tokens"] == done["usage"]["output_tokens"] + 8
+        assert tab["context_tokens"] == done["usage"]["input_tokens"] + done["usage"]["output_tokens"]
+        ws.send_json({"v": 1, "type": "chat.open", "chat_id": chat_id})
+        assert until(ws, "chat.history")["turns"][1]["usage"]["parts"]
+        ws.send_json({"v": 1, "type": "usage.get", "range": "7d", "request_id": "u"})
+        rep = until(ws, "usage.report")
+    assert rep["request_id"] == "u" and len(rep["days"]) == 7
+    assert rep["chats"][0]["chat_id"] == chat_id and rep["chats"][0]["title"] == "Wider pad"
+    assert {g["key"] for g in rep["by_kind"]} == {"chat", "title"}
+    assert rep["totals"]["all"]["cost_usd"] is None  # the scripted model has no price
+    assert len(setup.store.usage.read()) == 2
+    # A restart reads the ledger back: the tab keeps its total.
+    again = Setup(tmp_path)
+    with TestClient(again.app) as client, connect(client) as ws:
+        m = hello(ws)
+    assert m["chats"][0]["usage"]["output_tokens"] == tab["usage"]["output_tokens"]
+
+
+def test_first_run_backfills_the_ledger_from_saved_chats(tmp_path):
+    store = Store(tmp_path, keys=MemoryKeys("k"))
+    chat = Chat(turns=[])
+    chat.turns = Chat.model_validate({"turns": [
+        {"role": "user", "text": "hi"},
+        {"role": "assistant", "text": "yo", "usage": {"input_tokens": 100, "output_tokens": 50}},
+    ]}).turns
+    store.save_chat(chat)
+    closed = Chat(title="Old one", turns=chat.turns)
+    store.save_chat(closed)
+    store.close_chat(closed.id)
+    hub = Hub(store, None)
+    assert len(hub.usage_records) == 2 and all(r.backfilled for r in hub.usage_records)
+    assert hub.usage_records[0].model == "claude-opus-5-5"
+    tab = hub.summary(hub.chats[chat.id])
+    assert tab.usage.input_tokens == 100 and tab.usage.cost_usd > 0
+    assert tab.context_window == 1_000_000 and tab.context_tokens == 150
+    # A second start doesn't backfill again.
+    assert len(Hub(store, None).usage_records) == 2

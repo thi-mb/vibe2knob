@@ -16,12 +16,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
 from pydantic import BaseModel, ValidationError
 
-from . import __version__
+from . import __version__, pricing
 from .chat import AssistantTurn, Chat, ChatEngine, ChatTitled, TurnDone, TurnError, TurnSteps, TurnText
 from .knowledge import Term, load_terms
 from .protocol import (
@@ -36,6 +38,7 @@ from .protocol import (
     ChatHistory,
     ChatOpen,
     ChatSteps,
+    ChatSummary,
     ChatTurn,
     ChatUpdate,
     ErrorMessage,
@@ -50,12 +53,14 @@ from .protocol import (
     TrackRef,
     Tracks,
     TracksList,
+    UsageGet,
     Welcome,
     parse_client,
 )
 from .providers import Provider, ProviderError, get_provider
-from .providers.claude import ClaudeProvider
+from .providers.claude import DEFAULT_MODEL, ClaudeProvider
 from .store import StoredSettings, Store
+from .usage import UsageRecord, backfill, report, total
 
 log = logging.getLogger("vibe2knob.hub")
 
@@ -115,6 +120,58 @@ class Hub:
         for problem in problems:
             log.warning(problem)
         self.chats = {c.id: c for c in chats}
+        self._usage_lock = threading.Lock()
+        self.windows: dict[str, int] = {}  # context windows the providers reported, by model
+        self.usage_records = self._load_usage(chats)
+        self.chat_usage: dict[str, list[UsageRecord]] = defaultdict(list)
+        for r in self.usage_records:
+            if r.chat_id:
+                self.chat_usage[r.chat_id].append(r)
+
+    def _load_usage(self, chats: list[Chat]) -> list[UsageRecord]:
+        """The ledger, started from the saved chats the first time this hub runs."""
+        try:
+            if not self.store.usage.exists():
+                self.store.usage.append(backfill(chats + self.store.load_closed_chats(),
+                                                 self.default_model(), self.settings.provider))
+            return self.store.usage.read()
+        except OSError:
+            log.warning("Couldn't read the usage ledger", exc_info=True)
+            return []
+
+    def _record_usage(self, record: UsageRecord | None) -> None:
+        """Keep a call's usage (from a worker thread). Usage must never break a chat."""
+        if record is None:
+            return
+        try:
+            self.store.usage.append([record])
+        except OSError:
+            log.warning("Couldn't write the usage ledger", exc_info=True)
+        with self._usage_lock:
+            self.usage_records.append(record)
+            if record.chat_id:
+                self.chat_usage[record.chat_id].append(record)
+
+    def default_model(self) -> str | None:
+        """The model Settings point at, for old turns that didn't record theirs."""
+        if self.settings.model:
+            return self.settings.model
+        return DEFAULT_MODEL if self.settings.provider == "claude" else None
+
+    def summary(self, chat: Chat) -> ChatSummary:
+        """A chat's tab, with what it used and how much the next message resends."""
+        out = chat.summary()
+        with self._usage_lock:
+            records = list(self.chat_usage.get(chat.id, []))
+        if records:
+            out.usage = total(records)
+        last = chat.last_answer()
+        if last is not None and last.usage:
+            record = last.usage_record(model=self.default_model())
+            out.context_tokens = record.prompt_tokens + record.output_tokens
+            model = record.model or self.default_model()
+            out.context_window = self.windows.get(model or "") or pricing.context_window(model)
+        return out
 
     # Lifecycle
 
@@ -194,7 +251,7 @@ class Hub:
         conn.client = m.client
         conn.send(Welcome(
             hub_version=__version__,
-            chats=[c.summary() for c in self.chats.values()],
+            chats=[self.summary(c) for c in self.chats.values()],
             live=self.live_status,
             settings=await self._run(self.settings_view),
             examples=[_track_ref({**e["track"], "index": i}, e["track"].get("devices", []))
@@ -205,7 +262,7 @@ class Hub:
         chat = Chat(context=m.context)
         await self._run(self.store.save_chat, chat)
         self.chats[chat.id] = chat
-        self.broadcast(ChatChanged(request_id=m.request_id, chat=chat.summary()))
+        self.broadcast(ChatChanged(request_id=m.request_id, chat=self.summary(chat)))
 
     async def _on_ChatUpdate(self, conn: Connection, m: ChatUpdate) -> None:
         chat = self._chat(conn, m.chat_id, m.request_id)
@@ -217,13 +274,13 @@ class Hub:
             chat.context = m.context
         if chat.id not in self.busy:  # a running turn saves the chat when it ends
             await self._run(self.store.save_chat, chat)
-        self.broadcast(ChatChanged(request_id=m.request_id, chat=chat.summary()))
+        self.broadcast(ChatChanged(request_id=m.request_id, chat=self.summary(chat)))
 
     async def _on_ChatOpen(self, conn: Connection, m: ChatOpen) -> None:
         chat = self._chat(conn, m.chat_id, m.request_id)
         if chat is None:
             return
-        turns = [_chat_turn(t) for t in list(chat.turns)]
+        turns = [_chat_turn(t, self.default_model()) for t in list(chat.turns)]
         conn.send(ChatHistory(request_id=m.request_id, chat_id=chat.id, turns=turns))
 
     async def _on_ChatClose(self, conn: Connection, m: ChatClose) -> None:
@@ -308,6 +365,18 @@ class Hub:
                                   settings=await self._run(self.settings_view),
                                   test_result=result))
 
+    async def _on_UsageGet(self, conn: Connection, m: UsageGet) -> None:
+        conn.send(await self._run(self._usage_report, m))
+
+    def _usage_report(self, m: UsageGet):
+        titles = {c.id: c.title for c in self.store.load_closed_chats()}
+        titles.update({c.id: c.title for c in self.chats.values()})
+        with self._usage_lock:
+            records = list(self.usage_records)
+        out = report(records, m.range, titles, set(self.chats))
+        out.request_id = m.request_id
+        return out
+
     def _chat(self, conn: Connection, chat_id: str, request_id: str | None) -> Chat | None:
         chat = self.chats.get(chat_id)
         if chat is None:
@@ -357,12 +426,16 @@ class Hub:
                                               chat_id=chat.id, turn_id=event.turn_id))
                 elif isinstance(event, TurnDone):
                     turn_id = event.turn_id
+                    self._record_usage(event.record)
+                    self._learn_window(provider, event.record)
                     self.store.save_chat(chat)
-                    self.publish(ChatDone(chat_id=chat.id, turn_id=event.turn_id))
-                    self.publish(ChatChanged(chat=chat.summary()))
+                    self.publish(ChatDone(chat_id=chat.id, turn_id=event.turn_id,
+                                          usage=event.record.as_usage() if event.record else None))
+                    self.publish(ChatChanged(chat=self.summary(chat)))
                 elif isinstance(event, ChatTitled):
+                    self._record_usage(event.record)
                     self.store.save_chat(chat)
-                    self.publish(ChatChanged(chat=chat.summary()))
+                    self.publish(ChatChanged(chat=self.summary(chat)))
                 else:  # TurnStarted: the first delta or steps carry the turn id
                     turn_id = event.turn_id
         except Exception as e:  # noqa: BLE001 - a crashed turn must still end for the client
@@ -373,6 +446,17 @@ class Hub:
                 self.publish(ChatDone(chat_id=chat.id, turn_id=turn_id))
         finally:
             self.loop.call_soon_threadsafe(self.busy.discard, chat.id)
+
+    def _learn_window(self, provider: Provider, record: UsageRecord | None) -> None:
+        if record is None or not record.model or record.model in self.windows:
+            return
+        ask = getattr(provider, "context_window", None)
+        try:
+            window = ask() if ask is not None else None
+        except Exception:  # noqa: BLE001 - the bundled table stands in
+            window = None
+        if window:
+            self.windows[record.model] = window
 
     # Live
 
@@ -430,11 +514,13 @@ def _track_ref(t: dict, devices: list | None = None) -> TrackRef:
                     devices=names)
 
 
-def _chat_turn(turn) -> ChatTurn:
+def _chat_turn(turn, default_model: str | None = None) -> ChatTurn:
     if isinstance(turn, AssistantTurn):
+        usage = turn.usage_record(model=default_model).as_usage() if turn.usage else None
         return ChatTurn(id=turn.id, role="assistant", text=turn.text, created_at=turn.created_at,
                         steps=turn.steps or None, listen_for=turn.listen_for,
-                        caution=turn.caution, warnings=turn.warnings, error=turn.error)
+                        caution=turn.caution, warnings=turn.warnings, error=turn.error,
+                        usage=usage)
     return ChatTurn(id=turn.id, role="user", text=turn.text, created_at=turn.created_at)
 
 
