@@ -61,8 +61,13 @@ class UsageRecord(BaseModel):
         return self.input_tokens + self.cache_read_tokens + self.cache_write_tokens
 
     def cost(self) -> float | None:
-        return pricing.cost_usd(self.model, self.input_tokens, self.output_tokens,
-                                self.cache_read_tokens, self.cache_write_tokens)
+        split = self.cost_split()
+        return None if split is None else split[0] + split[1]
+
+    def cost_split(self) -> tuple[float, float] | None:
+        """(prompt, output) cost."""
+        return pricing.cost_split(self.model, self.input_tokens, self.output_tokens,
+                                  self.cache_read_tokens, self.cache_write_tokens)
 
     def as_usage(self) -> Usage:
         return total([self])
@@ -86,7 +91,7 @@ def total(records: Iterable[UsageRecord]) -> Usage:
     u = Usage()
     parts: dict[str, int] = defaultdict(int)
     models = set()
-    cost = 0.0
+    prompt_cost = output_cost = 0.0
     priced = False
     for r in records:
         u.input_tokens += r.input_tokens
@@ -97,16 +102,20 @@ def total(records: Iterable[UsageRecord]) -> Usage:
         for k, v in r.parts.items():
             parts[k] += v
         models.add(r.model)
-        c = r.cost()
+        c = r.cost_split()
         if c is None:
             if r.prompt_tokens or r.output_tokens:
                 u.cost_complete = False
         else:
-            cost += c
+            prompt_cost += c[0]
+            output_cost += c[1]
             priced = True
     u.parts = {k: v for k, v in parts.items() if k in INPUT_PARTS + OUTPUT_PARTS}
     u.model = next(iter(models)) if len(models) == 1 else None
-    u.cost_usd = round(cost, 6) if priced else None
+    if priced:
+        u.cost_usd = round(prompt_cost + output_cost, 6)
+        u.prompt_cost_usd = round(prompt_cost, 6)
+        u.output_cost_usd = round(output_cost, 6)
     return u
 
 

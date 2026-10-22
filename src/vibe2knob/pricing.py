@@ -63,18 +63,24 @@ def price_for(model: str | None) -> Price | None:
     return PRICES.get(base)
 
 
-def cost_usd(model: str | None, input_tokens: int, output_tokens: int, cache_read: int,
-             cache_write: int) -> float | None:
-    """The estimated cost of one call, or None for a model with no known price."""
+def cost_split(model: str | None, input_tokens: int, output_tokens: int, cache_read: int,
+               cache_write: int) -> tuple[float, float] | None:
+    """The estimated cost of one call's prompt and of its output, or None with no known price."""
     p = price_for(model)
     if p is None:
         return None
     factor = 1.0
     if p.long_from is not None and input_tokens + cache_read + cache_write > p.long_from:
         factor = p.long_factor
-    total = (input_tokens * p.input + cache_write * p.cache_write
-             + cache_read * p.cache_read + output_tokens * p.output)
-    return total * factor / 1_000_000
+    prompt = input_tokens * p.input + cache_write * p.cache_write + cache_read * p.cache_read
+    return prompt * factor / 1_000_000, output_tokens * p.output * factor / 1_000_000
+
+
+def cost_usd(model: str | None, input_tokens: int, output_tokens: int, cache_read: int,
+             cache_write: int) -> float | None:
+    """The estimated cost of one call, or None for a model with no known price."""
+    split = cost_split(model, input_tokens, output_tokens, cache_read, cache_write)
+    return None if split is None else split[0] + split[1]
 
 
 def context_window(model: str | None) -> int | None:

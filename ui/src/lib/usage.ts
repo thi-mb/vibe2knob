@@ -42,12 +42,37 @@ function trim(x: number): string {
 
 /** "~$0.04", "<$0.01", "$0" for free local models; null when no price is known. */
 export function fmtCost(u: Usage): string | null {
-  if (u.cost_usd === null) return null;
-  const more = u.cost_complete ? "" : "+";
-  if (u.cost_usd === 0) return `$0${more}`;
-  if (u.cost_usd < 0.01) return `<$0.01${more}`;
-  const digits = u.cost_usd >= 100 ? 0 : 2;
-  return `~$${u.cost_usd.toFixed(digits)}${more}`;
+  return fmtDollars(u.cost_usd, u.cost_complete);
+}
+
+/** A dollar estimate; `complete` false adds "+", since some calls had no known price. */
+export function fmtDollars(usd: number | null, complete = true): string | null {
+  if (usd === null) return null;
+  const more = complete ? "" : "+";
+  if (usd === 0) return `$0${more}`;
+  if (usd < 0.01) return `<$0.01${more}`;
+  const digits = usd >= 100 ? 0 : 2;
+  return `~$${usd.toFixed(digits)}${more}`;
+}
+
+/** `a` without `b`, e.g. a chat's usage without naming it. */
+export function minus(a: Usage, b: Usage | null): Usage {
+  if (!b) return a;
+  const sub = (x: number | null, y: number | null) => (x === null ? null : Math.max(0, x - (y ?? 0)));
+  const parts: Record<string, number> = {};
+  for (const [k, v] of Object.entries(a.parts)) parts[k] = Math.max(0, v - (b.parts[k] ?? 0));
+  return {
+    ...a,
+    input_tokens: Math.max(0, a.input_tokens - b.input_tokens),
+    output_tokens: Math.max(0, a.output_tokens - b.output_tokens),
+    cache_read_tokens: Math.max(0, a.cache_read_tokens - b.cache_read_tokens),
+    cache_write_tokens: Math.max(0, a.cache_write_tokens - b.cache_write_tokens),
+    thinking_tokens: Math.max(0, a.thinking_tokens - b.thinking_tokens),
+    parts,
+    cost_usd: sub(a.cost_usd, b.cost_usd),
+    prompt_cost_usd: sub(a.prompt_cost_usd, b.prompt_cost_usd),
+    output_cost_usd: sub(a.output_cost_usd, b.output_cost_usd),
+  };
 }
 
 /** "18.2k tokens · ~$0.04", or just the tokens when there's no price. */

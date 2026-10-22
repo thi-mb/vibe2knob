@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import threading
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -59,6 +60,7 @@ from .protocol import (
 )
 from .providers import Provider, ProviderError, get_provider
 from .providers.claude import DEFAULT_MODEL, ClaudeProvider
+from .providers.ollama import DEFAULT_MODEL as OLLAMA_DEFAULT_MODEL
 from .store import StoredSettings, Store
 from .usage import UsageRecord, backfill, report, total
 
@@ -70,13 +72,26 @@ ProviderFactory = Callable[[StoredSettings, "str | None"], Provider]
 ExampleFactory = Callable[[dict], object]  # a track-state dict -> a LiveLink showing only it
 
 
+# The panel's Claude model until the user picks one. The CLI keeps the provider's own default.
+PANEL_MODEL = "claude-haiku-5-5"
+
+
+def panel_model(settings: StoredSettings) -> str | None:
+    """The model the panel's chats run on, so Settings can show it and never disagree."""
+    if settings.model:
+        return settings.model
+    if settings.provider == "claude":
+        return os.environ.get("VIBE2KNOB_MODEL") or PANEL_MODEL
+    return OLLAMA_DEFAULT_MODEL
+
+
 def make_provider(settings: StoredSettings, api_key: str | None) -> Provider:
     """The model the settings ask for. Raises ProviderError when it can't be used."""
     if settings.provider == "claude":
         if not api_key:
             raise ProviderError("No Anthropic API key yet. Add one in Settings.")
-        return ClaudeProvider(model=settings.model, api_key=api_key)
-    return get_provider(settings.provider, settings.model)
+        return ClaudeProvider(model=panel_model(settings), api_key=api_key)
+    return get_provider(settings.provider, panel_model(settings))
 
 
 class Connection:
@@ -153,10 +168,16 @@ class Hub:
                 self.chat_usage[record.chat_id].append(record)
 
     def default_model(self) -> str | None:
-        """The model Settings point at, for old turns that didn't record theirs."""
+        """The model old turns, saved before usage recorded the model, most likely ran on.
+
+        Until the panel had its own default, a Claude chat with no model picked ran on the
+        provider's default (or $VIBE2KNOB_MODEL).
+        """
         if self.settings.model:
             return self.settings.model
-        return DEFAULT_MODEL if self.settings.provider == "claude" else None
+        if self.settings.provider == "claude":
+            return os.environ.get("VIBE2KNOB_MODEL") or DEFAULT_MODEL
+        return None
 
     def summary(self, chat: Chat) -> ChatSummary:
         """A chat's tab, with what it used and how much the next message resends."""
@@ -165,6 +186,10 @@ class Hub:
             records = list(self.chat_usage.get(chat.id, []))
         if records:
             out.usage = total(records)
+            titles = [r for r in records if r.kind == "title"]
+            out.title_usage = total(titles) if titles else None
+            # The tab names the model the chat's answers came from, not the title model.
+            out.usage.model = total(r for r in records if r.kind != "title").model
         last = chat.last_answer()
         if last is not None and last.usage:
             record = last.usage_record(model=self.default_model())
@@ -387,7 +412,7 @@ class Hub:
     # Settings and the model
 
     def settings_view(self) -> Settings:
-        return Settings(provider=self.settings.provider, model=self.settings.model,
+        return Settings(provider=self.settings.provider, model=panel_model(self.settings),
                         api_key_set=bool(self.store.api_key()))
 
     def _provider(self) -> Provider:

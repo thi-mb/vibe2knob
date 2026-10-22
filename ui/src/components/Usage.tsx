@@ -5,8 +5,10 @@ import {
   KIND_LABELS,
   contextFill,
   fmtCost,
+  fmtDollars,
   fmtTokens,
   fmtUsage,
+  minus,
   modelName,
   partRows,
   promptTokens,
@@ -16,39 +18,102 @@ import {
 
 const CONSOLE_URL = "https://platform.claude.com/usage";
 
-/** Each part's tokens; estimated ones carry a "~". */
-function PartList({ usage, restLabel }: { usage: Usage; restLabel: string }) {
-  const rows = partRows(usage);
-  const rest = unsplitTokens(usage);
+type PartRow = ReturnType<typeof partRows>[number];
+
+/** One stacked bar of the parts: what was sent in blue, what was written in the accent color. */
+function PartBar({ rows, rest }: { rows: PartRow[]; rest: number }) {
+  const sum = rows.reduce((a, r) => a + r.tokens, 0) + rest;
+  if (!sum) return null;
+  let inIndex = 0;
+  let outIndex = 0;
   return (
-    <dl className="usage-parts">
-      {rows.map((r) => (
-        <div key={r.key} className={`usage-part ${r.side}`}>
-          <dt>{r.label}</dt>
-          <dd className="mono">
-            {r.exact ? "" : "~"}
-            {fmtTokens(r.tokens)}
-          </dd>
-        </div>
-      ))}
-      {rest > 0 && (
-        <div className="usage-part">
-          <dt>{restLabel}</dt>
-          <dd className="mono">{fmtTokens(rest)}</dd>
-        </div>
-      )}
-    </dl>
+    <div className="part-bar" aria-hidden="true">
+      {rows.map((r) => {
+        const step = r.side === "in" ? inIndex++ : outIndex++;
+        return (
+          <span
+            key={r.key}
+            className={`part-seg ${r.side}`}
+            style={{ flexGrow: r.tokens, opacity: 1 - Math.min(step, 4) * 0.17 }}
+            title={`${r.label} ${r.exact ? "" : "~"}${fmtTokens(r.tokens)}`}
+          />
+        );
+      })}
+      {rest > 0 && <span className="part-seg rest" style={{ flexGrow: rest }} />}
+    </div>
   );
 }
 
-function CacheLine({ usage }: { usage: Usage }) {
-  const prompt = promptTokens(usage);
-  if (!prompt) return null;
+function PartGroup({ title, tokens, cost, rows }: { title: string; tokens: number; cost: string | null; rows: PartRow[] }) {
   return (
-    <div className="hint">
-      Prompt {fmtTokens(prompt)}: {fmtTokens(usage.cache_read_tokens)} from cache, {fmtTokens(usage.cache_write_tokens)}{" "}
-      written to cache, {fmtTokens(usage.input_tokens)} new. Output {fmtTokens(usage.output_tokens)}
-      {usage.thinking_tokens ? `, ${fmtTokens(usage.thinking_tokens)} of it thinking` : ""}.
+    <div className="part-group">
+      <div className="part-group-head">
+        <span className="label">{title}</span>
+        <span className="mono">
+          {fmtTokens(tokens)}
+          {cost ? ` · ${cost}` : ""}
+        </span>
+      </div>
+      {rows.length > 0 && (
+        <dl className="usage-parts">
+          {rows.map((r) => (
+            <div key={r.key} className={`usage-part ${r.side}`}>
+              <dt>{r.label}</dt>
+              <dd className="mono">
+                {r.exact ? "" : "~"}
+                {fmtTokens(r.tokens)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
+/** The parts as a bar, then what was sent and what was written, each with its subtotal and cost. */
+function Breakdown({ usage, restLabel }: { usage: Usage; restLabel: string }) {
+  const rows = partRows(usage);
+  const rest = unsplitTokens(usage);
+  return (
+    <div className="breakdown">
+      <PartBar rows={rows} rest={rest} />
+      <PartGroup
+        title="Sent to the model"
+        tokens={promptTokens(usage)}
+        cost={fmtDollars(usage.prompt_cost_usd, usage.cost_complete)}
+        rows={rows.filter((r) => r.side === "in")}
+      />
+      <PartGroup
+        title="Written by the model"
+        tokens={usage.output_tokens}
+        cost={fmtDollars(usage.output_cost_usd, usage.cost_complete)}
+        rows={rows.filter((r) => r.side === "out")}
+      />
+      {rest > 0 && (
+        <div className="hint">
+          <span className="key-swatch rest" /> {restLabel}: {fmtTokens(rest)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** "Cache 0 reused · 10.7k stored · 5.2k new", and why nothing was reused. */
+function CacheLine({ usage }: { usage: Usage }) {
+  if (!promptTokens(usage)) return null;
+  return (
+    <div className="usage-line">
+      <span className="label">Cache</span>
+      <span className="mono">
+        {fmtTokens(usage.cache_read_tokens)} reused · {fmtTokens(usage.cache_write_tokens)} stored ·{" "}
+        {fmtTokens(usage.input_tokens)} new
+      </span>
+      {usage.cache_read_tokens === 0 && usage.cache_write_tokens > 0 && (
+        <div className="hint">
+          Stored parts are reused, at a tenth of the price, if the next message comes within 5 minutes.
+        </div>
+      )}
     </div>
   );
 }
@@ -113,26 +178,48 @@ export function ChatUsageBar({ chat, onNewChat }: ChatUsageProps) {
           </button>
         </div>
       )}
-      {open && usage && (
-        <div className="usage-pop" role="dialog" aria-label="This chat's usage">
-          <div className="label">This chat</div>
-          <PartList usage={usage} restLabel="Naming the chat" />
-          <CacheLine usage={usage} />
-          {fill && (
-            <div className="hint">
-              Next message resends ~{fmtTokens(fill.tokens)} tokens
-              {pct !== null ? ` (${pct}% of ${modelLabel(usage)}'s window)` : ""}.
-            </div>
-          )}
-          <div className="hint">Costs are estimates. Parts marked ~ are estimated by text length.</div>
-        </div>
-      )}
+      {open && usage && <ChatUsagePop chat={chat} usage={usage} pct={pct} />}
     </div>
   );
 }
 
-function modelLabel(u: Usage): string {
-  return u.model ? modelName(u.model) : "the model";
+function ChatUsagePop({ chat, usage, pct }: { chat: ChatSummary; usage: Usage; pct: number | null }) {
+  const answers = minus(usage, chat.title_usage);
+  const title = chat.title_usage;
+  const fill = contextFill(chat.context_tokens, chat.context_window);
+  return (
+    <div className="usage-pop" role="dialog" aria-label="This chat's usage">
+      <div className="usage-pop-head">
+        <span className="label">This chat</span>
+        {usage.model && <span className="hint">{modelName(usage.model)}</span>}
+      </div>
+      <div className="usage-headline mono">{fmtUsage(answers)}</div>
+      <Breakdown usage={answers} restLabel="Not split (older answers)" />
+      <CacheLine usage={answers} />
+      {fill && (
+        <div className="usage-line">
+          <span className="label">Context</span>
+          <span className="context-meter" aria-hidden="true">
+            <span className="context-meter-fill" style={{ width: `${pct ?? 0}%` }} />
+          </span>
+          <span className="mono">
+            {fmtTokens(fill.tokens)}
+            {fill.window ? ` of ${fmtTokens(fill.window)}` : ""}
+            {pct !== null ? ` (${pct}%)` : ""}
+          </span>
+          <div className="hint">What the next message resends.</div>
+        </div>
+      )}
+      {title && totalTokens(title) > 0 && (
+        <div className="hint">
+          +{fmtTokens(totalTokens(title))} tokens to name the chat
+          {title.model ? ` (${modelName(title.model)})` : ""}
+          {fmtCost(title) ? ` · ${fmtCost(title)}` : ""}
+        </div>
+      )}
+      <div className="hint">Parts marked ~ are estimated by text length. Costs are estimates.</div>
+    </div>
+  );
 }
 
 /** The small line under an answer, shown on hover or focus. */
@@ -204,7 +291,7 @@ export function UsageSection({ report, range, provider, onRange, onOpenChat }: U
           </div>
           {report.days.length > 1 && <DailyChart report={report} />}
           <div className="label">Where the tokens went</div>
-          <PartList usage={t} restLabel="Not split (titles, asks, older answers)" />
+          <Breakdown usage={t} restLabel="Not split (titles, asks, older answers)" />
           <UsageTable title="By model" rows={report.by_model.map((g) => ({ key: g.key, name: modelName(g.key), usage: g.usage }))} />
           <UsageTable title="By kind" rows={report.by_kind.map((g) => ({ key: g.key, name: KIND_LABELS[g.key] ?? g.key, usage: g.usage }))} />
           {report.chats.length > 0 && (

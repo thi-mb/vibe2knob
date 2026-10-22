@@ -124,3 +124,11 @@ def test_engine_uses_exact_counts_when_the_provider_has_them():
     chat = Chat(context=ContextSet(follow_selection=False))
     done = next(e for e in engine.send(chat, "hi", None) if isinstance(e, TurnDone))
     assert done.record.parts["instructions"] == 50 and done.record.parts["tools"] == 5
+
+
+def test_total_splits_cost_between_prompt_and_output():
+    t = total([rec(cache_read_tokens=1000)])
+    # Opus 5.5: 1000 in at $4/M + 1000 cache reads at $0.20/M; 500 out at $20/M.
+    assert t.prompt_cost_usd == round((1000 * 4 + 1000 * 0.2) / 1e6, 6)
+    assert t.output_cost_usd == round(500 * 20 / 1e6, 6)
+    assert t.cost_usd == round(t.prompt_cost_usd + t.output_cost_usd, 6)

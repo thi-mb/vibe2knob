@@ -101,7 +101,8 @@ def test_welcome(setup):
     selected = m["live"]["selected_track"]
     assert selected["index"] == 0 and selected["name"] == "acoustic-pick"
     assert "Chorus" in selected["devices"]
-    assert m["settings"] == {"provider": "claude", "model": None, "api_key_set": True}
+    # No model saved yet: Settings shows the one the chats will really use.
+    assert m["settings"] == {"provider": "claude", "model": "claude-haiku-5-5", "api_key_set": True}
     assert [e["name"] for e in m["examples"]] == ["Lead Vox"]
     assert m["examples"][0]["devices"] == ["EQ Eight", "Compressor", "Reverb"]
 
@@ -348,7 +349,18 @@ def test_switching_provider_resets_the_model(setup):
         hello(ws)
         ws.send_json({"v": 1, "type": "settings.update", "provider": "ollama"})
         m = until(ws, "settings")
-    assert m["settings"]["provider"] == "ollama" and m["settings"]["model"] is None
+    assert m["settings"]["provider"] == "ollama" and m["settings"]["model"] == "llama3.1"
+    assert setup.store.load_settings().model is None
+
+
+def test_panel_runs_on_the_model_settings_show(monkeypatch):
+    from vibe2knob.hub import make_provider
+
+    monkeypatch.delenv("VIBE2KNOB_MODEL", raising=False)
+    assert make_provider(StoredSettings(), "sk").model == "claude-haiku-5-5"
+    assert make_provider(StoredSettings(model="claude-sonnet-5-5"), "sk").model == "claude-sonnet-5-5"
+    monkeypatch.setenv("VIBE2KNOB_MODEL", "claude-opus-5-5")
+    assert make_provider(StoredSettings(), "sk").model == "claude-opus-5-5"
 
 
 def test_settings_test(setup):
@@ -373,6 +385,7 @@ def test_usage_reaches_the_tab_the_turn_and_the_report(setup, tmp_path):
         tab = titled["chat"]
         # The tab's total includes naming the chat.
         assert tab["usage"]["output_tokens"] == done["usage"]["output_tokens"] + 8
+        assert tab["title_usage"]["output_tokens"] == 8
         assert tab["context_tokens"] == done["usage"]["input_tokens"] + done["usage"]["output_tokens"]
         ws.send_json({"v": 1, "type": "chat.open", "chat_id": chat_id})
         assert until(ws, "chat.history")["turns"][1]["usage"]["parts"]

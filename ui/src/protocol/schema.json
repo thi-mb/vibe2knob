@@ -468,7 +468,19 @@
             }
           ],
           "default": null,
-          "description": "Everything the chat used, titles included."
+          "description": "Everything the chat used, titles included. Its model is the answers' model."
+        },
+        "title_usage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Usage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What naming the chat used."
         },
         "context_tokens": {
           "anyOf": [
@@ -501,6 +513,7 @@
         "context",
         "updated_at",
         "usage",
+        "title_usage",
         "context_tokens",
         "context_window"
       ],
@@ -1556,6 +1569,30 @@
           "default": true,
           "description": "False when some calls had no known price, so cost_usd is low.",
           "type": "boolean"
+        },
+        "prompt_cost_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The part of cost_usd spent on prompts (input and cache)."
+        },
+        "output_cost_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The part of cost_usd spent on output, thinking included."
         }
       },
       "required": [
@@ -1567,7 +1604,9 @@
         "parts",
         "model",
         "cost_usd",
-        "cost_complete"
+        "cost_complete",
+        "prompt_cost_usd",
+        "output_cost_usd"
       ],
       "title": "Usage",
       "type": "object"

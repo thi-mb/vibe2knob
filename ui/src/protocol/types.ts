@@ -290,9 +290,13 @@ export interface ChatSummary {
    */
   updated_at: string;
   /**
-   * Everything the chat used, titles included.
+   * Everything the chat used, titles included. Its model is the answers' model.
    */
   usage: Usage | null;
+  /**
+   * What naming the chat used.
+   */
+  title_usage: Usage | null;
   /**
    * Tokens the next message resends: the last answer's prompt plus its output.
    */
@@ -351,6 +355,14 @@ export interface Usage {
    * False when some calls had no known price, so cost_usd is low.
    */
   cost_complete: boolean;
+  /**
+   * The part of cost_usd spent on prompts (input and cache).
+   */
+  prompt_cost_usd: number | null;
+  /**
+   * The part of cost_usd spent on output, thinking included.
+   */
+  output_cost_usd: number | null;
 }
 /**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
