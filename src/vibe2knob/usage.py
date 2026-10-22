@@ -99,6 +99,7 @@ def total(records: Iterable[UsageRecord]) -> Usage:
         u.cache_read_tokens += r.cache_read_tokens
         u.cache_write_tokens += r.cache_write_tokens
         u.thinking_tokens += r.thinking_tokens
+        u.calls += 1
         for k, v in r.parts.items():
             parts[k] += v
         models.add(r.model)

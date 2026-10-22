@@ -1522,6 +1522,11 @@
           "default": 0,
           "type": "integer"
         },
+        "calls": {
+          "default": 0,
+          "description": "Model calls counted; each one resends the instructions.",
+          "type": "integer"
+        },
         "parts": {
           "additionalProperties": {
             "type": "integer"
@@ -1601,6 +1606,7 @@
         "cache_read_tokens",
         "cache_write_tokens",
         "thinking_tokens",
+        "calls",
         "parts",
         "model",
         "cost_usd",

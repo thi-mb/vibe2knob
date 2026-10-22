@@ -338,6 +338,10 @@ export interface Usage {
   cache_write_tokens: number;
   thinking_tokens: number;
   /**
+   * Model calls counted; each one resends the instructions.
+   */
+  calls: number;
+  /**
    * Prompt and answer split into parts. Only instructions, tools and thinking are exact; the rest are estimates by text length.
    */
   parts: {

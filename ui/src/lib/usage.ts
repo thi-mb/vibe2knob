@@ -68,6 +68,7 @@ export function minus(a: Usage, b: Usage | null): Usage {
     cache_read_tokens: Math.max(0, a.cache_read_tokens - b.cache_read_tokens),
     cache_write_tokens: Math.max(0, a.cache_write_tokens - b.cache_write_tokens),
     thinking_tokens: Math.max(0, a.thinking_tokens - b.thinking_tokens),
+    calls: Math.max(0, a.calls - b.calls),
     parts,
     cost_usd: sub(a.cost_usd, b.cost_usd),
     prompt_cost_usd: sub(a.prompt_cost_usd, b.prompt_cost_usd),

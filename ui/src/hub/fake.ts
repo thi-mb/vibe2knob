@@ -112,18 +112,19 @@ function turnUsage(
     cache_write_tokens: 0,
     output_tokens: thinking + answer + steps,
     thinking_tokens: thinking,
+    calls: 1,
     parts: { instructions: INSTRUCTIONS, tools: TOOL_DEFS, live, history, message, thinking, answer, steps },
     model,
   });
 }
 
 function titleUsage(): Usage {
-  return priced({ input_tokens: 180, output_tokens: 6, cache_read_tokens: 0, cache_write_tokens: 0, thinking_tokens: 0, parts: {}, model: "claude-haiku-5-5" });
+  return priced({ input_tokens: 180, output_tokens: 6, cache_read_tokens: 0, cache_write_tokens: 0, thinking_tokens: 0, calls: 1, parts: {}, model: "claude-haiku-5-5" });
 }
 
 function sumUsage(list: Usage[]): Usage {
   const out: Usage = {
-    input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0, thinking_tokens: 0,
+    input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0, thinking_tokens: 0, calls: 0,
     parts: {}, model: null, cost_usd: null, cost_complete: true, prompt_cost_usd: null, output_cost_usd: null,
   };
   const models = new Set<string | null>();
@@ -133,6 +134,7 @@ function sumUsage(list: Usage[]): Usage {
     out.cache_read_tokens += u.cache_read_tokens;
     out.cache_write_tokens += u.cache_write_tokens;
     out.thinking_tokens += u.thinking_tokens;
+    out.calls += u.calls;
     for (const [k, v] of Object.entries(u.parts)) out.parts[k] = (out.parts[k] ?? 0) + v;
     models.add(u.model);
     if (u.cost_usd !== null) {
@@ -184,7 +186,7 @@ function pastRecords(): FakeRecord[] {
     if (turns && d % 3 === 0) out.push({ day: dayOffset(d), kind: "title", chat_id: `old-${Math.floor((d + 44) / 3)}`, usage: titleUsage() });
     if (d === -12 || d === -5) {
       out.push({ day: dayOffset(d), kind: "ask", chat_id: null, usage: priced({
-        input_tokens: 9800, output_tokens: 700, cache_read_tokens: 0, cache_write_tokens: 0, thinking_tokens: 0, parts: {}, model: "claude-haiku-5-5",
+        input_tokens: 9800, output_tokens: 700, cache_read_tokens: 0, cache_write_tokens: 0, thinking_tokens: 0, calls: 1, parts: {}, model: "claude-haiku-5-5",
       }) });
     }
   }
