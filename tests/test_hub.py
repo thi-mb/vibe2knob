@@ -169,6 +169,10 @@ def test_chat_turn_streams_and_saves(setup):
         turn = collect_turn(ws)
         kinds = [m["type"] for m in turn]
         assert kinds[-1] == "chat.done" and "chat.steps" in kinds
+        # The client hears what the turn is doing before the first word arrives.
+        phases = [m["phase"] for m in turn if m["type"] == "chat.status"]
+        assert phases == ["reading", "thinking", "steps"]
+        assert kinds.index("chat.status") < kinds.index("chat.delta")
         deltas = [m for m in turn if m["type"] == "chat.delta"]
         assert "".join(d["text"] for d in deltas) == "Open up the Utility a little."
         turn_id = turn[-1]["turn_id"]

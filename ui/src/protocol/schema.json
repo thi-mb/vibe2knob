@@ -364,6 +364,47 @@
       "title": "ChatSend",
       "type": "object"
     },
+    "ChatStatus": {
+      "additionalProperties": false,
+      "description": "What a running turn is doing before (or between) the parts the client can show.\n\nSent as the turn starts and whenever the phase changes. Prose deltas mean the model is\nwriting, and chat.done ends the turn.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "chat.status",
+          "default": "chat.status",
+          "type": "string"
+        },
+        "chat_id": {
+          "type": "string"
+        },
+        "turn_id": {
+          "type": "string"
+        },
+        "phase": {
+          "description": "reading: the hub reads Live. thinking: the model works before it writes. steps: the model writes its steps.",
+          "enum": [
+            "reading",
+            "thinking",
+            "steps"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "chat_id",
+        "turn_id",
+        "phase"
+      ],
+      "title": "ChatStatus",
+      "type": "object"
+    },
     "ChatSteps": {
       "additionalProperties": false,
       "description": "The steps the model suggested. Optional: a prose-only answer sends none.",
@@ -907,6 +948,7 @@
           "chat.delta": "#/$defs/ChatDelta",
           "chat.done": "#/$defs/ChatDone",
           "chat.history": "#/$defs/ChatHistory",
+          "chat.status": "#/$defs/ChatStatus",
           "chat.steps": "#/$defs/ChatSteps",
           "error": "#/$defs/ErrorMessage",
           "live.status": "#/$defs/LiveStatusChanged",
@@ -935,6 +977,9 @@
         },
         {
           "$ref": "#/$defs/ChatHistory"
+        },
+        {
+          "$ref": "#/$defs/ChatStatus"
         },
         {
           "$ref": "#/$defs/ChatDelta"

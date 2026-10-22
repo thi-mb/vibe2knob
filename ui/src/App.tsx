@@ -227,6 +227,7 @@ function ChatView({ state, actions, pickerOpen, setPickerOpen }: ChatViewProps) 
           key={chat?.id ?? "none"}
           chatId={chat?.id ?? "none"}
           turns={turns}
+          progress={chat ? state.progress[chat.id] : undefined}
           trackColors={trackColors}
           onAsk={actions.send}
           after={

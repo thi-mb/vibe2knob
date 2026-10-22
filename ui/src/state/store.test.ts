@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatSummary, HubEnvelope, Usage, UsageReport } from "../protocol/types";
-import { initialState, reducer, type Action, type PanelState } from "./store";
+import { initialState, isStreaming, reducer, type Action, type PanelState } from "./store";
 
 const chat = (id: string, updated_at = "2026-10-21T10:00:00Z"): ChatSummary => ({
   id,
@@ -49,6 +49,33 @@ describe("reducer", () => {
     s = reducer(s, hub({ v: 1, type: "chat.done", chat_id: "b", turn_id: "t1", usage: usage(900, 40) }));
     expect(s.turns.b[1]).toMatchObject({ listen_for: "A/B it", pending: false });
     expect(s.turns.b[1].usage?.input_tokens).toBe(900);
+  });
+
+  it("tracks a turn's progress from the moment it's sent until it's done", () => {
+    let s = welcomed();
+    s = reducer(s, { type: "user-sent", chatId: "b", requestId: "r1", text: "wider", at: "2026-10-22T10:00:00Z" });
+    expect(s.progress.b).toEqual({ since: "2026-10-22T10:00:00Z", phase: "reading", requestId: "r1" });
+    expect(isStreaming(s, "b")).toBe(true);
+    s = reducer(s, hub({ v: 1, type: "chat.status", chat_id: "b", turn_id: "t1", phase: "thinking" }));
+    expect(s.progress.b).toMatchObject({ since: "2026-10-22T10:00:00Z", phase: "thinking" });
+    expect(s.turns.b.at(-1)).toMatchObject({ id: "t1", pending: true, text: "" });
+    s = reducer(s, hub({ v: 1, type: "chat.delta", chat_id: "b", turn_id: "t1", text: "Spread it." }));
+    expect(s.progress.b.phase).toBe("writing");
+    s = reducer(s, hub({ v: 1, type: "chat.status", chat_id: "b", turn_id: "t1", phase: "steps" }));
+    expect(s.progress.b.phase).toBe("steps");
+    s = reducer(s, hub({ v: 1, type: "chat.steps", chat_id: "b", turn_id: "t1", steps: [], listen_for: null, caution: null, warnings: [] }));
+    expect(s.progress.b.phase).toBe("writing");
+    s = reducer(s, hub({ v: 1, type: "chat.done", chat_id: "b", turn_id: "t1", usage: null }));
+    expect(s.progress.b).toBeUndefined();
+    expect(isStreaming(s, "b")).toBe(false);
+  });
+
+  it("stops waiting when the hub refuses the send", () => {
+    let s = welcomed();
+    s = reducer(s, { type: "user-sent", chatId: "b", requestId: "r1", text: "wider", at: "t" });
+    s = reducer(s, hub({ v: 1, type: "error", request_id: "r1", code: "provider", message: "No API key.", chat_id: null, turn_id: null }));
+    expect(s.progress.b).toBeUndefined();
+    expect(s.notice).toBe("No API key.");
   });
 
   it("shows a failed turn's error in its chat, and other errors as a notice", () => {

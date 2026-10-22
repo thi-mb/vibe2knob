@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from typing import Iterator
 
 from .. import pricing
-from .base import Done, Error, ProviderError, StreamEvent, TextDelta, ToolCall, ToolSpec
+from .base import Done, Error, Phase, ProviderError, StreamEvent, TextDelta, ToolCall, ToolSpec
 
 DEFAULT_MODEL = "claude-opus-5-5"
 TITLE_MODEL = "claude-haiku-5-5"
@@ -98,6 +98,9 @@ class ClaudeProvider:
                     for event in stream:
                         if event.type == "content_block_delta" and event.delta.type == "text_delta":
                             yield TextDelta(event.delta.text)
+                        elif (event.type == "content_block_start"
+                              and event.content_block.type == "tool_use"):
+                            yield Phase("steps")
                     final = stream.get_final_message()
             # A refusal or a cut-off can leave a half-written tool call: don't use it.
             _check_stop(final.stop_reason)

@@ -590,6 +590,9 @@ button:disabled {
   letter-spacing: 0.08em;
   color: var(--text-quiet);
 }
+.progress .elapsed {
+  font-variant-numeric: tabular-nums;
+}
 
 /* Step cards */
 

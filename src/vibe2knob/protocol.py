@@ -278,6 +278,22 @@ class ChatHistory(_Message):
     turns: list[ChatTurn]
 
 
+class ChatStatus(_Message):
+    """What a running turn is doing before (or between) the parts the client can show.
+
+    Sent as the turn starts and whenever the phase changes. Prose deltas mean the model is
+    writing, and chat.done ends the turn.
+    """
+
+    type: Literal["chat.status"] = "chat.status"
+    chat_id: str
+    turn_id: str
+    phase: Literal["reading", "thinking", "steps"] = Field(
+        description="reading: the hub reads Live. thinking: the model works before it writes. "
+        "steps: the model writes its steps."
+    )
+
+
 class ChatDelta(_Message):
     """A piece of the assistant's prose, streamed as it is written."""
 
@@ -359,8 +375,8 @@ class ErrorMessage(_Message):
 
 
 HubMessage = Annotated[
-    Union[Welcome, LiveStatusChanged, Tracks, ChatChanged, ChatClosed, ChatHistory, ChatDelta,
-          ChatSteps, ChatDone, SettingsChanged, UsageReport, ErrorMessage],
+    Union[Welcome, LiveStatusChanged, Tracks, ChatChanged, ChatClosed, ChatHistory, ChatStatus,
+          ChatDelta, ChatSteps, ChatDone, SettingsChanged, UsageReport, ErrorMessage],
     Field(discriminator="type"),
 ]
 

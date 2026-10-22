@@ -247,6 +247,8 @@ export interface FakeHubOptions {
   scenario?: string;
   /** Milliseconds between streamed words; 0 sends a whole answer at once. */
   wordDelay?: number;
+  /** Milliseconds each silent phase (reading, thinking, writing steps) lasts. */
+  phaseDelay?: number;
 }
 
 /** The fake hub. `socket()` gives a SocketLike for HubClient; the rest are test controls. */
@@ -257,6 +259,9 @@ export class FakeHub {
   private settings: Settings;
   private sockets = new Set<FakeSocket>();
   private wordDelay: number;
+  private phaseDelay: number;
+  private held = false;
+  private holdAt = new Set<string>();
   private nextId = 1;
   private records: FakeRecord[];
   private titles = new Map<string, string | null>();
@@ -264,6 +269,7 @@ export class FakeHub {
   constructor(options: FakeHubOptions = {}) {
     this.scenario = options.scenario ?? "chat";
     this.wordDelay = options.wordDelay ?? 25;
+    this.phaseDelay = options.phaseDelay ?? (this.wordDelay ? 600 : 0);
     const firstRun = this.scenario === "firstrun";
     this.chats = ["chat", "offline", "long"].includes(this.scenario) ? seedChats(this.scenario === "long") : [];
     this.records = this.scenario === "firstrun" || this.scenario === "empty" ? [] : pastRecords();
@@ -300,6 +306,17 @@ export class FakeHub {
       ? { connected: true, selected_track: TRACKS[2], detail: null, example: null }
       : { connected: false, selected_track: null, detail: "Live isn't running.", example: null };
     this.broadcast({ v: 1, type: "live.status", live: this.live });
+  }
+
+  /** Holds running turns in the phase they're in, or (given phases) as each of them begins. */
+  hold(phases?: string[]): void {
+    if (phases) this.holdAt = new Set(phases);
+    else this.held = true;
+  }
+
+  release(all = false): void {
+    this.held = false;
+    if (all) this.holdAt.clear();
   }
 
   /** Drops every connection, as a hub restart would. */
@@ -496,14 +513,32 @@ export class FakeHub {
       this.refreshSummary(chat);
       this.broadcast({ v: 1, type: "chat.changed", request_id: null, chat: chat.summary });
     };
+    const status = (phase: "reading" | "thinking" | "steps") => {
+      if (this.holdAt.has(phase)) this.held = true;
+      this.broadcast({ v: 1, type: "chat.status", chat_id: chatId, turn_id, phase });
+    };
     const tick = () => {
-      if (i >= words.length) return finish();
+      if (i >= words.length) {
+        if (failing || !script.steps) return finish();
+        status("steps");
+        return this.later(this.phaseDelay, finish);
+      }
       const chunk = this.wordDelay ? words[i++] : words.slice(i).join("");
       if (!this.wordDelay) i = words.length;
       this.broadcast({ v: 1, type: "chat.delta", chat_id: chatId, turn_id, text: chunk });
-      setTimeout(tick, this.wordDelay);
+      this.later(this.wordDelay, tick);
     };
-    setTimeout(tick, this.wordDelay ? 300 : 0);
+    status("reading");
+    this.later(general ? 0 : this.phaseDelay, () => {
+      status("thinking");
+      this.later(this.phaseDelay, tick);
+    });
+  }
+
+  /** setTimeout that waits while the turns are held. */
+  private later(ms: number, fn: () => void): void {
+    const run = () => (this.held ? setTimeout(run, 50) : fn());
+    setTimeout(run, ms);
   }
 
   private broadcast(m: HubEnvelope): void {
