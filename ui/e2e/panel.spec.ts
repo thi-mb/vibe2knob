@@ -156,3 +156,53 @@ test("the panel fills a wide window and moves tabs into a sidebar", async ({ pag
   await expect(page.getByText("Three things fight under 200 Hz")).toBeVisible();
   await shoot(page, "12-wide");
 });
+
+test("a chat shows what it used: header total, breakdown and a footer per answer", async ({ page }) => {
+  await open(page, "chat");
+  await expect(page.getByText("Spread the pad around")).toBeVisible();
+  const total = page.locator(".usage-total");
+  await expect(total).toHaveText(/^\d+(\.\d)?k tokens · (~\$|<\$)/);
+  await expect(page.getByRole("meter", { name: "Context used" })).toBeVisible();
+  await page.locator(".assistant-turn").first().hover();
+  await expect(page.locator(".turn-usage").first()).toHaveText(/in · .* out · .* · Haiku 5\.5/);
+  await total.click();
+  const pop = page.getByRole("dialog", { name: "This chat's usage" });
+  await expect(pop).toContainText("Instructions");
+  await expect(pop).toContainText("~"); // estimated parts are marked
+  await shoot(page, "13-chat-usage");
+  await page.keyboard.press("Escape");
+  await expect(pop).toHaveCount(0);
+  // A new answer adds to the total.
+  const before = await total.textContent();
+  await page.getByRole("button", { name: "too much" }).click();
+  await expect(page.getByText("The wash comes from the chorus")).toBeVisible();
+  await expect(total).not.toHaveText(before!);
+});
+
+test("a long chat suggests starting a new one", async ({ page }) => {
+  await open(page, "long");
+  await expect(page.getByText(/Long chat: each new message resends about 1\d\dk tokens/)).toBeVisible();
+  await shoot(page, "14-long-chat");
+  await page.getByRole("status").filter({ hasText: "Long chat" }).getByRole("button", { name: "New chat" }).click();
+  await expect(page.getByText("What should it feel like?")).toBeVisible();
+});
+
+test("Settings › Usage shows totals, a daily chart and the chats that cost most", async ({ page }) => {
+  await open(page, "chat");
+  await page.getByRole("button", { name: "Settings" }).click();
+  const usage = page.getByRole("region", { name: "Usage" });
+  await expect(usage.getByRole("button", { name: "30 days" })).toHaveAttribute("aria-pressed", "true");
+  await expect(usage.getByRole("img", { name: /Tokens per day/ })).toBeVisible();
+  await expect(usage.getByText("prompt from cache")).toBeVisible();
+  await expect(usage.getByRole("table", { name: "By model" })).toContainText("Haiku 5.5");
+  await expect(usage.getByRole("table", { name: "By kind" })).toContainText("Chat titles");
+  await expect(usage).toContainText("Costs are estimates from prices checked on 2026-10-22");
+  await usage.scrollIntoViewIfNeeded();
+  await shoot(page, "15-settings-usage");
+  await usage.getByRole("button", { name: "Today" }).click();
+  await expect(usage.getByRole("img", { name: /Tokens per day/ })).toHaveCount(0); // one day: no chart
+  const chats = usage.getByRole("table", { name: "Chats" });
+  await expect(chats).toContainText("Low-end mud");
+  await chats.getByRole("button", { name: "Pad width" }).click();
+  await expect(page.getByText("Spread the pad around")).toBeVisible();
+});

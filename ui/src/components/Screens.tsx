@@ -1,6 +1,8 @@
 import { useState } from "react";
-import type { LiveStatus, Settings, TrackRef } from "../protocol/types";
+import type { LiveStatus, Settings, TrackRef, UsageReport } from "../protocol/types";
+import type { UsageRange } from "../state/store";
 import { Icon } from "./Icon";
+import { UsageSection } from "./Usage";
 
 export const CLAUDE_MODELS = [
   { id: "claude-haiku-5-5", label: "Haiku 5.5 · fast and cheap (recommended)" },
@@ -322,6 +324,10 @@ interface SettingsProps {
   onCheckLive(): void;
   onBackToLive(): void;
   onTheme(theme: Theme): void;
+  usage: UsageReport | null;
+  usageRange: UsageRange;
+  onUsageRange(range: UsageRange): void;
+  onOpenChat(chatId: string): void;
 }
 
 export function SettingsPage(props: SettingsProps) {
@@ -334,6 +340,13 @@ export function SettingsPage(props: SettingsProps) {
         </div>
         <ModelForm settings={settings} testResult={testResult} onSave={props.onSave} onTest={props.onTest} />
       </section>
+      <UsageSection
+        report={props.usage}
+        range={props.usageRange}
+        provider={settings.provider}
+        onRange={props.onUsageRange}
+        onOpenChat={props.onOpenChat}
+      />
       <section aria-labelledby="s-live">
         <div className="label" id="s-live">
           Ableton Live
