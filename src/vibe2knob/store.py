@@ -4,7 +4,8 @@ Everything lives in one folder (by default ~/Library/Application Support/vibe2kn
 - chats/<id>.json: one Chat each (chat.py versions and migrates them),
 - chats/closed/: chats whose tab was closed, kept so nothing is lost,
 - settings.json: provider and model, and the panel window's size, position and on-top
-  switch, with its own schema_version.
+  switch, with its own schema_version,
+- usage.jsonl: the token usage ledger (usage.py), counts only.
 
 The Anthropic key is kept in the Keychain (via keyring), never in these files. An
 ANTHROPIC_API_KEY in the environment (or a .env file) wins over the Keychain.
@@ -21,6 +22,7 @@ from typing import Callable, Literal, Protocol
 from pydantic import BaseModel, Field, ValidationError
 
 from .chat import Chat
+from .usage import Ledger
 
 SETTINGS_SCHEMA_VERSION = 1
 KEY_ENV = "ANTHROPIC_API_KEY"
@@ -153,6 +155,7 @@ class Store:
         self.chats_dir = self.home / "chats"
         self.closed_dir = self.chats_dir / "closed"
         self.settings_path = self.home / "settings.json"
+        self.usage = Ledger(self.home / "usage.jsonl")
         self.keys = keys if keys is not None else KeyringKeys()
 
     # Chats
@@ -173,6 +176,16 @@ class Store:
                 problems.append(f"Skipped {path.name}: {e}")
         chats.sort(key=lambda c: c.created_at)
         return chats, problems
+
+    def load_closed_chats(self) -> list[Chat]:
+        """Chats whose tab was closed, for the usage report's titles and the backfill."""
+        out = []
+        for path in sorted(self.closed_dir.glob("*.json")):
+            try:
+                out.append(Chat.load(path))
+            except (OSError, ValueError, ValidationError):
+                continue
+        return out
 
     def save_chat(self, chat: Chat) -> None:
         _write_atomic(self._chat_path(chat.id), chat.to_json())

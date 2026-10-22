@@ -26,6 +26,7 @@ class OllamaProvider:
         if not self.host.startswith("http"):
             self.host = "http://" + self.host
         self.timeout = timeout
+        self.last_usage: dict | None = None
 
     def _post(self, body: dict):
         req = urllib.request.Request(
@@ -44,6 +45,8 @@ class OllamaProvider:
                 data = json.loads(resp.read())
         except urllib.error.URLError as e:
             raise ProviderError(f"Could not reach Ollama at {self.host}: {e}") from e
+        self.last_usage = {"input_tokens": data.get("prompt_eval_count", 0),
+                           "output_tokens": data.get("eval_count", 0), "model": self.model}
         text = data.get("message", {}).get("content", "")
         if not text:
             raise ProviderError("Ollama returned no text.")
@@ -113,6 +116,7 @@ class OllamaProvider:
                     usage = {
                         "input_tokens": chunk.get("prompt_eval_count", 0),
                         "output_tokens": chunk.get("eval_count", 0),
+                        "model": self.model,
                     }
         yield Done(usage, "end_turn")
 
@@ -138,4 +142,4 @@ class OllamaProvider:
         for t in tools:
             if isinstance(data.get(t.name), dict):
                 yield ToolCall(t.name, data[t.name])
-        yield Done({}, "end_turn")
+        yield Done(dict(self.last_usage or {}), "end_turn")

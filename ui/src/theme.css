@@ -114,6 +114,11 @@ body,
 #root {
   height: 100%;
 }
+/* The panel scrolls inside its own areas; the page itself never does. */
+html,
+body {
+  overflow: hidden;
+}
 
 body {
   margin: 0;
@@ -1051,6 +1056,7 @@ select.field {
 
 .settings {
   --gutter: max(16px, calc((100% - 600px) / 2));
+  position: relative; /* holds absolutely placed children (like .sr-only) inside the scroll */
   flex: 1;
   overflow-y: auto;
   padding: 8px var(--gutter) 16px;
@@ -1086,4 +1092,364 @@ select.field {
   flex-direction: column;
   justify-content: center;
   padding: 24px var(--gutter);
+}
+
+/* Usage: the chat's total and context meter, the answer footer, Settings › Usage */
+
+.chat-usage {
+  margin: 6px var(--gutter) 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chat-usage-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.usage-total {
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font-size: 11px;
+  color: var(--text-quiet);
+  cursor: pointer;
+}
+.usage-total:hover,
+.usage-total[aria-expanded="true"] {
+  color: var(--text);
+}
+.context-meter {
+  width: 48px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--led-off);
+  overflow: hidden;
+  display: inline-block;
+}
+.context-meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--led-ok);
+}
+.context-meter.long .context-meter-fill {
+  background: var(--led);
+}
+.long-chat {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--caution);
+  background: var(--caution-bg);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.long-chat .link-button {
+  flex: none;
+}
+.usage-pop {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 5;
+  width: min(300px, 100%);
+  margin-top: 4px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.usage-parts {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.usage-part {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-body);
+}
+.usage-part dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.usage-part dt::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--led-off);
+}
+.usage-part.in dt::before {
+  background: var(--listen);
+}
+.usage-part.out dt::before {
+  background: var(--accent);
+}
+.usage-part dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.assistant-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.turn-usage {
+  font-size: 11px;
+  color: var(--text-quiet);
+  opacity: 0;
+  transition: opacity 0.15s;
+  margin-top: -6px;
+}
+.assistant-turn:hover .turn-usage,
+.turn-usage:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .turn-usage {
+    opacity: 1;
+  }
+}
+
+.usage-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.stat {
+  background: var(--inset);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.stat-value {
+  font-size: 18px;
+  color: var(--text);
+}
+.usage-chart {
+  position: relative;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.usage-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.usage-chart .axis {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+.usage-chart .tick {
+  font: 9px var(--font-mono);
+  fill: var(--text-quiet);
+}
+.bar-prompt {
+  fill: var(--listen);
+  background: var(--listen);
+}
+.bar-output {
+  fill: var(--accent);
+  background: var(--accent);
+}
+.legend {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-body);
+}
+.legend .hint {
+  margin-left: auto;
+}
+.key-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 4px;
+}
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.usage-table caption {
+  text-align: left;
+  padding-bottom: 4px;
+}
+.usage-table th,
+.usage-table td {
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+  font-weight: normal;
+  text-align: left;
+  color: var(--text-body);
+}
+.usage-table td {
+  text-align: right;
+  padding-left: 12px;
+  white-space: nowrap;
+  color: var(--text);
+}
+.usage-table .row-kind {
+  font: 10px var(--font-mono);
+  color: var(--text-quiet);
+  text-transform: uppercase;
+  margin-left: 6px;
+}
+
+/* The breakdown: one bar of parts, then sent and written with subtotals */
+.usage-pop {
+  width: min(320px, 100%);
+  gap: 10px;
+}
+.usage-pop-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.usage-headline {
+  font-size: 15px;
+  color: var(--text);
+}
+.breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.part-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 2px;
+  overflow: hidden;
+  gap: 1px;
+  background: var(--led-off);
+}
+.part-seg {
+  min-width: 2px;
+}
+.part-seg.in {
+  background: var(--listen);
+}
+.part-seg.out {
+  background: var(--accent);
+}
+.part-seg.rest,
+.key-swatch.rest {
+  background: var(--text-quiet);
+  opacity: 0.5;
+}
+.part-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.part-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--text);
+}
+.usage-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 12px;
+  color: var(--text-body);
+}
+.usage-line .label {
+  min-width: 56px;
+}
+.usage-line .hint {
+  flex-basis: 100%;
+}
+
+.usage-stats {
+  margin-bottom: 8px;
+}
+.usage-chart g.off .bar-prompt,
+.usage-chart g.off .bar-output {
+  opacity: 0.45;
+}
+.usage-chart .bar-hit {
+  fill: transparent;
+}
+.part-bar-wrap {
+  position: relative;
+}
+.part-bar.has-active .part-seg:not(.active) {
+  filter: saturate(0.4) brightness(0.75);
+}
+.part-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  padding: 2px 6px;
+  pointer-events: none;
+  z-index: 6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.chart-tip {
+  bottom: auto;
+  top: 0;
+}
+.usage-part {
+  border-radius: 3px;
+  padding: 0 4px;
+  margin: 0 -4px;
+}
+.usage-part.active,
+.part-group-head.active,
+.usage-rest.active {
+  background: var(--inset);
+  color: var(--text);
+}
+button.part-group-head {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  margin: 0 -4px;
+  width: calc(100% + 8px);
+  border-radius: 3px;
+  text-align: left;
+}
+button.part-group-head:hover {
+  background: var(--inset);
+}
+.chevron {
+  display: inline-block;
+  width: 12px;
+  color: var(--text-quiet);
+}
+.part-note {
+  margin-left: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-quiet);
 }

@@ -29,6 +29,16 @@ These came up on 2026-10-21. The hub-and-clients architecture leaves room for ea
 - **More model providers.** OpenAI first, through Sign in with ChatGPT, which lets users spend their plan in partner apps (we'd need access). Each provider is an adapter with its own sign-in method.
 - **Phone app.** A PWA served by the hub and paired by QR code over the local network. A relay for reaching it from outside the network can come later.
 
+## Usage and cost
+
+Token usage shipped on 2026-10-22 (chat totals, a context meter, Settings › Usage). Left for later:
+
+- **Budget warning.** "You've spent $5 this month", with a limit the user sets.
+- **Price override in Settings**, for when the bundled table is behind.
+- **Export** of the ledger as CSV.
+- **Exact per-turn parts.** Live context, history and the answer are split by text length today. One `count_tokens` call per turn would make them exact.
+- **Eval spend.** `vibe2knob eval` doesn't write to the ledger yet.
+
 ## v0.1 scope, for reference
 
 - Chats in tabs.
