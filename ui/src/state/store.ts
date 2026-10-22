@@ -9,7 +9,11 @@ import type {
   Settings,
   Step,
   TrackRef,
+  Usage,
+  UsageReport,
 } from "../protocol/types";
+
+export type UsageRange = UsageReport["range"];
 
 /** "rejected" is a bad token (relaunch the panel); "offline" is a hub that went away. */
 export type Connection = "connecting" | "open" | "offline" | "rejected";
@@ -27,6 +31,8 @@ export interface Turn {
   pending: boolean;
   /** Set when the turn failed. */
   error: string | null;
+  /** What the answer used; null until chat.done says. */
+  usage: Usage | null;
 }
 
 export type View = "chat" | "settings";
@@ -51,6 +57,9 @@ export interface PanelState {
   pendingCreate: string | null;
   /** The last error that doesn't belong to a chat. */
   notice: string | null;
+  /** Settings › Usage: the range picked and the hub's latest report for it. */
+  usageRange: UsageRange;
+  usage: UsageReport | null;
 }
 
 export const initialState: PanelState = {
@@ -68,6 +77,8 @@ export const initialState: PanelState = {
   testResult: null,
   pendingCreate: null,
   notice: null,
+  usageRange: "30d",
+  usage: null,
 };
 
 export type Action =
@@ -77,6 +88,7 @@ export type Action =
   | { type: "creating-chat"; requestId: string }
   | { type: "user-sent"; chatId: string; requestId: string; text: string; at: string }
   | { type: "show"; view: View }
+  | { type: "usage-range"; range: UsageRange }
   | { type: "dismiss-notice" };
 
 function blankTurn(id: string, role: Turn["role"], at: string): Turn {
@@ -91,6 +103,7 @@ function blankTurn(id: string, role: Turn["role"], at: string): Turn {
     warnings: [],
     pending: role === "assistant",
     error: null,
+    usage: null,
   };
 }
 
@@ -106,6 +119,7 @@ function fromHistory(turn: ChatTurn): Turn {
     warnings: turn.warnings,
     pending: false,
     error: turn.error,
+    usage: turn.usage,
   };
 }
 
@@ -200,7 +214,9 @@ function onHub(state: PanelState, m: HubEnvelope): PanelState {
         warnings: m.warnings,
       }));
     case "chat.done":
-      return withTurn(state, m.chat_id, m.turn_id, (t) => ({ ...t, pending: false }));
+      return withTurn(state, m.chat_id, m.turn_id, (t) => ({ ...t, pending: false, usage: m.usage ?? t.usage }));
+    case "usage.report":
+      return m.range === state.usageRange ? { ...state, usage: m } : state;
     case "settings":
       return {
         ...state,
@@ -238,6 +254,8 @@ export function reducer(state: PanelState, action: Action): PanelState {
       return { ...state, view: action.view, testResult: action.view === "settings" ? null : state.testResult };
     case "dismiss-notice":
       return { ...state, notice: null };
+    case "usage-range":
+      return { ...state, usageRange: action.range };
   }
 }
 

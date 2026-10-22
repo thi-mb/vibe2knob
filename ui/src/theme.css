@@ -1087,3 +1087,223 @@ select.field {
   justify-content: center;
   padding: 24px var(--gutter);
 }
+
+/* Usage: the chat's total and context meter, the answer footer, Settings › Usage */
+
+.chat-usage {
+  margin: 6px var(--gutter) 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chat-usage-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.usage-total {
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font-size: 11px;
+  color: var(--text-quiet);
+  cursor: pointer;
+}
+.usage-total:hover,
+.usage-total[aria-expanded="true"] {
+  color: var(--text);
+}
+.context-meter {
+  width: 48px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--led-off);
+  overflow: hidden;
+  display: inline-block;
+}
+.context-meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--led-ok);
+}
+.context-meter.long .context-meter-fill {
+  background: var(--led);
+}
+.long-chat {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--caution);
+  background: var(--caution-bg);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.long-chat .link-button {
+  flex: none;
+}
+.usage-pop {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 5;
+  width: min(300px, 100%);
+  margin-top: 4px;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.usage-parts {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.usage-part {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-body);
+}
+.usage-part dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.usage-part dt::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--led-off);
+}
+.usage-part.in dt::before {
+  background: var(--listen);
+}
+.usage-part.out dt::before {
+  background: var(--accent);
+}
+.usage-part dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.assistant-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.turn-usage {
+  font-size: 11px;
+  color: var(--text-quiet);
+  opacity: 0;
+  transition: opacity 0.15s;
+  margin-top: -6px;
+}
+.assistant-turn:hover .turn-usage,
+.turn-usage:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .turn-usage {
+    opacity: 1;
+  }
+}
+
+.usage-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.stat {
+  background: var(--inset);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.stat-value {
+  font-size: 18px;
+  color: var(--text);
+}
+.usage-chart {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.usage-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.usage-chart .axis {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+.usage-chart .tick {
+  font: 9px var(--font-mono);
+  fill: var(--text-quiet);
+}
+.bar-prompt {
+  fill: var(--listen);
+  background: var(--listen);
+}
+.bar-output {
+  fill: var(--accent);
+  background: var(--accent);
+}
+.legend {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-body);
+}
+.legend .hint {
+  margin-left: auto;
+}
+.key-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 4px;
+}
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.usage-table caption {
+  text-align: left;
+  padding-bottom: 4px;
+}
+.usage-table th,
+.usage-table td {
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+  font-weight: normal;
+  text-align: left;
+  color: var(--text-body);
+}
+.usage-table td {
+  text-align: right;
+  padding-left: 12px;
+  white-space: nowrap;
+  color: var(--text);
+}
+.usage-table .row-kind {
+  font: 10px var(--font-mono);
+  color: var(--text-quiet);
+  text-transform: uppercase;
+  margin-left: 6px;
+}

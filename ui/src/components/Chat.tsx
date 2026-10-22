@@ -7,6 +7,7 @@ import type { Step } from "../protocol/types";
 import type { Turn } from "../state/store";
 import { Icon } from "./Icon";
 import { Knob } from "./Knob";
+import { TurnUsage } from "./Usage";
 
 function Inlines({ nodes }: { nodes: Inline[] }) {
   return nodes.map((n, i) => {
@@ -146,7 +147,7 @@ function AssistantTurn({ chatId, turn, latest, trackColors, onAsk }: AssistantTu
   const current = latest ? steps.findIndex((_, i) => !done.has(i)) : -1;
   const tracks = new Set(steps.map((s) => s.track).filter(Boolean));
   return (
-    <>
+    <div className="assistant-turn">
       {turn.text ? (
         <Prose text={turn.text} streaming={turn.pending} />
       ) : (
@@ -200,7 +201,8 @@ function AssistantTurn({ chatId, turn, latest, trackColors, onAsk }: AssistantTu
           {turn.error}
         </div>
       )}
-    </>
+      {turn.usage && !turn.pending && <TurnUsage usage={turn.usage} />}
+    </div>
   );
 }
 
