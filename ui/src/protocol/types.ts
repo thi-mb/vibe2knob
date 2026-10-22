@@ -31,6 +31,7 @@ export type HubEnvelope =
   | ChatChanged
   | ChatClosed
   | ChatHistory
+  | ChatStatus
   | ChatDelta
   | ChatSteps
   | ChatDone
@@ -555,6 +556,28 @@ export interface Step {
    * Live's index of the track the step is on; filled in by vibe2knob's checks, null when the track name is missing or matches more than one track.
    */
   track_index?: number | null;
+}
+/**
+ * What a running turn is doing before (or between) the parts the client can show.
+ *
+ * Sent as the turn starts and whenever the phase changes. Prose deltas mean the model is
+ * writing, and chat.done ends the turn.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "ChatStatus".
+ */
+export interface ChatStatus {
+  /**
+   * Protocol version.
+   */
+  v: 1;
+  type: "chat.status";
+  chat_id: string;
+  turn_id: string;
+  /**
+   * reading: the hub reads Live. thinking: the model works before it writes. steps: the model writes its steps.
+   */
+  phase: "reading" | "thinking" | "steps";
 }
 /**
  * A piece of the assistant's prose, streamed as it is written.

@@ -29,7 +29,7 @@ from .knowledge import Term, load_terms, match_terms
 from .prompt import build_chat_system_prompt, build_chat_user_message
 from .protocol import ChatSummary, ContextSet
 from .providers import Provider, ProviderError
-from .providers.base import Done, Error, TextDelta, ToolCall
+from .providers.base import Done, Error, Phase, TextDelta, ToolCall
 from .session import (LiveView, SessionSummary, as_summary, as_track_state, describe_summary,
                       read_arrangement)
 from .state import Device, TrackState
@@ -140,11 +140,18 @@ def migrate(data: dict) -> dict:
 
 # What ChatEngine.send yields. Every turn starts with TurnStarted and ends with TurnDone;
 # a failed turn sends TurnError just before TurnDone. ChatTitled may follow TurnDone.
+# TurnStatus says what the turn is on while there's nothing to show yet.
 
 
 @dataclass
 class TurnStarted:
     turn_id: str
+
+
+@dataclass
+class TurnStatus:
+    turn_id: str
+    phase: str  # "reading" (Live), "thinking" (waiting for the model) or "steps"
 
 
 @dataclass
@@ -181,7 +188,7 @@ class ChatTitled:
     record: UsageRecord | None = None  # what naming the chat used
 
 
-ChatEvent = Union[TurnStarted, TurnText, TurnSteps, TurnError, TurnDone, ChatTitled]
+ChatEvent = Union[TurnStarted, TurnStatus, TurnText, TurnSteps, TurnError, TurnDone, ChatTitled]
 
 
 @dataclass
@@ -347,11 +354,14 @@ class ChatEngine:
 
     def send(self, chat: Chat, text: str, live: LiveView | None = None) -> Iterator[ChatEvent]:
         """Run one turn: read Live, stream the answer, and append both turns to `chat`."""
+        turn = AssistantTurn()
+        yield TurnStarted(turn.id)
+        yield TurnStatus(turn.id, "reading")
         ctx = gather_context(chat.context, live)
+        turn.snapshots = {str(i): s for _, i, s in ctx.detail}
         messages = self.build_messages(chat, text, ctx)
         chat.turns.append(UserTurn(text=text))
-        turn = AssistantTurn(snapshots={str(i): s for _, i, s in ctx.detail})
-        yield TurnStarted(turn.id)
+        yield TurnStatus(turn.id, "thinking")
         only = ctx.detail[0][2] if len(ctx.detail) == 1 else None
         tool_ctx = ToolContext(ctx.check_tracks(), only)
         prose: list[str] = []
@@ -370,6 +380,8 @@ class ChatEngine:
                     turn.caution = outcome.steps.caution
                     yield TurnSteps(turn.id, turn.steps, turn.listen_for, turn.caution,
                                     list(outcome.warnings))
+            elif isinstance(event, Phase):
+                yield TurnStatus(turn.id, event.name)
             elif isinstance(event, Done):
                 turn.usage = event.usage
             elif isinstance(event, Error):

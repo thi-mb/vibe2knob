@@ -4,7 +4,7 @@ import { type Inline, parseMarkdown } from "../lib/markdown";
 import { trackColor } from "../lib/live";
 import { load, save } from "../lib/storage";
 import type { Step } from "../protocol/types";
-import type { Turn } from "../state/store";
+import type { Phase, Progress, Turn } from "../state/store";
 import { Icon } from "./Icon";
 import { Knob } from "./Knob";
 import { TurnUsage } from "./Usage";
@@ -137,27 +137,20 @@ interface AssistantTurnProps {
   chatId: string;
   turn: Turn;
   latest: boolean;
+  /** False once the prose is done and the progress line has taken over. */
+  writing: boolean;
   trackColors: Map<string, number | null>;
   onAsk(text: string): void;
 }
 
-function AssistantTurn({ chatId, turn, latest, trackColors, onAsk }: AssistantTurnProps) {
+function AssistantTurn({ chatId, turn, latest, writing, trackColors, onAsk }: AssistantTurnProps) {
   const [done, toggle] = useDoneSteps(chatId, turn.id);
   const steps = turn.steps ?? [];
   const current = latest ? steps.findIndex((_, i) => !done.has(i)) : -1;
   const tracks = new Set(steps.map((s) => s.track).filter(Boolean));
   return (
     <div className="assistant-turn">
-      {turn.text ? (
-        <Prose text={turn.text} streaming={turn.pending} />
-      ) : (
-        turn.pending && (
-          <div className="thinking" role="status">
-            <span className="led small on blink" />
-            READING THE SESSION
-          </div>
-        )
-      )}
+      {turn.text && <Prose text={turn.text} streaming={turn.pending && writing} />}
       {steps.length > 0 && (
         <ol className="steps" aria-label="Steps">
           {steps.map((step, i) => (
@@ -206,22 +199,54 @@ function AssistantTurn({ chatId, turn, latest, trackColors, onAsk }: AssistantTu
   );
 }
 
+const PHASE_LABEL: Record<Exclude<Phase, "writing">, string> = {
+  reading: "READING THE SESSION",
+  thinking: "THINKING",
+  steps: "WRITING STEPS",
+};
+
+/** "7s", then "1:05" past a minute. */
+export function elapsed(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** The line that shows a turn is working while nothing else does. */
+function TurnProgress({ progress }: { progress: Progress }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  if (progress.phase === "writing") return null;
+  const since = Date.parse(progress.since);
+  return (
+    <div className="thinking progress" role="status">
+      <span className="led small on blink" />
+      {PHASE_LABEL[progress.phase]}
+      <span className="elapsed">· {elapsed(Number.isNaN(since) ? 0 : now - since)}</span>
+    </div>
+  );
+}
+
 interface ConversationProps {
   chatId: string;
   turns: Turn[] | undefined;
   trackColors: Map<string, number | null>;
   onAsk(text: string): void;
+  /** The turn in flight, if any. */
+  progress?: Progress;
   /** Shown after the turns, e.g. the offline card in a chat that already has answers. */
   after?: React.ReactNode;
   empty?: React.ReactNode;
 }
 
-export function Conversation({ chatId, turns, trackColors, onAsk, after, empty }: ConversationProps) {
+export function Conversation({ chatId, turns, trackColors, onAsk, progress, after, empty }: ConversationProps) {
   const end = useRef<HTMLDivElement>(null);
   const lastText = turns?.at(-1)?.text.length ?? 0;
   useEffect(() => {
     end.current?.scrollIntoView?.({ block: "end" });
-  }, [turns?.length, lastText]);
+  }, [turns?.length, lastText, progress?.phase]);
   const lastAssistant = turns ? turns.findLastIndex((t) => t.role === "assistant") : -1;
   return (
     <div className="conversation" aria-live="polite" aria-busy={turns?.some((t) => t.pending) ?? false}>
@@ -244,12 +269,14 @@ export function Conversation({ chatId, turns, trackColors, onAsk, after, empty }
               chatId={chatId}
               turn={turn}
               latest={i === lastAssistant}
+              writing={!progress || progress.phase === "writing"}
               trackColors={trackColors}
               onAsk={onAsk}
             />
           ),
         )
       )}
+      {turns !== undefined && progress && <TurnProgress progress={progress} />}
       {after}
       <div ref={end} />
     </div>
