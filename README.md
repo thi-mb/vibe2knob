@@ -128,6 +128,9 @@ cd ui && npm run gen:types   # after changing protocol.py
 
 ### The panel
 
+After a `git pull`, `scripts/panel.sh` does the rest: it reinstalls the Python package, rebuilds
+the UI and opens the panel window (add `--fake` for no Live and no key).
+
 `vibe2knob panel` starts the hub on 127.0.0.1:8765 and opens the panel in your browser. It needs
 the `[panel]` extra (`pip install -e '.[panel]'`) and a built UI (`cd ui && npm run build`).
 
