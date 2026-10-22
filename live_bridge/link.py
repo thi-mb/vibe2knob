@@ -6,6 +6,13 @@ Reads return plain dicts, so this package doesn't depend on vibe2knob:
   {"schema_version": 1, "live_version": "11.3" | None, "tempo": float | None,
    "tracks": [{"index", "name", "type", "color", "devices": [names], "volume", "panning",
    "mute"}]}
+- arrangement(): where clips sit in Arrangement view, in beats from the song's start, or
+  None when the link can't tell:
+  {"schema_version": 1, "song_length": float | None, "signature": [4, 4] | None,
+   "locators": [{"name", "time"}],
+   "tracks": [{"index", "is_group", "is_grouped",
+               "clips": [{"name", "start", "end"}] | None}]}
+  Group tracks have clips None (their children carry the clips).
 
 Callbacks from subscribe_selection() and subscribe_status() run on a background thread.
 Keep them short; they may call the read methods.
@@ -18,6 +25,7 @@ RECONNECTING = "reconnecting"
 OFFLINE = "offline"
 
 SUMMARY_SCHEMA_VERSION = 1
+ARRANGEMENT_SCHEMA_VERSION = 1
 
 
 class LiveError(RuntimeError):
@@ -118,6 +126,9 @@ class LiveLink:
 
     def session_summary(self):
         raise NotImplementedError
+
+    def arrangement(self):
+        return None
 
     def selected_track_state(self):
         index = self.selected_track_index()
