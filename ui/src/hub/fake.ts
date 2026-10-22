@@ -92,12 +92,12 @@ const INSTRUCTIONS = 7400;
 const TOOL_DEFS = 620;
 const WINDOW = 1_000_000;
 
-function priced(u: Omit<Usage, "cost_usd" | "cost_complete">): Usage {
+function priced(u: Omit<Usage, "cost_usd" | "cost_complete" | "prompt_cost_usd" | "output_cost_usd">): Usage {
   const p = u.model ? PRICES[u.model] : undefined;
-  const cost = p
-    ? (u.input_tokens * p[0] + u.cache_write_tokens * p[1] + u.cache_read_tokens * p[2] + u.output_tokens * p[3]) / 1e6
-    : null;
-  return { ...u, cost_usd: cost, cost_complete: p !== undefined };
+  if (!p) return { ...u, cost_usd: null, cost_complete: false, prompt_cost_usd: null, output_cost_usd: null };
+  const prompt = (u.input_tokens * p[0] + u.cache_write_tokens * p[1] + u.cache_read_tokens * p[2]) / 1e6;
+  const output = (u.output_tokens * p[3]) / 1e6;
+  return { ...u, cost_usd: prompt + output, cost_complete: true, prompt_cost_usd: prompt, output_cost_usd: output };
 }
 
 /** One chat answer: the instructions and tools come from the cache, the rest is new. */
@@ -124,7 +124,7 @@ function titleUsage(): Usage {
 function sumUsage(list: Usage[]): Usage {
   const out: Usage = {
     input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0, thinking_tokens: 0,
-    parts: {}, model: null, cost_usd: null, cost_complete: true,
+    parts: {}, model: null, cost_usd: null, cost_complete: true, prompt_cost_usd: null, output_cost_usd: null,
   };
   const models = new Set<string | null>();
   for (const u of list) {
@@ -135,8 +135,11 @@ function sumUsage(list: Usage[]): Usage {
     out.thinking_tokens += u.thinking_tokens;
     for (const [k, v] of Object.entries(u.parts)) out.parts[k] = (out.parts[k] ?? 0) + v;
     models.add(u.model);
-    if (u.cost_usd !== null) out.cost_usd = (out.cost_usd ?? 0) + u.cost_usd;
-    else out.cost_complete = false;
+    if (u.cost_usd !== null) {
+      out.cost_usd = (out.cost_usd ?? 0) + u.cost_usd;
+      out.prompt_cost_usd = (out.prompt_cost_usd ?? 0) + (u.prompt_cost_usd ?? 0);
+      out.output_cost_usd = (out.output_cost_usd ?? 0) + (u.output_cost_usd ?? 0);
+    } else out.cost_complete = false;
   }
   out.model = models.size === 1 ? [...models][0] : null;
   return out;
@@ -208,7 +211,7 @@ function seedChats(long = false): FakeChat[] {
     : PAD_USAGE;
   const pad: FakeChat = {
     summary: { id: "c-pad", title: "Pad width", context: { follow_selection: true, pinned: [] }, updated_at: now(5),
-      usage: null, context_tokens: null, context_window: null },
+      usage: null, title_usage: null, context_tokens: null, context_window: null },
     turns: [
       { id: "u-1", role: "user", text: "make it wider", created_at: now(0), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null },
       { id: "t-1", role: "assistant", text: WIDER.text, created_at: now(1), steps: WIDER.steps, listen_for: WIDER.listen_for, caution: WIDER.caution, warnings: [], error: null, usage: padUsage },
@@ -216,7 +219,7 @@ function seedChats(long = false): FakeChat[] {
   };
   const mud: FakeChat = {
     summary: { id: "c-mud", title: "Low-end mud", context: { follow_selection: true, pinned: [0] }, updated_at: now(2),
-      usage: null, context_tokens: null, context_window: null },
+      usage: null, title_usage: null, context_tokens: null, context_window: null },
     turns: [
       { id: "u-2", role: "user", text: "the low end feels muddy", created_at: now(-30), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null },
       {
@@ -320,7 +323,7 @@ export class FakeHub {
       case "chat.create": {
         const context: ContextSet = { follow_selection: m.context?.follow_selection ?? true, pinned: m.context?.pinned ?? [] };
         const chat: FakeChat = {
-          summary: { id: `c-${this.nextId++}`, title: null, context, updated_at: new Date().toISOString(), usage: null, context_tokens: null, context_window: null },
+          summary: { id: `c-${this.nextId++}`, title: null, context, updated_at: new Date().toISOString(), usage: null, title_usage: null, context_tokens: null, context_window: null },
           turns: [],
         };
         this.chats.push(chat);
@@ -384,11 +387,14 @@ export class FakeHub {
 
   /** A chat's total and how much its next message resends, as the hub works them out. */
   private refreshSummary(chat: FakeChat): void {
-    const records = this.records.filter((r) => r.chat_id === chat.summary.id).map((r) => r.usage);
+    const mine = this.records.filter((r) => r.chat_id === chat.summary.id);
+    const records = mine.map((r) => r.usage);
+    const titles = mine.filter((r) => r.kind === "title").map((r) => r.usage);
     const last = chat.turns.findLast((t) => t.usage);
     chat.summary = {
       ...chat.summary,
       usage: records.length ? sumUsage(records) : null,
+      title_usage: titles.length ? sumUsage(titles) : null,
       context_tokens: last?.usage ? tokensOf(last.usage) : null,
       context_window: last?.usage ? WINDOW : null,
     };

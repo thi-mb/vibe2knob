@@ -92,6 +92,12 @@ class Usage(_Shape):
     cost_complete: bool = Field(
         default=True, description="False when some calls had no known price, so cost_usd is low."
     )
+    prompt_cost_usd: float | None = Field(
+        default=None, description="The part of cost_usd spent on prompts (input and cache)."
+    )
+    output_cost_usd: float | None = Field(
+        default=None, description="The part of cost_usd spent on output, thinking included."
+    )
 
 
 class ChatSummary(_Shape):
@@ -101,7 +107,11 @@ class ChatSummary(_Shape):
     title: str | None = Field(default=None, description="Topic title; null until named.")
     context: ContextSet
     updated_at: str = Field(description="ISO 8601 time of the last change.")
-    usage: Usage | None = Field(default=None, description="Everything the chat used, titles included.")
+    usage: Usage | None = Field(
+        default=None,
+        description="Everything the chat used, titles included. Its model is the answers' model.",
+    )
+    title_usage: Usage | None = Field(default=None, description="What naming the chat used.")
     context_tokens: int | None = Field(
         default=None, description="Tokens the next message resends: the last answer's prompt plus "
         "its output.",

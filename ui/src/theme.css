@@ -1307,3 +1307,71 @@ select.field {
   text-transform: uppercase;
   margin-left: 6px;
 }
+
+/* The breakdown: one bar of parts, then sent and written with subtotals */
+.usage-pop {
+  width: min(320px, 100%);
+  gap: 10px;
+}
+.usage-pop-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.usage-headline {
+  font-size: 15px;
+  color: var(--text);
+}
+.breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.part-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 2px;
+  overflow: hidden;
+  gap: 1px;
+  background: var(--led-off);
+}
+.part-seg {
+  min-width: 2px;
+}
+.part-seg.in {
+  background: var(--listen);
+}
+.part-seg.out {
+  background: var(--accent);
+}
+.part-seg.rest,
+.key-swatch.rest {
+  background: var(--text-quiet);
+  opacity: 0.5;
+}
+.part-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.part-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--text);
+}
+.usage-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 12px;
+  color: var(--text-body);
+}
+.usage-line .label {
+  min-width: 56px;
+}
+.usage-line .hint {
+  flex-basis: 100%;
+}
