@@ -167,9 +167,18 @@ test("a chat shows what it used: header total, breakdown and a footer per answer
   await expect(page.locator(".turn-usage").first()).toHaveText(/in · .* out · .* · Haiku 5\.5/);
   await total.click();
   const pop = page.getByRole("dialog", { name: "This chat's usage" });
+  const sent = pop.getByRole("button", { name: /Sent to the model/ });
+  await expect(sent).toHaveAttribute("aria-expanded", "false"); // the lists start folded
+  await expect(pop).not.toContainText("Instructions");
+  await shoot(page, "13-chat-usage");
+  await sent.click();
   await expect(pop).toContainText("Instructions");
   await expect(pop).toContainText("~"); // estimated parts are marked
-  await shoot(page, "13-chat-usage");
+  // Hovering a part of the bar names it and highlights its row.
+  await pop.locator(".part-seg.in").first().hover();
+  await expect(pop.locator(".part-tip")).toContainText("Instructions");
+  await expect(pop.locator(".usage-part.active")).toContainText("Instructions");
+  await shoot(page, "13b-chat-usage-open");
   await page.keyboard.press("Escape");
   await expect(pop).toHaveCount(0);
   // A new answer adds to the total.
@@ -177,6 +186,8 @@ test("a chat shows what it used: header total, breakdown and a footer per answer
   await page.getByRole("button", { name: "too much" }).click();
   await expect(page.getByText("The wash comes from the chorus")).toBeVisible();
   await expect(total).not.toHaveText(before!);
+  await total.click();
+  await expect(pop.getByRole("button", { name: /Sent to the model/ })).toContainText("2 calls");
 });
 
 test("a long chat suggests starting a new one", async ({ page }) => {
@@ -199,6 +210,13 @@ test("Settings › Usage shows totals, a daily chart and the chats that cost mos
   await expect(usage).toContainText("Costs are estimates from prices checked on 2026-10-22");
   await usage.scrollIntoViewIfNeeded();
   await shoot(page, "15-settings-usage");
+  // Hovering a day shows its total.
+  await usage.locator(".bar-hit").last().hover();
+  await expect(usage.locator(".chart-tip")).toContainText(/tokens/);
+  // Scrolling Settings to the end never scrolls the page itself.
+  await page.locator(".settings").evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await page.mouse.wheel(0, 2000);
+  expect(await page.evaluate(() => document.scrollingElement!.scrollHeight - innerHeight)).toBeLessThanOrEqual(0);
   await usage.getByRole("button", { name: "Today" }).click();
   await expect(usage.getByRole("img", { name: /Tokens per day/ })).toHaveCount(0); // one day: no chart
   const chats = usage.getByRole("table", { name: "Chats" });

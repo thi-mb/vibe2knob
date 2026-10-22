@@ -14,7 +14,7 @@ const chat = (id: string, updated_at = "2026-10-21T10:00:00Z"): ChatSummary => (
 });
 
 const usage = (input_tokens: number, output_tokens: number): Usage => ({
-  input_tokens, output_tokens, cache_read_tokens: 0, cache_write_tokens: 0, thinking_tokens: 0,
+  input_tokens, output_tokens, cache_read_tokens: 0, cache_write_tokens: 0, thinking_tokens: 0, calls: 1,
   parts: {}, model: "claude-haiku-5-5", cost_usd: 0.001, cost_complete: true, prompt_cost_usd: 0.0008, output_cost_usd: 0.0002,
 });
 

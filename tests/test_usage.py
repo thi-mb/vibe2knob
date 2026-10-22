@@ -46,6 +46,7 @@ def test_total_prices_and_flags_unknown_models():
     assert t.input_tokens == 2000 and t.model is None
     assert t.cost_usd == round(rec().cost(), 6) and t.cost_complete is False
     assert total([]).cost_usd is None
+    assert t.calls == 2 and total([]).calls == 0
 
 
 def test_split_adds_up_and_uses_exact_counts():

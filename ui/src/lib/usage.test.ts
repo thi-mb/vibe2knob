@@ -3,7 +3,7 @@ import type { Usage } from "../protocol/types";
 import { contextFill, fmtCost, fmtTokens, fmtUsage, modelName, partRows, unsplitTokens } from "./usage";
 
 const u = (over: Partial<Usage> = {}): Usage => ({
-  input_tokens: 2000, output_tokens: 600, cache_read_tokens: 8000, cache_write_tokens: 0, thinking_tokens: 200,
+  input_tokens: 2000, output_tokens: 600, cache_read_tokens: 8000, cache_write_tokens: 0, thinking_tokens: 200, calls: 2,
   parts: { instructions: 7400, tools: 600, live: 1900, message: 100, thinking: 200, answer: 400 },
   model: "claude-haiku-5-5", cost_usd: 0.0425, cost_complete: true, prompt_cost_usd: 0.03, output_cost_usd: 0.0125, ...over,
 });

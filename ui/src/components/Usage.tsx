@@ -20,44 +20,104 @@ const CONSOLE_URL = "https://platform.claude.com/usage";
 
 type PartRow = ReturnType<typeof partRows>[number];
 
-/** One stacked bar of the parts: what was sent in blue, what was written in the accent color. */
-function PartBar({ rows, rest }: { rows: PartRow[]; rest: number }) {
+const share = (n: number, of: number) => (of ? `${Math.max(1, Math.round((n / of) * 100))}%` : "");
+
+/** One stacked bar of the parts: what was sent in blue, what was written in the accent color.
+ *  Hovering a segment names it and highlights its row. */
+function PartBar({ rows, rest, restLabel, active, onActive }: {
+  rows: PartRow[];
+  rest: number;
+  restLabel: string;
+  active: string | null;
+  onActive(key: string | null): void;
+}) {
   const sum = rows.reduce((a, r) => a + r.tokens, 0) + rest;
   if (!sum) return null;
   let inIndex = 0;
   let outIndex = 0;
+  const segs = [
+    ...rows.map((r) => {
+      const step = r.side === "in" ? inIndex++ : outIndex++;
+      return { key: r.key, cls: r.side, label: r.label, tokens: r.tokens, exact: r.exact, opacity: 1 - Math.min(step, 4) * 0.17 };
+    }),
+    ...(rest > 0 ? [{ key: "rest", cls: "rest", label: restLabel, tokens: rest, exact: true, opacity: 1 }] : []),
+  ];
+  let left = 0;
+  const placed = segs.map((g) => {
+    const mid = left + g.tokens / 2;
+    left += g.tokens;
+    return { ...g, mid: (mid / sum) * 100 };
+  });
+  const on = placed.find((g) => g.key === active);
   return (
-    <div className="part-bar" aria-hidden="true">
-      {rows.map((r) => {
-        const step = r.side === "in" ? inIndex++ : outIndex++;
-        return (
+    <div className="part-bar-wrap" onMouseLeave={() => onActive(null)}>
+      <div className={`part-bar ${active ? "has-active" : ""}`} aria-hidden="true">
+        {placed.map((g) => (
           <span
-            key={r.key}
-            className={`part-seg ${r.side}`}
-            style={{ flexGrow: r.tokens, opacity: 1 - Math.min(step, 4) * 0.17 }}
-            title={`${r.label} ${r.exact ? "" : "~"}${fmtTokens(r.tokens)}`}
+            key={g.key}
+            className={`part-seg ${g.cls} ${g.key === active ? "active" : ""}`}
+            style={{ flexGrow: g.tokens, opacity: g.opacity }}
+            onMouseEnter={() => onActive(g.key)}
           />
-        );
-      })}
-      {rest > 0 && <span className="part-seg rest" style={{ flexGrow: rest }} />}
+        ))}
+      </div>
+      {on && (
+        <div className="part-tip mono" style={{ left: `clamp(48px, ${on.mid}%, calc(100% - 48px))` }}>
+          {on.label} {on.exact ? "" : "~"}
+          {fmtTokens(on.tokens)} · {share(on.tokens, sum)}
+        </div>
+      )}
     </div>
   );
 }
 
-function PartGroup({ title, tokens, cost, rows }: { title: string; tokens: number; cost: string | null; rows: PartRow[] }) {
+function PartGroup({ title, tokens, cost, rows, note, collapsible, active, onActive }: {
+  title: string;
+  tokens: number;
+  cost: string | null;
+  rows: PartRow[];
+  note?: string;
+  collapsible: boolean;
+  active: string | null;
+  onActive(key: string | null): void;
+}) {
+  const [open, setOpen] = useState(!collapsible);
+  const holdsActive = rows.some((r) => r.key === active);
+  const head = (
+    <>
+      <span className="label">
+        {collapsible && <span className="chevron" aria-hidden="true">{open ? "▾" : "▸"}</span>}
+        {title}
+        {note && <span className="part-note">{note}</span>}
+      </span>
+      <span className="mono">
+        {fmtTokens(tokens)}
+        {cost ? ` · ${cost}` : ""}
+      </span>
+    </>
+  );
   return (
     <div className="part-group">
-      <div className="part-group-head">
-        <span className="label">{title}</span>
-        <span className="mono">
-          {fmtTokens(tokens)}
-          {cost ? ` · ${cost}` : ""}
-        </span>
-      </div>
-      {rows.length > 0 && (
-        <dl className="usage-parts">
+      {collapsible ? (
+        <button
+          type="button"
+          className={`part-group-head ${!open && holdsActive ? "active" : ""}`}
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          {head}
+        </button>
+      ) : (
+        <div className="part-group-head">{head}</div>
+      )}
+      {open && rows.length > 0 && (
+        <dl className="usage-parts" onMouseLeave={() => onActive(null)}>
           {rows.map((r) => (
-            <div key={r.key} className={`usage-part ${r.side}`}>
+            <div
+              key={r.key}
+              className={`usage-part ${r.side} ${r.key === active ? "active" : ""}`}
+              onMouseEnter={() => onActive(r.key)}
+            >
               <dt>{r.label}</dt>
               <dd className="mono">
                 {r.exact ? "" : "~"}
@@ -71,27 +131,36 @@ function PartGroup({ title, tokens, cost, rows }: { title: string; tokens: numbe
   );
 }
 
-/** The parts as a bar, then what was sent and what was written, each with its subtotal and cost. */
-function Breakdown({ usage, restLabel }: { usage: Usage; restLabel: string }) {
+/** The parts as a bar, then what was sent and what was written, each with its subtotal and cost.
+ *  `collapsible` folds the two lists away until asked for. */
+function Breakdown({ usage, restLabel, collapsible = false }: { usage: Usage; restLabel: string; collapsible?: boolean }) {
+  const [active, setActive] = useState<string | null>(null);
   const rows = partRows(usage);
   const rest = unsplitTokens(usage);
   return (
     <div className="breakdown">
-      <PartBar rows={rows} rest={rest} />
+      <PartBar rows={rows} rest={rest} restLabel={restLabel} active={active} onActive={setActive} />
       <PartGroup
         title="Sent to the model"
+        note={usage.calls > 1 ? `${usage.calls} calls` : undefined}
         tokens={promptTokens(usage)}
         cost={fmtDollars(usage.prompt_cost_usd, usage.cost_complete)}
         rows={rows.filter((r) => r.side === "in")}
+        collapsible={collapsible}
+        active={active}
+        onActive={setActive}
       />
       <PartGroup
         title="Written by the model"
         tokens={usage.output_tokens}
         cost={fmtDollars(usage.output_cost_usd, usage.cost_complete)}
         rows={rows.filter((r) => r.side === "out")}
+        collapsible={collapsible}
+        active={active}
+        onActive={setActive}
       />
       {rest > 0 && (
-        <div className="hint">
+        <div className={`hint usage-rest ${active === "rest" ? "active" : ""}`}>
           <span className="key-swatch rest" /> {restLabel}: {fmtTokens(rest)}
         </div>
       )}
@@ -194,7 +263,7 @@ function ChatUsagePop({ chat, usage, pct }: { chat: ChatSummary; usage: Usage; p
         {usage.model && <span className="hint">{modelName(usage.model)}</span>}
       </div>
       <div className="usage-headline mono">{fmtUsage(answers)}</div>
-      <Breakdown usage={answers} restLabel="Not split (older answers)" />
+      <Breakdown usage={answers} restLabel="Not split (older answers)" collapsible />
       <CacheLine usage={answers} />
       {fill && (
         <div className="usage-line">
@@ -217,7 +286,6 @@ function ChatUsagePop({ chat, usage, pct }: { chat: ChatSummary; usage: Usage; p
           {fmtCost(title) ? ` · ${fmtCost(title)}` : ""}
         </div>
       )}
-      <div className="hint">Parts marked ~ are estimated by text length. Costs are estimates.</div>
     </div>
   );
 }
@@ -312,7 +380,7 @@ export function UsageSection({ report, range, provider, onRange, onOpenChat }: U
         {provider === "ollama"
           ? "Ollama runs on your Mac, so it costs nothing. "
           : ""}
-        Costs are estimates from prices checked on {report?.prices_checked_on ?? "…"}. Your real bill is in the{" "}
+        Parts marked ~ are estimated by text length. Costs are estimates from prices checked on {report?.prices_checked_on ?? "…"}. Your real bill is in the{" "}
         <a href={CONSOLE_URL} target="_blank" rel="noreferrer">
           Anthropic Console
         </a>
@@ -364,8 +432,9 @@ function UsageTable({ title, rows }: { title: string; rows: Row[] }) {
   );
 }
 
-/** Tokens per day, prompt and output stacked. */
+/** Tokens per day, prompt and output stacked. Hovering a day shows its total. */
 function DailyChart({ report }: { report: UsageReport }) {
+  const [hover, setHover] = useState<number | null>(null);
   const W = 320;
   const H = 96;
   const days = report.days;
@@ -377,8 +446,9 @@ function DailyChart({ report }: { report: UsageReport }) {
     const d = new Date(`${iso}T12:00:00`);
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   };
+  const on = hover === null ? null : days[hover];
   return (
-    <figure className="usage-chart">
+    <figure className="usage-chart" onMouseLeave={() => setHover(null)}>
       <svg
         viewBox={`0 0 ${W} ${H + 16}`}
         role="img"
@@ -390,10 +460,10 @@ function DailyChart({ report }: { report: UsageReport }) {
           const out = (d.usage.output_tokens / max) * H;
           const x = i * step + (step - bar) / 2;
           return (
-            <g key={d.date}>
-              <title>{`${label(d.date)}: ${fmtUsage(d.usage)}`}</title>
+            <g key={d.date} className={hover === null ? "" : hover === i ? "on" : "off"}>
               <rect x={x} y={H - prompt} width={bar} height={prompt} className="bar-prompt" rx={1} />
               <rect x={x} y={H - prompt - out} width={bar} height={out} className="bar-output" rx={1} />
+              <rect x={i * step} y={0} width={step} height={H} className="bar-hit" onMouseEnter={() => setHover(i)} />
             </g>
           );
         })}
@@ -404,6 +474,14 @@ function DailyChart({ report }: { report: UsageReport }) {
           {label(days[days.length - 1].date)}
         </text>
       </svg>
+      {on && hover !== null && (
+        <div
+          className="part-tip mono chart-tip"
+          style={{ left: `clamp(70px, ${((hover + 0.5) / days.length) * 100}%, calc(100% - 70px))` }}
+        >
+          {label(on.date)} · {fmtUsage(on.usage)}
+        </div>
+      )}
       <figcaption className="legend">
         <span>
           <span className="key-swatch bar-prompt" /> Prompt

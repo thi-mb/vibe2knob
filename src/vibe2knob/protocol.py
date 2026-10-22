@@ -80,6 +80,7 @@ class Usage(_Shape):
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     thinking_tokens: int = 0
+    calls: int = Field(default=0, description="Model calls counted; each one resends the instructions.")
     parts: dict[UsagePart, int] = Field(
         default_factory=dict,
         description="Prompt and answer split into parts. Only instructions, tools and thinking "
