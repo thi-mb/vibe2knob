@@ -130,7 +130,7 @@ For code, see [docs/development.md](docs/development.md).
 
 ## License
 
-<!-- license line goes here once picked -->
+Apache License 2.0. See [LICENSE](LICENSE).
 
 vibe2knob is not affiliated with or endorsed by Ableton. Ableton and Live are trademarks of
 Ableton AG.
