@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Pull, reinstall, rebuild the UI and open the panel, so a checkout never runs stale code.
+# Reinstall, rebuild the UI and open the panel from this checkout, so it never runs stale
+# code. It doesn't pull: run `git pull` yourself first when you want new commits.
 #   scripts/panel.sh                  # real Live, in the always-on-top window
 #   scripts/panel.sh --fake           # any `vibe2knob panel` flags pass through
-#   NO_PULL=1 scripts/panel.sh        # skip the git pull (local changes, offline)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -12,7 +12,6 @@ if [[ -z "${PYTHON:-}" ]]; then
   if [[ -x .venv/bin/python ]]; then PYTHON=.venv/bin/python; else PYTHON=python3; fi
 fi
 
-[[ -n "${NO_PULL:-}" ]] || git pull --ff-only
 "$PYTHON" -m pip install --quiet -e '.[window,dev]'
 (cd ui && npm ci --silent && npm run build --silent)
 
