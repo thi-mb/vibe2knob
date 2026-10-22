@@ -3,6 +3,7 @@ import { Composer, Conversation } from "./components/Chat";
 import { ContextBar, Tabs } from "./components/Context";
 import { Icon } from "./components/Icon";
 import { OfflineCard, SettingsPage, SetupCard, type Theme } from "./components/Screens";
+import { ChatUsageBar } from "./components/Usage";
 import { load, save } from "./lib/storage";
 import type { ContextSet } from "./protocol/types";
 import { activeChat, canSeeLive, isGeneral, isStreaming, type PanelState } from "./state/store";
@@ -96,6 +97,10 @@ export function App() {
 
   const showSetup = state.ready && setupOpen === true;
   const settingsOpen = state.view === "settings";
+  // The usage report is fetched each time Settings opens, so it includes the latest answers.
+  useEffect(() => {
+    if (state.ready && settingsOpen) actions.loadUsage();
+  }, [state.ready, settingsOpen, actions]);
 
   return (
     <div className="panel">
@@ -145,6 +150,10 @@ export function App() {
           onCheckLive={actions.listTracks}
           onBackToLive={() => actions.useExample(null)}
           onTheme={setTheme}
+          usage={state.usage}
+          usageRange={state.usageRange}
+          onUsageRange={actions.loadUsage}
+          onOpenChat={actions.selectChat}
         />
       ) : (
         <ChatView state={state} actions={actions} pickerOpen={pickerOpen} setPickerOpen={setPickerOpen} />
@@ -213,6 +222,7 @@ function ChatView({ state, actions, pickerOpen, setPickerOpen }: ChatViewProps) 
             setPickerOpen(open);
           }}
         />
+        {chat && <ChatUsageBar chat={chat} onNewChat={() => actions.newChat(chat.context)} />}
         <Conversation
           key={chat?.id ?? "none"}
           chatId={chat?.id ?? "none"}

@@ -3,7 +3,7 @@ import { HubClient, TOKEN_REJECTED } from "../hub/client";
 import { hubTarget } from "../hub/connect";
 import { FakeHub } from "../hub/fake";
 import type { ClientEnvelope, ContextSet, HubEnvelope } from "../protocol/types";
-import { initialState, reducer, type PanelState, type View } from "./store";
+import { initialState, reducer, type PanelState, type UsageRange, type View } from "./store";
 
 export interface HubActions {
   newChat(context?: ContextSet): void;
@@ -18,6 +18,8 @@ export interface HubActions {
   useExample(name: string | null): void;
   show(view: View): void;
   dismissNotice(): void;
+  /** Asks the hub for the usage report (Settings › Usage), for a new range or afresh. */
+  loadUsage(range?: UsageRange): void;
 }
 
 const RETRY_MS = [500, 1000, 2000, 4000];
@@ -62,7 +64,7 @@ export function useHub(): [PanelState, HubActions] {
     };
     const types: HubEnvelope["type"][] = [
       "welcome", "live.status", "tracks", "chat.changed", "chat.closed", "chat.history",
-      "chat.delta", "chat.steps", "chat.done", "settings", "error",
+      "chat.delta", "chat.steps", "chat.done", "settings", "usage.report", "error",
     ];
     for (const t of types) offHandlers.push(client.on(t, route));
     offHandlers.push(
@@ -160,6 +162,11 @@ export function useHub(): [PanelState, HubActions] {
       },
       dismissNotice() {
         dispatch({ type: "dismiss-notice" });
+      },
+      loadUsage(range) {
+        const next = range ?? stateRef.current.usageRange;
+        dispatch({ type: "usage-range", range: next });
+        trySend(client(), { type: "usage.get", range: next });
       },
     };
   }, []);

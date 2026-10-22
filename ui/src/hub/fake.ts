@@ -3,7 +3,8 @@
 // a fake socket, and streams answers word by word like the real hub.
 //
 // Scenarios: "chat" (Live connected, two saved chats), "firstrun" (no key, no chats),
-// "offline" (Live not reachable), "empty" (set up, no chats yet).
+// "offline" (Live not reachable), "empty" (set up, no chats yet), "long" (like "chat", but
+// the pad chat has grown long enough for the header to suggest a new one).
 
 import type { SocketLike } from "./client";
 import type {
@@ -16,6 +17,8 @@ import type {
   Settings,
   Step,
   TrackRef,
+  Usage,
+  UsageReport,
 } from "../protocol/types";
 
 const TRACKS: TrackRef[] = [
@@ -80,6 +83,119 @@ function step(s: Partial<Step> & Pick<Step, "device" | "explanation">): Step {
   };
 }
 
+// Usage. Prices per million tokens: input, cache write, cache read, output (as pricing.py).
+const PRICES: Record<string, [number, number, number, number]> = {
+  "claude-haiku-5-5": [0.1, 0.125, 0.01, 0.5],
+  "claude-sonnet-5-5": [2, 2.5, 0.1, 10],
+};
+const INSTRUCTIONS = 7400;
+const TOOL_DEFS = 620;
+const WINDOW = 1_000_000;
+
+function priced(u: Omit<Usage, "cost_usd" | "cost_complete" | "prompt_cost_usd" | "output_cost_usd">): Usage {
+  const p = u.model ? PRICES[u.model] : undefined;
+  if (!p) return { ...u, cost_usd: null, cost_complete: false, prompt_cost_usd: null, output_cost_usd: null };
+  const prompt = (u.input_tokens * p[0] + u.cache_write_tokens * p[1] + u.cache_read_tokens * p[2]) / 1e6;
+  const output = (u.output_tokens * p[3]) / 1e6;
+  return { ...u, cost_usd: prompt + output, cost_complete: true, prompt_cost_usd: prompt, output_cost_usd: output };
+}
+
+/** One chat answer: the instructions and tools come from the cache, the rest is new. */
+function turnUsage(
+  sizes: { live: number; history: number; message: number; thinking: number; answer: number; steps: number },
+  model = "claude-haiku-5-5",
+): Usage {
+  const { live, history, message, thinking, answer, steps } = sizes;
+  return priced({
+    input_tokens: live + history + message,
+    cache_read_tokens: INSTRUCTIONS + TOOL_DEFS,
+    cache_write_tokens: 0,
+    output_tokens: thinking + answer + steps,
+    thinking_tokens: thinking,
+    calls: 1,
+    parts: { instructions: INSTRUCTIONS, tools: TOOL_DEFS, live, history, message, thinking, answer, steps },
+    model,
+  });
+}
+
+function titleUsage(): Usage {
+  return priced({ input_tokens: 180, output_tokens: 6, cache_read_tokens: 0, cache_write_tokens: 0, thinking_tokens: 0, calls: 1, parts: {}, model: "claude-haiku-5-5" });
+}
+
+function sumUsage(list: Usage[]): Usage {
+  const out: Usage = {
+    input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0, thinking_tokens: 0, calls: 0,
+    parts: {}, model: null, cost_usd: null, cost_complete: true, prompt_cost_usd: null, output_cost_usd: null,
+  };
+  const models = new Set<string | null>();
+  for (const u of list) {
+    out.input_tokens += u.input_tokens;
+    out.output_tokens += u.output_tokens;
+    out.cache_read_tokens += u.cache_read_tokens;
+    out.cache_write_tokens += u.cache_write_tokens;
+    out.thinking_tokens += u.thinking_tokens;
+    out.calls += u.calls;
+    for (const [k, v] of Object.entries(u.parts)) out.parts[k] = (out.parts[k] ?? 0) + v;
+    models.add(u.model);
+    if (u.cost_usd !== null) {
+      out.cost_usd = (out.cost_usd ?? 0) + u.cost_usd;
+      out.prompt_cost_usd = (out.prompt_cost_usd ?? 0) + (u.prompt_cost_usd ?? 0);
+      out.output_cost_usd = (out.output_cost_usd ?? 0) + (u.output_cost_usd ?? 0);
+    } else out.cost_complete = false;
+  }
+  out.model = models.size === 1 ? [...models][0] : null;
+  return out;
+}
+
+const tokensOf = (u: Usage) => u.input_tokens + u.cache_read_tokens + u.cache_write_tokens + u.output_tokens;
+
+interface FakeRecord {
+  day: string;
+  kind: "chat" | "title" | "ask";
+  chat_id: string | null;
+  usage: Usage;
+}
+
+/** The fake hub's "today", so screenshots don't change from day to day. */
+const TODAY = "2026-10-21";
+
+function dayOffset(offset: number): string {
+  const d = new Date(`${TODAY}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Six weeks of earlier use, from chats long closed. Deterministic, so screenshots are stable. */
+function pastRecords(): FakeRecord[] {
+  const out: FakeRecord[] = [];
+  let seed = 7;
+  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let d = -44; d < 0; d++) {
+    const turns = Math.floor(rand() * 9) * (d % 7 === -1 || d % 7 === -2 ? 2 : 1);
+    for (let i = 0; i < turns; i++) {
+      const chat = `old-${Math.floor((d + 44) / 3)}`;
+      const sonnet = rand() < 0.15;
+      out.push({
+        day: dayOffset(d), kind: "chat", chat_id: chat,
+        usage: turnUsage({
+          live: 1500 + Math.floor(rand() * 2500), history: Math.floor(rand() * 6000), message: 12,
+          thinking: Math.floor(rand() * 400), answer: 180 + Math.floor(rand() * 220), steps: Math.floor(rand() * 260),
+        }, sonnet ? "claude-sonnet-5-5" : "claude-haiku-5-5"),
+      });
+    }
+    if (turns && d % 3 === 0) out.push({ day: dayOffset(d), kind: "title", chat_id: `old-${Math.floor((d + 44) / 3)}`, usage: titleUsage() });
+    if (d === -12 || d === -5) {
+      out.push({ day: dayOffset(d), kind: "ask", chat_id: null, usage: priced({
+        input_tokens: 9800, output_tokens: 700, cache_read_tokens: 0, cache_write_tokens: 0, thinking_tokens: 0, calls: 1, parts: {}, model: "claude-haiku-5-5",
+      }) });
+    }
+  }
+  return out;
+}
+
+const OLD_TITLES = ["Kick and bass", "Vocal air", "Snare crack", "Wider chorus", "Darker keys", "Riser build", "Tape warmth",
+  "Drum bus glue", "Pad space", "Hats too sharp", "Mono check", "Bass growl", "Reverb tail", "Vocal presence", "Lofi keys"];
+
 function now(offsetMinutes = 0): string {
   return new Date(Date.UTC(2026, 9, 21, 20, 0) + offsetMinutes * 60_000).toISOString();
 }
@@ -89,18 +205,25 @@ interface FakeChat {
   turns: ChatTurn[];
 }
 
-function seedChats(): FakeChat[] {
+const PAD_USAGE = turnUsage({ live: 2140, history: 0, message: 4, thinking: 220, answer: 160, steps: 240 });
+
+function seedChats(long = false): FakeChat[] {
+  const padUsage = long
+    ? turnUsage({ live: 2300, history: 158_000, message: 6, thinking: 300, answer: 210, steps: 260 })
+    : PAD_USAGE;
   const pad: FakeChat = {
-    summary: { id: "c-pad", title: "Pad width", context: { follow_selection: true, pinned: [] }, updated_at: now(5) },
+    summary: { id: "c-pad", title: "Pad width", context: { follow_selection: true, pinned: [] }, updated_at: now(5),
+      usage: null, title_usage: null, context_tokens: null, context_window: null },
     turns: [
-      { id: "u-1", role: "user", text: "make it wider", created_at: now(0), steps: null, listen_for: null, caution: null, warnings: [], error: null },
-      { id: "t-1", role: "assistant", text: WIDER.text, created_at: now(1), steps: WIDER.steps, listen_for: WIDER.listen_for, caution: WIDER.caution, warnings: [], error: null },
+      { id: "u-1", role: "user", text: "make it wider", created_at: now(0), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null },
+      { id: "t-1", role: "assistant", text: WIDER.text, created_at: now(1), steps: WIDER.steps, listen_for: WIDER.listen_for, caution: WIDER.caution, warnings: [], error: null, usage: padUsage },
     ],
   };
   const mud: FakeChat = {
-    summary: { id: "c-mud", title: "Low-end mud", context: { follow_selection: true, pinned: [0] }, updated_at: now(2) },
+    summary: { id: "c-mud", title: "Low-end mud", context: { follow_selection: true, pinned: [0] }, updated_at: now(2),
+      usage: null, title_usage: null, context_tokens: null, context_window: null },
     turns: [
-      { id: "u-2", role: "user", text: "the low end feels muddy", created_at: now(-30), steps: null, listen_for: null, caution: null, warnings: [], error: null },
+      { id: "u-2", role: "user", text: "the low end feels muddy", created_at: now(-30), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null },
       {
         id: "t-2", role: "assistant", created_at: now(-29), caution: null,
         text: "Three things fight under 200 Hz: your sub, the kick in Beat, and the left hand of Warm Pad. Start by clearing the pad out, then let the kick duck the sub.",
@@ -113,6 +236,7 @@ function seedChats(): FakeChat[] {
         listen_for: "Solo Beat and Sub Bass together. Can you hear each kick land, or does it blur into the bass?",
         warnings: ["Sidechain routing isn't readable through AbletonOSC, so check Audio From on the Compressor yourself."],
         error: null,
+        usage: turnUsage({ live: 5900, history: 0, message: 6, thinking: 410, answer: 190, steps: 330 }),
       },
     ],
   };
@@ -134,12 +258,21 @@ export class FakeHub {
   private sockets = new Set<FakeSocket>();
   private wordDelay: number;
   private nextId = 1;
+  private records: FakeRecord[];
+  private titles = new Map<string, string | null>();
 
   constructor(options: FakeHubOptions = {}) {
     this.scenario = options.scenario ?? "chat";
     this.wordDelay = options.wordDelay ?? 25;
     const firstRun = this.scenario === "firstrun";
-    this.chats = this.scenario === "chat" || this.scenario === "offline" ? seedChats() : [];
+    this.chats = ["chat", "offline", "long"].includes(this.scenario) ? seedChats(this.scenario === "long") : [];
+    this.records = this.scenario === "firstrun" || this.scenario === "empty" ? [] : pastRecords();
+    for (const r of this.records) if (r.chat_id) this.titles.set(r.chat_id, OLD_TITLES[Number(r.chat_id.slice(4)) % OLD_TITLES.length]);
+    for (const chat of this.chats) {
+      for (const t of chat.turns) if (t.usage) this.records.push({ day: TODAY, kind: "chat", chat_id: chat.summary.id, usage: t.usage });
+      this.records.push({ day: TODAY, kind: "title", chat_id: chat.summary.id, usage: titleUsage() });
+      this.refreshSummary(chat);
+    }
     this.settings = { provider: "claude", model: "claude-haiku-5-5", api_key_set: !firstRun };
     this.live =
       this.scenario === "offline"
@@ -191,7 +324,10 @@ export class FakeHub {
         return;
       case "chat.create": {
         const context: ContextSet = { follow_selection: m.context?.follow_selection ?? true, pinned: m.context?.pinned ?? [] };
-        const chat: FakeChat = { summary: { id: `c-${this.nextId++}`, title: null, context, updated_at: new Date().toISOString() }, turns: [] };
+        const chat: FakeChat = {
+          summary: { id: `c-${this.nextId++}`, title: null, context, updated_at: new Date().toISOString(), usage: null, title_usage: null, context_tokens: null, context_window: null },
+          turns: [],
+        };
         this.chats.push(chat);
         this.broadcast({ v: 1, type: "chat.changed", request_id, chat: chat.summary });
         return;
@@ -237,6 +373,9 @@ export class FakeHub {
         });
         return;
       }
+      case "usage.get":
+        socket.deliver(this.report(m.range ?? "30d", request_id));
+        return;
       case "live.use_example": {
         const example = m.name ? EXAMPLES.find((t) => t.name === m.name) : undefined;
         this.live = example
@@ -246,6 +385,62 @@ export class FakeHub {
         return;
       }
     }
+  }
+
+  /** A chat's total and how much its next message resends, as the hub works them out. */
+  private refreshSummary(chat: FakeChat): void {
+    const mine = this.records.filter((r) => r.chat_id === chat.summary.id);
+    const records = mine.map((r) => r.usage);
+    const titles = mine.filter((r) => r.kind === "title").map((r) => r.usage);
+    const last = chat.turns.findLast((t) => t.usage);
+    chat.summary = {
+      ...chat.summary,
+      usage: records.length ? sumUsage(records) : null,
+      title_usage: titles.length ? sumUsage(titles) : null,
+      context_tokens: last?.usage ? tokensOf(last.usage) : null,
+      context_window: last?.usage ? WINDOW : null,
+    };
+  }
+
+  private report(range: UsageReport["range"], request_id: string | null): UsageReport {
+    const days = { today: 1, "7d": 7, "30d": 30, all: null } as const;
+    const since = (n: number | null) => (n === null ? "0000-00-00" : dayOffset(1 - n));
+    const pick = (n: number | null) => this.records.filter((r) => r.day >= since(n));
+    const chosen = pick(days[range]);
+    const first = range === "all" ? (chosen.map((r) => r.day).sort()[0] ?? TODAY) : since(days[range]);
+    const dayList: string[] = [];
+    for (let d = first; d <= TODAY; ) {
+      dayList.push(d);
+      const next = new Date(`${d}T12:00:00Z`);
+      next.setUTCDate(next.getUTCDate() + 1);
+      d = next.toISOString().slice(0, 10);
+    }
+    const group = (key: (r: FakeRecord) => string | null) => {
+      const map = new Map<string, Usage[]>();
+      for (const r of chosen) {
+        const k = key(r);
+        if (k !== null) map.set(k, [...(map.get(k) ?? []), r.usage]);
+      }
+      return [...map.entries()]
+        .map(([k, list]) => ({ key: k, usage: sumUsage(list) }))
+        .sort((a, b) => (b.usage.cost_usd ?? 0) - (a.usage.cost_usd ?? 0) || tokensOf(b.usage) - tokensOf(a.usage));
+    };
+    const totals = Object.fromEntries(Object.entries(days).map(([k, n]) => [k, sumUsage(pick(n).map((r) => r.usage))]));
+    const t = totals[range];
+    const prompt = t.input_tokens + t.cache_read_tokens + t.cache_write_tokens;
+    const open = new Set(this.chats.map((c) => c.summary.id));
+    return {
+      v: 1, type: "usage.report", request_id, range, totals,
+      days: dayList.map((d) => ({ date: d, usage: sumUsage(chosen.filter((r) => r.day === d).map((r) => r.usage)) })),
+      by_model: group((r) => r.usage.model ?? "unknown"),
+      by_kind: group((r) => r.kind),
+      chats: group((r) => r.chat_id).map((g) => ({
+        chat_id: g.key, open: open.has(g.key), usage: g.usage,
+        title: this.chats.find((c) => c.summary.id === g.key)?.summary.title ?? this.titles.get(g.key) ?? null,
+      })),
+      cache_hit_rate: prompt ? t.cache_read_tokens / prompt : null,
+      prices_checked_on: "2026-10-22",
+    };
   }
 
   private find(id: string): FakeChat | undefined {
@@ -260,7 +455,7 @@ export class FakeHub {
     const chat = this.find(chatId);
     if (!chat) return this.notFound(socket, request_id, chatId);
     const at = new Date().toISOString();
-    chat.turns.push({ id: `u-${this.nextId++}`, role: "user", text, created_at: at, steps: null, listen_for: null, caution: null, warnings: [], error: null });
+    chat.turns.push({ id: `u-${this.nextId++}`, role: "user", text, created_at: at, steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null });
     const turn_id = `t-${this.nextId++}`;
     const general = !chat.summary.context.follow_selection && chat.summary.context.pinned.length === 0;
     const lower = text.toLowerCase();
@@ -276,17 +471,29 @@ export class FakeHub {
     const words = (failing ? "Let me look at" : script.text).split(/(?<= )/);
     let i = 0;
     const finish = () => {
+      const history = chat.turns.slice(0, -1).reduce((n, t) => n + Math.ceil(t.text.length / 4) + 60, 0);
+      const usage = failing
+        ? null
+        : turnUsage({
+            live: general ? 0 : 2140, history, message: Math.ceil(text.length / 4),
+            thinking: 180, answer: Math.ceil(script.text.length / 4), steps: script.steps ? 90 * script.steps.length : 0,
+          });
       if (failing) {
         this.broadcast({ v: 1, type: "error", request_id: null, code: "provider", chat_id: chatId, turn_id, message: "The model didn't answer (overloaded). Try again in a moment." });
       } else {
         if (script.steps) {
           this.broadcast({ v: 1, type: "chat.steps", chat_id: chatId, turn_id, steps: script.steps, listen_for: script.listen_for, caution: script.caution, warnings: [] });
         }
-        chat.turns.push({ id: turn_id, role: "assistant", text: script.text, created_at: at, steps: script.steps, listen_for: script.listen_for, caution: script.caution, warnings: [], error: null });
+        chat.turns.push({ id: turn_id, role: "assistant", text: script.text, created_at: at, steps: script.steps, listen_for: script.listen_for, caution: script.caution, warnings: [], error: null, usage });
+        this.records.push({ day: TODAY, kind: "chat", chat_id: chatId, usage: usage! });
       }
-      this.broadcast({ v: 1, type: "chat.done", chat_id: chatId, turn_id });
+      this.broadcast({ v: 1, type: "chat.done", chat_id: chatId, turn_id, usage });
       chat.summary = { ...chat.summary, updated_at: new Date().toISOString() };
-      if (!chat.summary.title) chat.summary.title = general ? "Plugin setup" : "Pad width";
+      if (!chat.summary.title) {
+        chat.summary.title = general ? "Plugin setup" : "Pad width";
+        this.records.push({ day: TODAY, kind: "title", chat_id: chatId, usage: titleUsage() });
+      }
+      this.refreshSummary(chat);
       this.broadcast({ v: 1, type: "chat.changed", request_id: null, chat: chat.summary });
     };
     const tick = () => {

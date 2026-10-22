@@ -45,6 +45,7 @@ class FakeProvider:
         self.advice = advice
         self.calls: list[dict] = []
         self.title_calls: list[dict] = []
+        self.last_usage: dict | None = None
 
     def stream_chat(
         self, system: str, messages: list[dict], tools: list[ToolSpec]
@@ -65,10 +66,15 @@ class FakeProvider:
             return
         for name, payload in reply.tool_calls:
             yield ToolCall(name, payload, f"call_{len(self.calls)}")
-        yield Done({"input_tokens": 0, "output_tokens": len(words)}, "end_turn")
+        # Rough counts, about four characters a token, so the usage views have numbers.
+        prompt = len(system) + sum(len(m["content"]) for m in messages)
+        yield Done({"input_tokens": prompt // 4, "output_tokens": len(words) * 2,
+                    "model": self.model}, "end_turn")
 
     def generate_text(self, system: str, user: str) -> str:
         self.title_calls.append({"system": system, "user": user})
+        self.last_usage = {"input_tokens": (len(system) + len(user)) // 4,
+                           "output_tokens": 8, "model": self.model}
         return self.title
 
     def generate(self, system: str, user: str, schema: dict) -> str:

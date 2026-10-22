@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ChatSummary, HubEnvelope } from "../protocol/types";
+import type { ChatSummary, HubEnvelope, Usage, UsageReport } from "../protocol/types";
 import { initialState, reducer, type Action, type PanelState } from "./store";
 
 const chat = (id: string, updated_at = "2026-10-21T10:00:00Z"): ChatSummary => ({
@@ -7,6 +7,15 @@ const chat = (id: string, updated_at = "2026-10-21T10:00:00Z"): ChatSummary => (
   title: null,
   context: { follow_selection: true, pinned: [] },
   updated_at,
+  usage: null,
+  title_usage: null,
+  context_tokens: null,
+  context_window: null,
+});
+
+const usage = (input_tokens: number, output_tokens: number): Usage => ({
+  input_tokens, output_tokens, cache_read_tokens: 0, cache_write_tokens: 0, thinking_tokens: 0, calls: 1,
+  parts: {}, model: "claude-haiku-5-5", cost_usd: 0.001, cost_complete: true, prompt_cost_usd: 0.0008, output_cost_usd: 0.0002,
 });
 
 const hub = (message: HubEnvelope): Action => ({ type: "hub", message });
@@ -37,8 +46,9 @@ describe("reducer", () => {
       ["assistant", "Spread it.", true],
     ]);
     s = reducer(s, hub({ v: 1, type: "chat.steps", chat_id: "b", turn_id: "t1", steps: [], listen_for: "A/B it", caution: null, warnings: [] }));
-    s = reducer(s, hub({ v: 1, type: "chat.done", chat_id: "b", turn_id: "t1" }));
+    s = reducer(s, hub({ v: 1, type: "chat.done", chat_id: "b", turn_id: "t1", usage: usage(900, 40) }));
     expect(s.turns.b[1]).toMatchObject({ listen_for: "A/B it", pending: false });
+    expect(s.turns.b[1].usage?.input_tokens).toBe(900);
   });
 
   it("shows a failed turn's error in its chat, and other errors as a notice", () => {
@@ -55,7 +65,7 @@ describe("reducer", () => {
     s = reducer(s, hub({ v: 1, type: "chat.delta", chat_id: "b", turn_id: "t1", text: "Spr" }));
     s = reducer(s, hub({
       v: 1, type: "chat.history", request_id: null, chat_id: "b",
-      turns: [{ id: "u1", role: "user", text: "wider", created_at: "t", steps: null, listen_for: null, caution: null, warnings: [], error: null }],
+      turns: [{ id: "u1", role: "user", text: "wider", created_at: "t", steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null }],
     }));
     expect(s.turns.b.map((t) => t.id)).toEqual(["u1", "t1"]);
   });
@@ -78,5 +88,17 @@ describe("reducer", () => {
     s = reducer(s, hub({ v: 1, type: "welcome", hub_version: "0.1", chats: [chat("b")], examples: [], live: s.live, settings: s.settings }));
     expect(s.turns).toEqual({});
     expect(s.activeChatId).toBe("b");
+  });
+
+  it("keeps the usage report only for the range asked for last", () => {
+    const report = (range: UsageReport["range"]): UsageReport => ({
+      v: 1, type: "usage.report", request_id: null, range, totals: {}, days: [], by_model: [], by_kind: [],
+      chats: [], cache_hit_rate: null, prices_checked_on: "2026-10-22",
+    });
+    let s = reducer(welcomed(), { type: "usage-range", range: "7d" });
+    s = reducer(s, hub(report("30d")));
+    expect(s.usage).toBeNull();
+    s = reducer(s, hub(report("7d")));
+    expect(s.usage?.range).toBe("7d");
   });
 });

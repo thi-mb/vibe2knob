@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 from contextlib import contextmanager
 from typing import Iterator
 
+from .. import pricing
 from .base import Done, Error, ProviderError, StreamEvent, TextDelta, ToolCall, ToolSpec
 
 DEFAULT_MODEL = "claude-opus-5-5"
@@ -26,6 +29,9 @@ class ClaudeProvider:
         self._client = client
         # None lets the SDK find credentials itself (ANTHROPIC_API_KEY, `ant auth login`).
         self.api_key = api_key
+        self.last_usage: dict | None = None
+        self._counts: dict[str, dict | None] = {}
+        self._window: int | None = None
 
     @property
     def client(self):
@@ -59,6 +65,7 @@ class ClaudeProvider:
                 },
                 **_FALLBACK,
             )
+        self.last_usage = _usage(response)
         _check_stop(response.stop_reason)
         text = "".join(b.text for b in response.content if b.type == "text")
         if not text:
@@ -100,7 +107,7 @@ class ClaudeProvider:
         for block in final.content:
             if block.type == "tool_use":
                 yield ToolCall(block.name, dict(block.input), block.id)
-        yield Done(_usage(final.usage), final.stop_reason)
+        yield Done(_usage(final), final.stop_reason)
 
     def generate_text(self, system: str, user: str) -> str:
         with _api_errors():
@@ -111,8 +118,40 @@ class ClaudeProvider:
                 messages=[{"role": "user", "content": user}],
                 output_config={"effort": "low"},
             )
+        self.last_usage = _usage(response)
         _check_stop(response.stop_reason)
         return "".join(b.text for b in response.content if b.type == "text").strip()
+
+    def count_parts(self, system: str, tools: list[ToolSpec]) -> dict | None:
+        """Exact tokens of the instructions and the tool definitions, counted once per prompt.
+
+        count_tokens is free (but rate-limited). None if it can't be reached.
+        """
+        tool_defs = [{"name": t.name, "description": t.description, "input_schema": t.input_schema}
+                     for t in tools]
+        key = hashlib.sha256(json.dumps([self.model, system, tool_defs]).encode()).hexdigest()
+        if key not in self._counts:
+            probe = [{"role": "user", "content": "."}]
+            try:
+                count = self.client.messages.count_tokens
+                bare = count(model=self.model, messages=probe).input_tokens
+                with_system = count(model=self.model, system=system, messages=probe).input_tokens
+                with_tools = count(model=self.model, system=system, messages=probe,
+                                   tools=tool_defs).input_tokens
+                self._counts[key] = {"instructions": max(0, with_system - bare),
+                                     "tools": max(0, with_tools - with_system)}
+            except Exception:  # noqa: BLE001 - without it the split is estimated instead
+                return None
+        return self._counts[key]
+
+    def context_window(self) -> int | None:
+        """The model's context window from the Models API, or the bundled table."""
+        if self._window is None:
+            try:
+                self._window = self.client.models.retrieve(self.model).max_input_tokens
+            except Exception:  # noqa: BLE001
+                return pricing.context_window(self.model)
+        return self._window
 
 
 def _check_stop(stop_reason: str | None) -> None:
@@ -122,10 +161,20 @@ def _check_stop(stop_reason: str | None) -> None:
         raise ProviderError("The answer was cut off (max_tokens).")
 
 
-def _usage(usage) -> dict:
+def _usage(message) -> dict:
+    """The usage of a response, with the model that actually answered (a fallback may)."""
+    usage = getattr(message, "usage", None)
+    if usage is None:
+        return {}
     keys = ["input_tokens", "output_tokens", "cache_read_input_tokens",
             "cache_creation_input_tokens"]
-    return {k: getattr(usage, k, None) or 0 for k in keys}
+    out = {k: getattr(usage, k, None) or 0 for k in keys}
+    details = getattr(usage, "output_tokens_details", None)
+    out["thinking_tokens"] = getattr(details, "thinking_tokens", None) or 0
+    model = getattr(message, "model", None)
+    if isinstance(model, str):
+        out["model"] = model
+    return out
 
 
 @contextmanager

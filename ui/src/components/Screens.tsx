@@ -1,6 +1,9 @@
 import { useState } from "react";
-import type { LiveStatus, Settings, TrackRef } from "../protocol/types";
+import type { LiveStatus, Settings, TrackRef, UsageReport } from "../protocol/types";
+import type { UsageRange } from "../state/store";
+import { modelName } from "../lib/usage";
 import { Icon } from "./Icon";
+import { UsageSection } from "./Usage";
 
 export const CLAUDE_MODELS = [
   { id: "claude-haiku-5-5", label: "Haiku 5.5 · fast and cheap (recommended)" },
@@ -128,7 +131,7 @@ function ModelForm({ settings, testResult, compact, onSave, onTest }: ModelFormP
             value={settings.provider === "claude" ? (settings.model ?? CLAUDE_MODELS[0].id) : CLAUDE_MODELS[0].id}
             onChange={(e) => onSave({ provider: "claude", model: e.target.value })}
           >
-            {CLAUDE_MODELS.map((m) => (
+            {claudeModels(settings).map((m) => (
               <option key={m.id} value={m.id}>
                 {m.label}
               </option>
@@ -138,6 +141,13 @@ function ModelForm({ settings, testResult, compact, onSave, onTest }: ModelFormP
       )}
     </>
   );
+}
+
+/** The listed models, plus the one in use if it isn't listed (e.g. from $VIBE2KNOB_MODEL). */
+function claudeModels(settings: Settings) {
+  const current = settings.provider === "claude" ? settings.model : null;
+  if (!current || CLAUDE_MODELS.some((m) => m.id === current)) return CLAUDE_MODELS;
+  return [...CLAUDE_MODELS, { id: current, label: `${modelName(current)} · in use` }];
 }
 
 export function modelReady(settings: Settings, testResult: string | null): boolean {
@@ -322,6 +332,10 @@ interface SettingsProps {
   onCheckLive(): void;
   onBackToLive(): void;
   onTheme(theme: Theme): void;
+  usage: UsageReport | null;
+  usageRange: UsageRange;
+  onUsageRange(range: UsageRange): void;
+  onOpenChat(chatId: string): void;
 }
 
 export function SettingsPage(props: SettingsProps) {
@@ -334,6 +348,13 @@ export function SettingsPage(props: SettingsProps) {
         </div>
         <ModelForm settings={settings} testResult={testResult} onSave={props.onSave} onTest={props.onTest} />
       </section>
+      <UsageSection
+        report={props.usage}
+        range={props.usageRange}
+        provider={settings.provider}
+        onRange={props.onUsageRange}
+        onOpenChat={props.onOpenChat}
+      />
       <section aria-labelledby="s-live">
         <div className="label" id="s-live">
           Ableton Live
