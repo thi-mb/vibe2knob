@@ -8,8 +8,8 @@ only place that should need fixing.
 import threading
 import time
 
-from .link import (CONNECTED, OFFLINE, RECONNECTING, SUMMARY_SCHEMA_VERSION, LiveError,
-                   LiveLink, NotSupportedYet)
+from .link import (ARRANGEMENT_SCHEMA_VERSION, CONNECTED, OFFLINE, RECONNECTING,
+                   SUMMARY_SCHEMA_VERSION, LiveError, LiveLink, NotSupportedYet)
 from .osc import OscClient
 
 __all__ = ["LiveBridge", "LiveError", "NotSupportedYet"]
@@ -48,7 +48,14 @@ _DEVICE_TYPES = {0: "undefined", 1: "instrument", 2: "audio_effect", 4: "midi_ef
 _SUMMARY_PROPS = ["name", "color", "is_foldable", "has_midi_input", "volume", "panning", "mute",
                   "devices/name"]
 
-for _p in _TRACK_PROPS + _TRACK_LISTS + ["arm"]:
+# What arrangement() reads. AbletonOSC has no clip end_time, so ends come from length.
+_SONG_PROPS = ["song_length", "signature_numerator", "signature_denominator", "cue_points"]
+_ARRANGEMENT_LISTS = ["arrangement_clips/name", "arrangement_clips/start_time",
+                      "arrangement_clips/length"]
+
+for _p in _SONG_PROPS:
+    _KEY_LEN[f"/live/song/get/{_p}"] = 0
+for _p in _TRACK_PROPS + _TRACK_LISTS + _ARRANGEMENT_LISTS + ["arm"]:
     _KEY_LEN[f"/live/track/get/{_p}"] = 1
 for _p in _DEVICE_LISTS:
     _KEY_LEN[f"/live/device/get/{_p}"] = 2
@@ -61,6 +68,24 @@ _NO_ANSWER = (
 
 # Failed health pings in a row before "reconnecting" becomes "offline".
 _OFFLINE_AFTER = 3
+
+
+def _clip_spans(names, starts, lengths):
+    """Clips as {name, start, end}, in order.
+
+    `length` is the clip's own length, which can run past where the next clip on the track
+    starts (measured on Live 11.3), and clips on one track never overlap, so each clip
+    ends at the next one's start at the latest.
+    """
+    clips = sorted(zip(starts, lengths, names), key=lambda c: c[0])
+    out = []
+    for i, (start, length, name) in enumerate(clips):
+        end = start + length
+        if i + 1 < len(clips):
+            end = min(end, clips[i + 1][0])
+        if end > start:
+            out.append({"name": name, "start": start, "end": end})
+    return out
 
 
 def _track_type(is_foldable, has_midi_input):
@@ -92,6 +117,9 @@ class LiveBridge(LiveLink):
         self._stop = threading.Event()
         self._watcher = None
         self._unsubscribe_push = None
+        # False once AbletonOSC has shown it can't read arrangement clips (an old version),
+        # so later turns don't each wait out the timeout. Reset when Live comes back.
+        self._arrangement_works = True
 
     def close(self):
         self._stop.set()
@@ -138,6 +166,7 @@ class LiveBridge(LiveLink):
                         # A fresh start or Live came back: listeners don't survive a
                         # restart of Live, so subscribe again.
                         self._osc.send(_LISTEN_SELECTED)
+                        self._arrangement_works = True
                         self._set_status(CONNECTED)
                 else:
                     failures += 1
@@ -209,6 +238,62 @@ class LiveBridge(LiveLink):
             "schema_version": SUMMARY_SCHEMA_VERSION,
             "live_version": ".".join(str(v) for v in version[:2]) if version else None,
             "tempo": tempo[0] if tempo else None,
+            "tracks": tracks,
+        }
+
+    def arrangement(self):
+        if not self._arrangement_works:
+            return None
+        with self._io_lock:
+            head = self._batch([(f"/live/song/get/{p}", []) for p in _SONG_PROPS + ["num_tracks"]])
+            num = head.get(("/live/song/get/num_tracks",))
+            if not num:
+                raise LiveError(_NO_ANSWER)
+            count = int(num[0])
+            kinds = self._batch([(f"/live/track/get/{p}", [t]) for t in range(count)
+                                 for p in ("is_foldable", "is_grouped")])
+
+            def kind(name, t):
+                value = kinds.get((f"/live/track/get/{name}", t))
+                if value is None:
+                    raise LiveError(f"No reply for track {t}. Did the set change while reading?")
+                return bool(value[0])
+
+            groups = {t for t in range(count) if kind("is_foldable", t)}
+            # AbletonOSC doesn't answer arrangement_clips on group tracks, and every
+            # unanswered read holds the batch for the whole timeout, so don't ask.
+            replies = self._batch([(f"/live/track/get/{p}", [t]) for t in range(count)
+                                   if t not in groups for p in _ARRANGEMENT_LISTS])
+
+        tracks = []
+        answered = False
+        for t in range(count):
+            clips = None
+            if t not in groups:
+                lists = [replies.get((f"/live/track/get/{p}", t)) for p in _ARRANGEMENT_LISTS]
+                if all(v is not None for v in lists):
+                    answered = True
+                    clips = _clip_spans(*lists)
+            tracks.append({"index": t, "is_group": t in groups,
+                           "is_grouped": kind("is_grouped", t), "clips": clips})
+        if not answered and len(groups) < count:
+            self._arrangement_works = False
+            return None
+
+        def one(name):
+            value = head.get((f"/live/song/get/{name}",))
+            return value[0] if value else None
+
+        cues = list(head.get(("/live/song/get/cue_points",)) or [])
+        numerator, denominator = one("signature_numerator"), one("signature_denominator")
+        return {
+            "schema_version": ARRANGEMENT_SCHEMA_VERSION,
+            "song_length": one("song_length"),
+            "signature": [int(numerator), int(denominator)] if numerator and denominator else None,
+            "locators": sorted(
+                ({"name": cues[i], "time": cues[i + 1]} for i in range(0, len(cues) - 1, 2)),
+                key=lambda c: c["time"],
+            ),
             "tracks": tracks,
         }
 

@@ -15,6 +15,9 @@ Parked ideas that are not part of v0.1. They came up while designing the chat pa
 
 - **Tracks it looks at on its own.** The model decides to read other tracks (for example Kick and Sub Bass for "the low end is muddy"), and they show as dashed chips. Ship this once the evals show it helps.
 - **"Whole mix" context.** Every track with full detail.
+- **Session view timing (v0.2).** The arrangement map (which tracks play together, by bar) shipped in v0.1.x. Session view needs its own version: tracks with clips in the same scene play together, plus which clips are playing right now.
+- **A `read_arrangement` tool (v0.2).** The model asks what plays in a range of bars instead of always getting the whole map.
+- **Exact timing from our own remote script (v0.4).** AbletonOSC has no clip end time, muted state or group membership, so ends are cut at the next clip and groups are guessed from track order. Our script can read them directly.
 - **Context experiments.** Compare focus-only, focus plus session summary, and full session using the evals.
 
 ## Voice, control and reach

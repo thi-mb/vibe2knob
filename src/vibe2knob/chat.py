@@ -14,6 +14,7 @@ The answer is streamed prose plus an optional `suggest_steps` tool call (see too
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from collections import Counter
 from dataclasses import dataclass, field
@@ -29,9 +30,12 @@ from .prompt import build_chat_system_prompt, build_chat_user_message
 from .protocol import ChatSummary, ContextSet
 from .providers import Provider, ProviderError
 from .providers.base import Done, Error, TextDelta, ToolCall
-from .session import LiveView, SessionSummary, as_summary, as_track_state, describe_summary
+from .session import (LiveView, SessionSummary, as_summary, as_track_state, describe_summary,
+                      read_arrangement)
 from .state import Device, TrackState
 from .tools import ToolContext, ToolRegistry, default_tools
+
+log = logging.getLogger("vibe2knob.chat")
 
 CHAT_SCHEMA_VERSION = 1
 
@@ -195,6 +199,11 @@ def gather_context(context: ContextSet, live: LiveView | None) -> TurnContext:
         ctx.summary = as_summary(live.session_summary())
     except Exception as e:  # noqa: BLE001 - Live being away must not break the chat
         ctx.notes.append(f"Couldn't read the session from Live ({e}).")
+    if ctx.summary is not None:
+        try:
+            ctx.summary.arrangement = read_arrangement(live)
+        except Exception:  # noqa: BLE001 - without it the model just doesn't know timing
+            log.warning("Couldn't read the arrangement from Live", exc_info=True)
     wanted: dict[int, list[str]] = {}
     if context.follow_selection:
         try:

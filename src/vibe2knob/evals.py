@@ -17,6 +17,7 @@ from .chat import AssistantTurn, Chat, ChatEngine, TurnError, UserTurn
 from .core import ask
 from .protocol import ContextSet
 from .providers import Provider, ProviderError
+from .arrangement import Arrangement
 from .session import StaticLive
 from .state import TrackState
 
@@ -42,6 +43,10 @@ class Case:
     prior_steps: list[dict] = field(default_factory=list)
     fixture_after: str = ""
     expect_no_steps: bool = False
+    # Arrangement view, in bars from 1 (both ends included): fixture -> [[first, last], ...].
+    # Unset means the Live link reports no arrangement; {} means one with no clips placed.
+    plays: dict[str, list[list[int]]] | None = None
+    locators: list[dict] = field(default_factory=list)  # [{name, bar}]
 
 
 @dataclass
@@ -168,7 +173,8 @@ def chat_answer(case: Case, provider: Provider, base_dir: Path) -> Advice:
             if st.track.index is None:
                 st.track.index = i
         index_of = {p: st.track.index for p, st in zip(paths, states)}
-        live = StaticLive(states, selected=index_of[case.fixture])
+        arrangement = _arrangement(case, paths, states) if case.plays is not None else None
+        live = StaticLive(states, selected=index_of[case.fixture], arrangement=arrangement)
         chat.context.pinned = [index_of[p] for p in case.pinned]
     engine = ChatEngine(provider)
     if case.prior_request:
@@ -194,6 +200,24 @@ def chat_answer(case: Case, provider: Provider, base_dir: Path) -> Advice:
         caution=turn.caution,
         warnings=turn.warnings,
     )
+
+
+def _arrangement(case: Case, paths: list[str], states: list[TrackState]) -> Arrangement:
+    """A 4/4 arrangement from the case's `plays` and `locators`, in bars."""
+    beats = 4.0
+    tracks = []
+    for path, st in zip(paths, states):
+        is_group = st.track.type == "group"
+        clips = None if is_group else [
+            {"start": (first - 1) * beats, "end": last * beats}
+            for first, last in case.plays.get(path, [])
+        ]
+        tracks.append({"index": st.track.index, "is_group": is_group, "clips": clips})
+    return Arrangement.model_validate({
+        "signature": [4, 4],
+        "locators": [{"name": c["name"], "time": (c["bar"] - 1) * beats} for c in case.locators],
+        "tracks": tracks,
+    })
 
 
 def run_cases(

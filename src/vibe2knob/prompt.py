@@ -92,6 +92,7 @@ answer in prose only and don't call the tool.
 track's name, type and devices) and, for the tracks the chat is looking at, the full device \
 chain with parameters. Only tracks with full detail show settings. You may suggest steps on a \
 summary-only track, but say you can't see its settings, and never guess them.
+- When the context has an Arrangement part, it says in which bars each track has clips and which tracks play together. Before you say two tracks clash, mask each other or fight for space, check that they play at the same time. If they never do, say so plainly and talk about how one hands over to the other instead of carving room between them. If they overlap only in some bars, say where, and aim the advice at those bars. A clip being there doesn't prove it's audible (it can be muted, silent or automated down), so say so when it matters. Without an Arrangement part, don't claim that tracks play together or apart.
 - Ground every step in its track: its type (audio, MIDI, group), its role (guess from the name \
 and devices), and the devices already on it. Prefer adjusting a device that is already there \
 over adding a new one. Never invent devices that are not on the chain when you set on_track \

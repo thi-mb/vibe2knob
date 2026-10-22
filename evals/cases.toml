@@ -172,3 +172,59 @@ request = "what's the difference between Echo and Delay in Live?"
 why = "A general chat with nothing in context. The answer is an explanation in prose, with no steps."
 expect_no_steps = true
 mention_any = ["Echo"]
+
+# Arrangement cases: when tracks play.
+#
+#   plays            Arrangement view, in bars from 1, ends included:
+#                    { "<fixture>" = [[first, last], ...] }. Leave it out for a Live link
+#                    that reports no arrangement; {} is an arrangement with no clips.
+#   locators         [{ name = "Verse", bar = 17 }, ...]
+
+[[case]]
+id = "chat-never-overlap"
+chat_only = true
+session = ["../fixtures/lead_vocal.json", "../fixtures/sub_bass.json", "../fixtures/synth_pad.json", "../fixtures/drum_group.json"]
+fixture = "../fixtures/lead_vocal.json"
+pinned = ["../fixtures/synth_pad.json"]
+plays = { "../fixtures/lead_vocal.json" = [[17, 32], [49, 64]], "../fixtures/synth_pad.json" = [[1, 16], [33, 48], [65, 80]], "../fixtures/sub_bass.json" = [[17, 80]] }
+request = "how do these 2 interact?"
+why = "The real-world trick question: the vocal and the pad take turns and never play at the same time. A good answer says so, talks about the handover between them, and doesn't prescribe carving EQ room between two tracks that never meet."
+expect_no_steps = true
+mention_any = ["never", "same time", "at once", "don't overlap", "do not overlap", "take turns", "alternate", "hand off", "handover", "hand over"]
+
+[[case]]
+id = "chat-partial-overlap"
+chat_only = true
+session = ["../fixtures/lead_vocal.json", "../fixtures/sub_bass.json", "../fixtures/synth_pad.json", "../fixtures/drum_group.json"]
+fixture = "../fixtures/lead_vocal.json"
+pinned = ["../fixtures/synth_pad.json"]
+plays = { "../fixtures/lead_vocal.json" = [[17, 32], [49, 80]], "../fixtures/synth_pad.json" = [[1, 16], [33, 48], [65, 80]], "../fixtures/sub_bass.json" = [[17, 80]] }
+locators = [{ name = "Intro", bar = 1 }, { name = "Verse", bar = 17 }, { name = "Break", bar = 33 }, { name = "Verse 2", bar = 49 }, { name = "Last chorus", bar = 65 }]
+request = "the vocal and the pad are fighting each other, how do I make room for the vocal?"
+why = "They only meet in the last chorus (bars 65-80). A good answer still makes room, and says it only matters there, e.g. automating the pad or a cut that only bites in that section."
+expect_any_device = ["EQ Eight", "Utility", "Compressor", "Auto Filter", "Chorus-Ensemble", "Wavetable"]
+mention_any = ["last chorus", "65"]
+
+[[case]]
+id = "chat-full-overlap"
+chat_only = true
+session = ["../fixtures/lead_vocal.json", "../fixtures/sub_bass.json", "../fixtures/synth_pad.json", "../fixtures/drum_group.json"]
+fixture = "../fixtures/lead_vocal.json"
+pinned = ["../fixtures/synth_pad.json"]
+plays = { "../fixtures/lead_vocal.json" = [[1, 64]], "../fixtures/synth_pad.json" = [[1, 64]], "../fixtures/sub_bass.json" = [[17, 64]] }
+request = "the vocal and the pad are fighting each other, how do I make room for the vocal?"
+why = "They play together the whole song, so the usual make-room advice is right. Checks that knowing the arrangement doesn't make the answer timid."
+expect_any_device = ["EQ Eight", "Utility", "Compressor", "Auto Filter", "Chorus-Ensemble", "Wavetable"]
+mention_any = ["pad"]
+
+[[case]]
+id = "chat-no-arrangement"
+chat_only = true
+session = ["../fixtures/lead_vocal.json", "../fixtures/sub_bass.json", "../fixtures/synth_pad.json", "../fixtures/drum_group.json"]
+fixture = "../fixtures/lead_vocal.json"
+pinned = ["../fixtures/synth_pad.json"]
+plays = {}
+request = "how do these 2 interact?"
+why = "No clips in Arrangement view (they may be in Session view), so the answer can't know whether the two play together. A good answer says so or asks, instead of claiming either way."
+expect_no_steps = true
+mention_any = ["arrangement", "session view", "same time", "together"]
