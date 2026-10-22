@@ -10,6 +10,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .arrangement import Arrangement, Timeline, as_arrangement, describe_arrangement, plays_note
 from .state import Device, Track, TrackState, TrackType
 
 
@@ -44,6 +45,9 @@ class SessionSummary(_Open):
     live_version: str | None = None
     tempo: float | None = None
     tracks: list[TrackSummary] = Field(default_factory=list)
+    arrangement: Arrangement | None = Field(
+        None, description="Where clips sit in Arrangement view, when the Live link can tell."
+    )
 
     def track(self, index: int) -> TrackSummary | None:
         return next((t for t in self.tracks if t.index == index), None)
@@ -57,6 +61,14 @@ class LiveView(Protocol):
     def selected_track_index(self) -> int | None: ...
 
     def track_state(self, index: int) -> TrackState | dict: ...
+
+    # Optional: arrangement() -> Arrangement | dict | None (see live_bridge/link.py).
+
+
+def read_arrangement(live: LiveView) -> Arrangement | None:
+    """The arrangement map, or None when this LiveView has none or can't read it."""
+    read = getattr(live, "arrangement", None)
+    return as_arrangement(read()) if read else None
 
 
 def as_summary(value: SessionSummary | dict) -> SessionSummary:
@@ -96,7 +108,9 @@ def summarize(states: list[TrackState]) -> SessionSummary:
 class StaticLive:
     """A LiveView over fixed track states, for tests and evals."""
 
-    def __init__(self, states: list[TrackState], selected: int | None = None):
+    def __init__(self, states: list[TrackState], selected: int | None = None,
+                 arrangement: Arrangement | dict | None = None):
+        self._arrangement = as_arrangement(arrangement)
         self.states: dict[int, TrackState] = {}
         for i, s in enumerate(states):
             self.states[s.track.index if s.track.index is not None else i] = s
@@ -111,9 +125,17 @@ class StaticLive:
     def track_state(self, index: int) -> TrackState:
         return self.states[index]
 
+    def arrangement(self) -> Arrangement | None:
+        return self._arrangement
+
 
 def describe_summary(summary: SessionSummary, detail: dict[int, str]) -> str:
-    """The summary block of the prompt. `detail` maps track index -> why it has full detail."""
+    """The summary block of the prompt. `detail` maps track index -> why it has full detail.
+
+    With an arrangement, each line also says where the track plays, and an Arrangement
+    part follows with the sections and how the tracks in `detail` overlap.
+    """
+    timeline = Timeline(summary.arrangement) if summary.arrangement else None
     head = []
     if summary.live_version:
         head.append(f"Live {summary.live_version}")
@@ -126,6 +148,9 @@ def describe_summary(summary: SessionSummary, detail: dict[int, str]) -> str:
         devices = ", ".join(t.devices) if t.devices else "no devices"
         line = f'  - "{t.name}" ({t.type}): {devices}'
         notes = []
+        plays = plays_note(timeline, t.index) if timeline and timeline.has_clips else None
+        if plays:
+            notes.append(plays)
         if t.mute:
             notes.append("muted")
         if t.index in detail:
@@ -133,5 +158,8 @@ def describe_summary(summary: SessionSummary, detail: dict[int, str]) -> str:
         if notes:
             line += f" [{'; '.join(notes)}]"
         lines.append(line)
+    if timeline and summary.tracks:
+        names = {t.index: t.name for t in summary.tracks}
+        lines.append(describe_arrangement(timeline, names, list(detail)))
     return "\n".join(lines)
 
