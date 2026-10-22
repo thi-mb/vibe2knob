@@ -1,0 +1,112 @@
+# Development
+
+One local **hub** (Python, `src/vibe2knob/`) owns the Live connection, the model calls and the
+chats. The **panel** (React + TypeScript, `ui/`) is a thin client of the hub. They talk over one
+WebSocket protocol, defined in `src/vibe2knob/protocol.py`. `CLAUDE.md` has the map of the code
+and the rules.
+
+```sh
+pip install -e '.[dev]' && pytest -q          # hub tests
+cd ui && npm ci && npm test && npm run build  # UI tests and build
+cd ui && npm run gen:types                    # after changing protocol.py
+cd ui && npm run dev:fake                     # the panel against a scripted fake hub
+cd ui && npm run e2e                          # Playwright journeys + screenshots
+```
+
+The UI's types in `ui/src/protocol/` are generated from `protocol.py`, so commit both. CI fails
+when they drift.
+
+## The panel
+
+After a `git pull`, `scripts/panel.sh` does the rest: it reinstalls the Python package, rebuilds
+the UI and opens the panel window (add `--fake` for no Live and no key). It doesn't pull by
+itself.
+
+`vibe2knob panel` starts the hub on 127.0.0.1:8765 and opens the panel in your browser. It needs
+the `[panel]` extra (`pip install -e '.[panel]'`) and a built UI (`cd ui && npm run build`).
+
+```sh
+vibe2knob panel                 # real Live, Claude with the key from Settings or ANTHROPIC_API_KEY
+vibe2knob panel --fake          # fixtures instead of Live, a scripted model: no Live, no key
+vibe2knob panel --fake --dev    # and work on the UI with hot reload: cd ui && npm run dev
+```
+
+Chats and settings live in `~/Library/Application Support/vibe2knob/` (or `$VIBE2KNOB_HOME`); the
+API key goes in the Keychain, and an `ANTHROPIC_API_KEY` in the environment or a `.env` file wins.
+With `--fake` or `--fake-model`, chats go to a temporary folder instead.
+
+The hub opens the panel at `/?token=...`. A client connects to `/ws?token=...`; a wrong token, Host
+or Origin closes the socket with code 4401.
+
+### Panel window
+
+`vibe2knob panel --window` opens the panel in a slim always-on-top window to sit beside Live,
+instead of a browser tab. It needs the `[window]` extra (`pip install -e '.[window]'`, which adds
+pywebview). It takes the same flags, so `--window --fake` works without Live or a key, and
+`--window --dev` shows the Vite dev server.
+
+Closing the window stops the hub, and Ctrl-C in the terminal closes the window. The window's size
+and position are saved in `settings.json` and restored on the next launch. **Window > Toggle
+Always on Top** turns on-top off or on, and that's remembered too. (With `--fake` the settings go
+to a temporary folder, so add `--data-dir` to keep the window's place between fake runs.) If a hub
+is already running on the port, a second `vibe2knob panel` says so and exits.
+
+## Reading Live
+
+`live_bridge/` reads Live through [AbletonOSC](https://github.com/ideoforms/AbletonOSC), a remote
+script that exposes Live's (unofficial) Python API over OSC. Every OSC address the project uses
+is in `live_bridge/client.py`, so API changes stay contained there. It needs no extra
+dependencies.
+
+```sh
+python3 -m live_bridge                    # summary + JSON of the selected track
+python3 -m live_bridge --json --track 2   # JSON only, for a given track index
+python3 -m live_bridge --summary          # every track, light: names, types, devices, mixer
+python3 -m live_bridge --watch            # print connection and selection changes
+```
+
+For the hub, `LiveBridge` is the one owner of the connection: a background loop receives
+everything on port 11001 and routes each reply to its request or each listener push to its
+subscribers, while a watcher pings Live every 3 s and follows the selected track.
+`FakeLive` gives the same interface from the files in `fixtures/`, for tests and work without
+Live. Writes (mute, solo, parameters) are part of the interface but not built yet.
+
+The JSON for one track is described in [track-state-format.md](track-state-format.md).
+
+## The command line
+
+```sh
+pip install -e '.[claude]'
+export ANTHROPIC_API_KEY=...
+
+vibe2knob ask "make this wider" --state fixtures/synth_pad.json
+vibe2knob chat --state fixtures/synth_pad.json      # multi-turn, in the terminal
+```
+
+- `--json` prints the structured steps (device, parameter, value range, explanation).
+- `--state -` reads the track state from stdin, so you can pipe the Live bridge into it.
+- `--dry-run` prints the exact prompt without calling a model.
+- `--provider` picks `claude` (default, `claude-opus-5-5` on the command line) or `ollama`
+  (`llama3.1`). `--model`, `VIBE2KNOB_MODEL`, `VIBE2KNOB_OLLAMA_MODEL` and `OLLAMA_HOST`
+  override them.
+- `vibe2knob terms` lists the subjective words it knows, and `vibe2knob prices` the price table
+  behind the cost estimates (`--check` compares it with Anthropic's pricing page).
+
+A new model backend is a class in `src/vibe2knob/providers/`, registered in
+`providers/__init__.py`. `providers/fake.py` is a scripted one for tests and keyless runs.
+
+## Judging the advice
+
+Plausible advice is easy; good advice is the point. [`evals/cases.toml`](../evals/cases.toml)
+holds test cases: a track, a request, and what a good answer must do. For example, "make the bass
+wider" must keep the sub mono, and "make it tighter" on a Drum Rack should go to the Simpler
+envelopes first.
+
+```sh
+vibe2knob eval --model claude-haiku-5-5          # one-shot answers, all cases
+vibe2knob eval --chat --model claude-haiku-5-5   # the chat path, plus chat-only cases
+vibe2knob eval --only bass-wider --provider ollama
+```
+
+Full answers are saved in `evals/reports/` so you can read them, not just the score. Real-model
+runs vary from run to run, so read a failure before trusting it.

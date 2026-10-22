@@ -20,6 +20,10 @@ Parked ideas that are not part of v0.1. They came up while designing the chat pa
 - **Exact timing from our own remote script (v0.4).** AbletonOSC has no clip end time, muted state or group membership, so ends are cut at the next clip and groups are guessed from track order. Our script can read them directly.
 - **Context experiments.** Compare focus-only, focus plus session summary, and full session using the evals.
 
+## Install
+
+- **`pip install vibe2knob` (v0.2).** v0.1 installs from source and builds the panel with Node. A wheel on PyPI with the built panel inside (`hatch_build.py` already adds `ui/dist`) would make it one command and drop the Node requirement.
+
 ## Voice, control and reach
 
 These came up on 2026-10-21. The hub-and-clients architecture leaves room for each of them.
