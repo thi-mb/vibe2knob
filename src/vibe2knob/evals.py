@@ -54,6 +54,8 @@ class Case:
     expect_reads_any: list[str] = field(default_factory=list)
     expect_reads_all: list[str] = field(default_factory=list)
     forbid_reads: list[str] = field(default_factory=list)
+    # Read tools the model must call (read_arrangement, read_scenes), whatever it reads.
+    expect_tools: list[str] = field(default_factory=list)
     # Session view, scenes numbered from 1: fixture -> [scene, ...]. Unset means the Live
     # link reports no Session view; {} means a grid with no clips.
     scenes: dict[str, list[int]] | None = None
@@ -78,6 +80,7 @@ class Result:
     error: str | None = None
     records: list[UsageRecord] = field(default_factory=list)  # the model calls it made
     reads: list[str] = field(default_factory=list)  # tracks the model read (chat path)
+    tools: list[str] = field(default_factory=list)  # read tools it called, in order
 
     @property
     def passed(self) -> bool:
@@ -196,9 +199,13 @@ def _mention_check(case: Case, advice: Advice) -> list[Check]:
     ]
 
 
-def grade_reads(case: Case, reads: list[str]) -> list[Check]:
-    """Checks on which tracks the model read in a chat turn."""
+def grade_reads(case: Case, reads: list[str], tools: list[str] = ()) -> list[Check]:
+    """Checks on which tracks the model read in a chat turn, and which read tools it called."""
     checks = []
+    if case.expect_tools:
+        missing = [t for t in case.expect_tools if t not in tools]
+        checks.append(Check("calls the read tool the ask needs", not missing,
+                            f"called {list(tools) or 'no read tool'}, missing {missing}"))
     got = f"read {reads or 'nothing'}"
     if case.expect_reads_any:
         checks.append(Check("reads a track the ask depends on",
@@ -216,14 +223,15 @@ def grade_reads(case: Case, reads: list[str]) -> list[Check]:
 
 def chat_answer(case: Case, provider: Provider, base_dir: Path,
                 records: list[UsageRecord] | None = None,
-                reads: list[str] | None = None) -> Advice:
+                reads: list[str] | None = None, tools: list[str] | None = None) -> Advice:
     """Run a case through the chat path and shape the answer like `ask()`'s for grading.
 
     The session is `session` (default: just `fixture`), with `fixture` selected and
     `pinned` pinned. A case with no fixture is a general chat with nothing in context.
     `prior_*` adds a scripted earlier turn, and `fixture_after` is the selected track as
     the user left it after that turn (for the refine diff). The calls' usage is added to
-    `records`, as kind "eval", and the names of the tracks the model read to `reads`.
+    `records`, as kind "eval", the names of the tracks the model read to `reads`, and the
+    read tools it called to `tools`.
     """
     def load(rel: str) -> TrackState:
         return TrackState.load(base_dir / rel)
@@ -246,6 +254,15 @@ def chat_answer(case: Case, provider: Provider, base_dir: Path,
                           session_view=grid)
         chat.context.pinned = [index_of[p] for p in case.pinned]
     engine = ChatEngine(provider)
+    if tools is not None:
+        handle = engine.tools.handle
+
+        def recording(name, payload, ctx):
+            if engine.tools.kind(name) == "read":
+                tools.append(name)
+            return handle(name, payload, ctx)
+
+        engine.tools.handle = recording
     if case.prior_request:
         selected = {str(i): s for i, s in live.states.items() if i == live.selected} if live else {}
         chat.turns += [
@@ -349,11 +366,12 @@ def run_cases(
 def _run_once(case: Case, provider: Provider, base_dir: Path, chat: bool) -> Result:
     records: list[UsageRecord] = []
     reads: list[str] = []
+    tools: list[str] = []
     try:
         if chat:
-            advice = chat_answer(case, provider, base_dir, records, reads)
-            checks = grade(case, advice) + grade_reads(case, reads)
-            return Result(case, checks, advice, records=records, reads=reads)
+            advice = chat_answer(case, provider, base_dir, records, reads, tools)
+            checks = grade(case, advice) + grade_reads(case, reads, tools)
+            return Result(case, checks, advice, records=records, reads=reads, tools=tools)
         else:
             if hasattr(provider, "last_usage"):
                 provider.last_usage = None
@@ -367,7 +385,7 @@ def _run_once(case: Case, provider: Provider, base_dir: Path, chat: bool) -> Res
                         model=getattr(provider, "model", None)))
         return Result(case, grade(case, advice), advice, records=records)
     except ProviderError as e:
-        return Result(case, [], error=str(e), records=records, reads=reads)
+        return Result(case, [], error=str(e), records=records, reads=reads, tools=tools)
 
 
 def _echo_result(result: CaseResult, repeat: int, echo) -> None:
@@ -397,6 +415,7 @@ def _run_row(run: Result) -> dict:
         "advice": run.advice.model_dump() if run.advice else None,
         "rounds": run.rounds,
         "reads": run.reads,
+        "tools": run.tools,
         "tokens": _tokens(u),
         "cost_usd": u.cost_usd,
     }
