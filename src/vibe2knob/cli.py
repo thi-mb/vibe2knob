@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from . import __version__
 from .advice import format_advice
 from .core import ask, build_prompts
 from .knowledge import load_terms
@@ -188,11 +189,61 @@ def cmd_prices(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_setup_live(args: argparse.Namespace) -> int:
+    """Copy the pinned AbletonOSC into Live's Remote Scripts folder."""
+    from live_bridge.remote_script import ABLETONOSC_COMMIT, install, install_dir, user_library
+
+    from .store import default_home
+
+    library = Path(args.user_library).expanduser() if args.user_library else user_library()
+    if not library.is_dir():
+        print(f"error: Live's User Library isn't at {library}. Open Live once, or pass "
+              "--user-library with the folder that Settings > Library in Live shows.",
+              file=sys.stderr)
+        return 2
+    backups = default_home() / "backups"
+    result = install(install_dir(library), backups, force=args.force)
+    target = result.target
+    if result.action == "refused":
+        print(f"{target} already holds a different AbletonOSC (another version, or your own "
+              "copy), so it was left alone.\nRun `vibe2knob setup-live --force` to replace it "
+              f"with the one vibe2knob is tested with. The old copy is moved to {backups}.")
+        return 1
+    if result.action == "unchanged":
+        print(f"AbletonOSC ({ABLETONOSC_COMMIT[:7]}) is already installed in {target}.")
+    else:
+        verb = "Updated" if result.action == "updated" else "Installed"
+        print(f"{verb} AbletonOSC ({ABLETONOSC_COMMIT[:7]}) in {target}.")
+        if result.backup:
+            print(f"The copy that was there is now in {result.backup}.")
+    print("""
+One step is left, in Live:
+  1. Restart Live (quit and open it again), so it finds the script.
+  2. Open Settings > Link, Tempo & MIDI (Preferences in Live 11).
+  3. In an empty Control Surface slot pick AbletonOSC. Leave its Input and Output as None.
+     Live's status bar says "AbletonOSC: Listening for OSC on port 11000".
+
+Then check everything with `vibe2knob doctor`, and open the panel with `vibe2knob panel`.""")
+    return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    from .doctor import FAIL, report, run_checks
+    from .store import Store, load_dotenv
+
+    load_dotenv(Path.cwd() / ".env")  # as `vibe2knob panel` does
+    library = Path(args.user_library).expanduser() if args.user_library else None
+    checks = run_checks(Store(args.data_dir), library, args.port)
+    print(report(checks))
+    return 1 if any(c.status == FAIL for c in checks) else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="vibe2knob",
         description="Turn subjective asks into steps with Live's stock devices.",
     )
+    parser.add_argument("--version", action="version", version=f"vibe2knob {__version__}")
     parser.add_argument("--terms", help="Use a different knowledge map (TOML).")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -236,6 +287,21 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Open the panel in its own always-on-top window instead of the browser "
                    "(needs the [window] extra). Closing it stops the hub.")
     p.set_defaults(func=cmd_panel)
+
+    p = sub.add_parser("setup-live",
+                       help="Install AbletonOSC in Live's Remote Scripts folder (once).")
+    p.add_argument("--force", action="store_true",
+                   help="Replace a different AbletonOSC that's already there (it's backed up).")
+    p.add_argument("--user-library", metavar="PATH",
+                   help="Live's User Library, if it isn't ~/Music/Ableton/User Library.")
+    p.set_defaults(func=cmd_setup_live)
+
+    p = sub.add_parser("doctor", help="Check that everything is in place to run the panel.")
+    p.add_argument("--user-library", metavar="PATH",
+                   help="Live's User Library, if it isn't ~/Music/Ableton/User Library.")
+    p.add_argument("--data-dir", help="Where chats and settings live, as for `vibe2knob panel`.")
+    p.add_argument("--port", type=int, default=8765, help="The panel's port, as for `vibe2knob panel`.")
+    p.set_defaults(func=cmd_doctor)
 
     p = sub.add_parser("terms", help="List the subjective terms in the knowledge map.")
     p.set_defaults(func=cmd_terms)

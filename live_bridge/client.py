@@ -196,6 +196,11 @@ class LiveBridge(LiveLink):
         if self._request("/live/test") is None:
             raise LiveError(_NO_ANSWER)
 
+    def live_version(self):
+        """Live's version, like "11.3", or None if Live doesn't answer."""
+        version = self._request("/live/application/get/version")
+        return ".".join(str(v) for v in version[:2]) if version else None
+
     def _read_selected(self, timeout=None):
         reply = self._request(_SELECTED, timeout=timeout)
         # AbletonOSC only indexes regular tracks; return tracks and the master make the
