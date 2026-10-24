@@ -47,6 +47,10 @@ class Case:
     # Unset means the Live link reports no arrangement; {} means one with no clips placed.
     plays: dict[str, list[list[int]]] | None = None
     locators: list[dict] = field(default_factory=list)  # [{name, bar}]
+    # Reads (chat path): track names the model must read with read_track, or must not.
+    expect_reads_any: list[str] = field(default_factory=list)
+    expect_reads_all: list[str] = field(default_factory=list)
+    forbid_reads: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -62,6 +66,7 @@ class Result:
     checks: list[Check]
     advice: Advice | None = None
     error: str | None = None
+    reads: list[str] = field(default_factory=list)
 
     @property
     def passed(self) -> bool:
@@ -113,8 +118,11 @@ def grade(case: Case, advice: Advice) -> list[Check]:
             all(s.value_range for s in advice.steps if s.parameter),
             "a step names a parameter without a value range",
         ),
-        Check("A/B listening tip", len(advice.listen_for.split()) >= 5, advice.listen_for),
     ]
+    if advice.steps or case.min_steps:  # min_steps = 0: steps are optional
+        checks.append(
+            Check("A/B listening tip", len(advice.listen_for.split()) >= 5, advice.listen_for)
+        )
     if case.expect_any_device:
         checks.append(
             Check(
@@ -151,13 +159,33 @@ def _mention_check(case: Case, advice: Advice) -> list[Check]:
     ]
 
 
-def chat_answer(case: Case, provider: Provider, base_dir: Path) -> Advice:
+def grade_reads(case: Case, reads: list[str]) -> list[Check]:
+    """Checks on which tracks the model read in a chat turn."""
+    checks = []
+    got = f"read {reads or 'nothing'}"
+    if case.expect_reads_any:
+        checks.append(Check("reads a track the ask depends on",
+                            any(r in case.expect_reads_any for r in reads),
+                            f"{got}, expected one of {case.expect_reads_any}"))
+    if case.expect_reads_all:
+        missing = [r for r in case.expect_reads_all if r not in reads]
+        checks.append(Check("reads every track the ask names", not missing,
+                            f"{got}, missing {missing}"))
+    if case.forbid_reads:
+        bad = [r for r in reads if r in case.forbid_reads]
+        checks.append(Check("doesn't read for its own sake", not bad, got))
+    return checks
+
+
+def chat_answer(case: Case, provider: Provider, base_dir: Path,
+                reads: list[str] | None = None) -> Advice:
     """Run a case through the chat path and shape the answer like `ask()`'s for grading.
 
     The session is `session` (default: just `fixture`), with `fixture` selected and
     `pinned` pinned. A case with no fixture is a general chat with nothing in context.
     `prior_*` adds a scripted earlier turn, and `fixture_after` is the selected track as
-    the user left it after that turn (for the refine diff).
+    the user left it after that turn (for the refine diff). The names of the tracks the
+    model read are appended to `reads`.
     """
     def load(rel: str) -> TrackState:
         return TrackState.load(base_dir / rel)
@@ -193,6 +221,8 @@ def chat_answer(case: Case, provider: Provider, base_dir: Path) -> Advice:
         if isinstance(event, TurnError):
             raise ProviderError(event.message)
     turn = chat.turns[-1]
+    if reads is not None:
+        reads += [t.name for t in turn.looked_at]
     return Advice(
         interpretation=turn.text,
         steps=turn.steps,
@@ -232,12 +262,14 @@ def run_cases(
     for case in cases:
         if case.chat_only and not chat:
             continue
+        reads: list[str] = []
         try:
             if chat:
-                advice = chat_answer(case, provider, base_dir)
+                advice = chat_answer(case, provider, base_dir, reads)
             else:
                 advice = ask(TrackState.load(base_dir / case.fixture), case.request, provider)
-            result = Result(case, grade(case, advice), advice)
+            checks = grade(case, advice) + (grade_reads(case, reads) if chat else [])
+            result = Result(case, checks, advice, reads=reads)
         except ProviderError as e:
             result = Result(case, [], error=str(e))
         results.append(result)
@@ -270,6 +302,7 @@ def _save_report(
                     "error": r.error,
                     "checks": [c.__dict__ for c in r.checks],
                     "advice": r.advice.model_dump() if r.advice else None,
+                    "reads": r.reads,
                 }
                 for r in results
             ],

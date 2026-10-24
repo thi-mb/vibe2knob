@@ -1,3 +1,4 @@
+import json
 import copy
 from pathlib import Path
 
@@ -74,3 +75,36 @@ def test_ask_path_skips_chat_only_cases(fake):
     results = run_cases(cases, fake(WIDER_PAD), CASES.parent, echo=lambda _: None)
     assert all(not r.case.chat_only for r in results)
     assert len(results) == 15
+
+
+def test_read_checks():
+    from vibe2knob.evals import Case, grade_reads
+
+    case = Case(id="x", fixture="f", request="r", expect_reads_any=["Sub Bass", "Beat"],
+                expect_reads_all=["Lead Vox"], forbid_reads=["Warm Pad"])
+    assert all(c.passed for c in grade_reads(case, ["Beat", "Lead Vox"]))
+    failed = {c.name for c in grade_reads(case, ["Warm Pad"]) if not c.passed}
+    assert failed == {"reads a track the ask depends on", "reads every track the ask names",
+                      "doesn't read for its own sake"}
+    assert grade_reads(Case(id="y", fixture="f", request="r"), ["Beat"]) == []
+
+
+def test_read_cases_run_on_the_chat_path(tmp_path):
+    from vibe2knob.evals import load_cases, run_cases
+    from vibe2knob.providers.fake import FakeProvider, Reply
+
+    cases = [c for c in load_cases(CASES) if c.id == "chat-reads-both-clash"]
+    provider = FakeProvider([
+        Reply.reads("guitar", "Lead Vox"),
+        Reply.reads("acoustic-pick"),
+        Reply("They meet around 2 to 4 kHz, where the guitar's pick and the voice's consonants sit, "
+              "so carve a little space in the guitar there and listen in context."),
+    ])
+    [result] = run_cases(cases, provider, CASES.parent, report_dir=tmp_path, echo=lambda *_: None, chat=True)
+    assert result.reads == ["Lead Vox", "acoustic-pick"]
+    assert result.passed, [c for c in result.checks if not c.passed]
+    report = json.loads(next(tmp_path.glob("*.json")).read_text())
+    assert report[0]["reads"] == ["Lead Vox", "acoustic-pick"]
+    # "guitar" isn't a track name, so the model was given the closest names to choose from.
+    first = provider.calls[1]["messages"][-1]["tool_results"][0]["content"]
+    assert 'No track is called "guitar"' in first or '"guitar" could be' in first

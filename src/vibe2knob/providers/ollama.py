@@ -65,7 +65,7 @@ class OllamaProvider:
     def stream_chat(
         self, system: str, messages: list[dict], tools: list[ToolSpec]
     ) -> Iterator[StreamEvent]:
-        msgs = [{"role": "system", "content": system}, *messages]
+        msgs = [{"role": "system", "content": system}, *_messages(messages)]
         body = {
             "stream": True,
             "messages": msgs,
@@ -82,7 +82,8 @@ class OllamaProvider:
             detail = e.read().decode(errors="replace")
             if tools and "tool" in detail.lower():
                 # This model can't call tools: ask for one JSON answer instead.
-                yield from self._json_fallback(msgs, tools)
+                plain = [{"role": "system", "content": system}, *_plain(messages)]
+                yield from self._json_fallback(plain, tools)
                 return
             yield Error(f"Ollama error {e.code}: {detail.strip()}")
             return
@@ -91,6 +92,7 @@ class OllamaProvider:
             return
 
         usage: dict = {}
+        tool_ids: list[str] = []
         with resp:
             for line in resp:
                 if not line.strip():
@@ -111,7 +113,8 @@ class OllamaProvider:
                         except json.JSONDecodeError:
                             yield Error(f"Ollama returned unreadable arguments for {fn.get('name')}.")
                             return
-                    yield ToolCall(fn.get("name", ""), args)
+                    yield ToolCall(fn.get("name", ""), args, f"call_{len(tool_ids)}")
+                    tool_ids.append(fn.get("name", ""))
                 if chunk.get("done"):
                     usage = {
                         "input_tokens": chunk.get("prompt_eval_count", 0),
@@ -143,3 +146,35 @@ class OllamaProvider:
             if isinstance(data.get(t.name), dict):
                 yield ToolCall(t.name, data[t.name])
         yield Done(dict(self.last_usage or {}), "end_turn")
+
+
+def _messages(messages: list[dict]) -> list[dict]:
+    """The engine's messages for /api/chat: tool calls on the assistant message, and one
+    `role: "tool"` message per result."""
+    out = []
+    for m in messages:
+        if m.get("tool_results"):
+            out += [{"role": "tool", "content": r["content"], "tool_name": r["name"]}
+                    for r in m["tool_results"]]
+        elif m.get("tool_calls"):
+            out.append({"role": "assistant", "content": m["content"], "tool_calls": [
+                {"function": {"name": c["name"], "arguments": c["input"]}} for c in m["tool_calls"]
+            ]})
+        else:
+            out.append({"role": m["role"], "content": m["content"]})
+    return out
+
+
+def _plain(messages: list[dict]) -> list[dict]:
+    """The same messages as plain text, for a model that can't call tools."""
+    out = []
+    for m in messages:
+        if m.get("tool_results"):
+            text = "\n\n".join(f"[{r['name']} result]\n{r['content']}" for r in m["tool_results"])
+            out.append({"role": "user", "content": text})
+        elif m.get("tool_calls"):
+            calls = "; ".join(f"{c['name']} {json.dumps(c['input'])}" for c in m["tool_calls"])
+            out.append({"role": "assistant", "content": f"{m['content']}\n[called {calls}]".strip()})
+        else:
+            out.append({"role": m["role"], "content": m["content"]})
+    return out
