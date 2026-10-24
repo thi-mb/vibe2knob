@@ -82,7 +82,7 @@ export const initialState: PanelState = {
   ready: false,
   hubVersion: null,
   live: { connected: false, selected_track: null, detail: null, example: null },
-  settings: { provider: "claude", model: null, api_key_set: false },
+  settings: { provider: "claude", model: null, api_key_set: false, monthly_budget_usd: null },
   examples: [],
   tracks: [],
   chats: [],
@@ -261,6 +261,10 @@ function onHub(state: PanelState, m: HubEnvelope): PanelState {
         withTurn(state, m.chat_id, m.turn_id, (t) => ({ ...t, pending: false, usage: m.usage ?? t.usage })),
         m.chat_id,
       );
+    // Looked-at chips and the budget banner come with the panel's v0.2 work.
+    case "chat.looked":
+    case "usage.budget":
+      return state;
     case "usage.report":
       return m.range === state.usageRange ? { ...state, usage: m } : state;
     case "settings":

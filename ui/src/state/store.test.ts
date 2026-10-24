@@ -26,7 +26,7 @@ function welcomed(chats = [chat("a"), chat("b", "2026-10-21T11:00:00Z")]): Panel
     hub({
       v: 1, type: "welcome", hub_version: "0.1", chats, examples: [],
       live: { connected: true, selected_track: null, detail: null, example: null },
-      settings: { provider: "claude", model: null, api_key_set: true },
+      settings: { provider: "claude", model: null, api_key_set: true, monthly_budget_usd: null },
     }),
   );
 }
@@ -56,12 +56,12 @@ describe("reducer", () => {
     s = reducer(s, { type: "user-sent", chatId: "b", requestId: "r1", text: "wider", at: "2026-10-22T10:00:00Z" });
     expect(s.progress.b).toEqual({ since: "2026-10-22T10:00:00Z", phase: "reading", requestId: "r1" });
     expect(isStreaming(s, "b")).toBe(true);
-    s = reducer(s, hub({ v: 1, type: "chat.status", chat_id: "b", turn_id: "t1", phase: "thinking" }));
+    s = reducer(s, hub({ v: 1, type: "chat.status", chat_id: "b", turn_id: "t1", phase: "thinking", detail: null }));
     expect(s.progress.b).toMatchObject({ since: "2026-10-22T10:00:00Z", phase: "thinking" });
     expect(s.turns.b.at(-1)).toMatchObject({ id: "t1", pending: true, text: "" });
     s = reducer(s, hub({ v: 1, type: "chat.delta", chat_id: "b", turn_id: "t1", text: "Spread it." }));
     expect(s.progress.b.phase).toBe("writing");
-    s = reducer(s, hub({ v: 1, type: "chat.status", chat_id: "b", turn_id: "t1", phase: "steps" }));
+    s = reducer(s, hub({ v: 1, type: "chat.status", chat_id: "b", turn_id: "t1", phase: "steps", detail: null }));
     expect(s.progress.b.phase).toBe("steps");
     s = reducer(s, hub({ v: 1, type: "chat.steps", chat_id: "b", turn_id: "t1", steps: [], listen_for: null, caution: null, warnings: [] }));
     expect(s.progress.b.phase).toBe("writing");
@@ -92,7 +92,7 @@ describe("reducer", () => {
     s = reducer(s, hub({ v: 1, type: "chat.delta", chat_id: "b", turn_id: "t1", text: "Spr" }));
     s = reducer(s, hub({
       v: 1, type: "chat.history", request_id: null, chat_id: "b",
-      turns: [{ id: "u1", role: "user", text: "wider", created_at: "t", steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null }],
+      turns: [{ id: "u1", role: "user", text: "wider", created_at: "t", steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [] }],
     }));
     expect(s.turns.b.map((t) => t.id)).toEqual(["u1", "t1"]);
   });
