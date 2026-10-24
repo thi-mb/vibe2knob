@@ -142,6 +142,9 @@ class ChatTurn(_Shape):
     warnings: list[str] = Field(default_factory=list)
     error: str | None = Field(default=None, description="Why the turn failed, if it did.")
     usage: Usage | None = Field(default=None, description="Set on assistant turns.")
+    looked_at: list[TrackRef] = Field(
+        default_factory=list, description="Tracks the model read during an assistant turn."
+    )
 
 
 class Settings(_Shape):
@@ -150,6 +153,9 @@ class Settings(_Shape):
     provider: Literal["claude", "ollama"] = "claude"
     model: str | None = None
     api_key_set: bool = False
+    monthly_budget_usd: float | None = Field(
+        default=None, description="Warn once this month's spend passes it; null is off."
+    )
 
 
 # Client -> hub
@@ -199,6 +205,9 @@ class SettingsUpdate(_Request):
     provider: Literal["claude", "ollama"] | None = None
     model: str | None = None
     api_key: str | None = Field(default=None, description="Stored in the Keychain, never echoed.")
+    monthly_budget_usd: float | None = Field(
+        default=None, description="A new monthly limit; 0 or less turns it off."
+    )
 
 
 class SettingsTest(_Request):
@@ -292,6 +301,19 @@ class ChatStatus(_Message):
         description="reading: the hub reads Live. thinking: the model works before it writes. "
         "steps: the model writes its steps."
     )
+    detail: str | None = Field(
+        default=None, description='What the phase is about, e.g. "Reading Kick, Sub Bass".'
+    )
+
+
+class ChatLooked(_Message):
+    """Tracks the model read during a turn, sent as each read happens. Each message carries
+    only the new reads; ChatTurn.looked_at has them all on replay."""
+
+    type: Literal["chat.looked"] = "chat.looked"
+    chat_id: str
+    turn_id: str
+    tracks: list[TrackRef]
 
 
 class ChatDelta(_Message):
@@ -356,6 +378,16 @@ class UsageReport(_Message):
     prices_checked_on: str = Field(description="When the price table was last checked, YYYY-MM-DD.")
 
 
+class UsageBudget(_Message):
+    """This month's spend against the monthly budget. Sent after each turn while a budget is
+    set."""
+
+    type: Literal["usage.budget"] = "usage.budget"
+    month_cost_usd: float = Field(description="Estimated spend since the 1st, local time.")
+    limit_usd: float
+    over: bool = Field(description="True once month_cost_usd passes limit_usd.")
+
+
 class SettingsChanged(_Message):
     type: Literal["settings"] = "settings"
     request_id: str | None = None
@@ -376,7 +408,8 @@ class ErrorMessage(_Message):
 
 HubMessage = Annotated[
     Union[Welcome, LiveStatusChanged, Tracks, ChatChanged, ChatClosed, ChatHistory, ChatStatus,
-          ChatDelta, ChatSteps, ChatDone, SettingsChanged, UsageReport, ErrorMessage],
+          ChatDelta, ChatSteps, ChatDone, SettingsChanged, UsageReport, ErrorMessage,
+          ChatLooked, UsageBudget],
     Field(discriminator="type"),
 ]
 
