@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500&display=block" rel="stylesheet">
+<style>
+  :root {
+    --bg: #141210; --surface: #1d1a17; --raised: #2a2622; --inset: #0c0b0a;
+    --line: #2e2a25; --line-strong: #4a443c; --track: #3a352f;
+    --text: #ede6da; --quiet: #a69d90; --accent: #ffb547; --led: #ffb547;
+    --glow: rgba(255,181,71,.7); --ok: #7ce38b; --ok-glow: rgba(124,227,139,.7);
+    --cap-top: #34302b; --cap-bot: #1f1c19; --screw: #3a352f;
+  }
+  body.light {
+    --bg: #ede7db; --surface: #f7f3eb; --raised: #fbf8f2; --inset: #fbf8f2;
+    --line: #d3caba; --line-strong: #b9ae9b; --track: #d3caba;
+    --text: #24201b; --quiet: #6b6257; --accent: #c77700; --led: #ff9f1c;
+    --glow: rgba(255,159,28,.6); --ok: #2fa84f; --ok-glow: rgba(47,168,79,.5);
+    --cap-top: #ffffff; --cap-bot: #e4dccd; --screw: #c9bfae;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1280px; height: 400px; background: transparent; }
+  .plate {
+    position: absolute; inset: 0; border-radius: 22px; overflow: hidden;
+    background:
+      radial-gradient(ellipse 60% 90% at 18% 0%, color-mix(in srgb, var(--led) 10%, transparent), transparent 70%),
+      linear-gradient(180deg, var(--surface), var(--bg));
+    border: 1px solid var(--line-strong);
+    font-family: "IBM Plex Sans", sans-serif; color: var(--text);
+  }
+  .screw { position: absolute; width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, var(--line-strong), var(--screw));
+    box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
+  .screw::after { content: ""; position: absolute; left: 3px; right: 3px; top: 6px; height: 2px;
+    background: var(--inset); opacity: .7; transform: rotate(35deg); }
+  .left { position: absolute; left: 72px; top: 0; bottom: 0; width: 520px;
+    display: flex; flex-direction: column; justify-content: center; }
+  .badge { display: flex; align-items: center; gap: 10px; font: 600 14px/1 "IBM Plex Mono";
+    letter-spacing: .18em; color: var(--quiet); margin-bottom: 22px; }
+  .led { width: 9px; height: 9px; border-radius: 50%; background: var(--ok);
+    box-shadow: 0 0 10px var(--ok-glow); }
+  h1 { font: 700 84px/1 "IBM Plex Mono"; letter-spacing: -.035em; }
+  h1 span { color: var(--accent); }
+  p { margin-top: 22px; font: 400 25px/1.35 "IBM Plex Sans"; color: var(--quiet); }
+  p b { color: var(--text); font-weight: 500; }
+  .rack { position: absolute; right: 64px; top: 50%; transform: translateY(-50%);
+    display: grid; grid-template-columns: repeat(3, 150px); gap: 20px 6px;
+    padding: 22px 20px; border-radius: 16px; background: var(--inset);
+    border: 1px solid var(--line); box-shadow: inset 0 2px 8px rgba(0,0,0,.35); }
+  .k { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .k svg { width: 84px; height: 84px; overflow: visible; }
+  .k .lbl { font: 600 13px/1 "IBM Plex Mono"; letter-spacing: .16em; color: var(--quiet); }
+  .k .val { font: 500 13px/1 "IBM Plex Mono"; color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="plate">
+  <div class="screw" style="left:18px;top:18px"></div>
+  <div class="screw" style="right:18px;top:18px"></div>
+  <div class="screw" style="left:18px;bottom:18px"></div>
+  <div class="screw" style="right:18px;bottom:18px"></div>
+  <div class="left">
+    <div class="badge"><i class="led"></i>PRODUCER MATE FOR ABLETON LIVE</div>
+    <h1>vibe<span>2</span>knob</h1>
+    <p>Tell it the vibe.<br><b>You turn the knobs.</b></p>
+  </div>
+  <div class="rack" id="rack"></div>
+</div>
+<script>
+  if (location.hash === "#light") document.body.classList.add("light");
+  const knobs = [["WIDTH", .72, "140%"], ["WARMTH", .55, "+2.5 dB"], ["PUNCH", .8, "4:1"],
+                 ["SPACE", .38, "1.8 s"], ["DRIVE", .25, "3 dB"], ["AIR", .62, "12 kHz"]];
+  const A0 = -135, SPAN = 270, R = 44, C = 54;
+  const pt = (deg, r) => { const a = (deg - 90) * Math.PI / 180; return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
+  const arc = (from, to, r) => { const [x1, y1] = pt(from, r), [x2, y2] = pt(to, r);
+    return `M${x1} ${y1} A${r} ${r} 0 ${to - from > 180 ? 1 : 0} 1 ${x2} ${y2}`; };
+  document.getElementById("rack").innerHTML = knobs.map(([name, v, val], i) => {
+    const end = A0 + SPAN * v, [px, py] = pt(end, 24), [qx, qy] = pt(end, 12);
+    return `<div class="k">
+      <svg viewBox="0 0 108 108">
+        <defs><radialGradient id="g${i}" cx="40%" cy="30%" r="75%">
+          <stop offset="0" stop-color="var(--cap-top)"/><stop offset="1" stop-color="var(--cap-bot)"/></radialGradient>
+          <filter id="f${i}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter></defs>
+        <path d="${arc(A0, A0 + SPAN, R)}" fill="none" stroke="var(--track)" stroke-width="6" stroke-linecap="round"/>
+        <path d="${arc(A0, end, R)}" fill="none" stroke="var(--led)" stroke-width="6" stroke-linecap="round" filter="url(#f${i})" opacity=".8"/>
+        <path d="${arc(A0, end, R)}" fill="none" stroke="var(--led)" stroke-width="6" stroke-linecap="round"/>
+        <circle cx="${C}" cy="${C + 3}" r="31" fill="rgba(0,0,0,.35)" filter="url(#f${i})"/>
+        <circle cx="${C}" cy="${C}" r="31" fill="url(#g${i})" stroke="var(--line-strong)"/>
+        <line x1="${qx}" y1="${qy}" x2="${px}" y2="${py}" stroke="var(--text)" stroke-width="4" stroke-linecap="round"/>
+      </svg>
+      <span class="lbl">${name}</span><span class="val">${val}</span></div>`;
+  }).join("");
+</script>
+</body>
+</html>
