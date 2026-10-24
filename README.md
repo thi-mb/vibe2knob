@@ -89,12 +89,11 @@ model: no Live and no key.
 
 ```mermaid
 flowchart LR
-    live["Ableton Live"] <-->|"OSC"| osc["AbletonOSC"]
-    osc <--> hub["vibe2knob hub<br/>Python, on your Mac"]
+    you(["You"]) <-->|"the vibe in,<br/>knob moves out"| panel["Panel<br/>window or browser tab"]
+    panel <--> hub["vibe2knob hub<br/>Python, on your Mac"]
+    hub <--> osc["AbletonOSC"]
+    osc <--> live["Ableton Live"]
     hub <--> model["Claude or Ollama"]
-    hub <--> panel["Panel<br/>window or browser tab"]
-    you(["You"]) -->|"the vibe"| panel
-    panel -->|"knob moves"| you
 ```
 
 1. **The hub** owns the connection to Live, the model calls and your chats. The panel is a thin
