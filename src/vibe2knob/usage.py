@@ -29,7 +29,7 @@ log = logging.getLogger("vibe2knob.usage")
 
 USAGE_SCHEMA_VERSION = 1
 
-Kind = Literal["chat", "title", "ask"]
+Kind = Literal["chat", "title", "ask", "eval"]
 INPUT_PARTS = ("instructions", "tools", "live", "history", "message")
 OUTPUT_PARTS = ("thinking", "answer", "steps")
 
@@ -53,6 +53,7 @@ class UsageRecord(BaseModel):
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     thinking_tokens: int = 0
+    rounds: int = Field(default=1, description="Model calls summed into this record.")
     parts: dict[str, int] = Field(default_factory=dict)
     backfilled: bool = Field(default=False, description="Rebuilt from an old chat file.")
 

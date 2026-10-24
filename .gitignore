@@ -4,7 +4,8 @@ __pycache__/
 .venv/
 .pytest_cache/
 dist/
-evals/reports/
+evals/reports/*
+!evals/reports/baseline-*.json
 .env
 ui/e2e/results/
 ui/e2e/report/
