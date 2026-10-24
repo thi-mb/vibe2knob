@@ -61,7 +61,7 @@ class ClaudeProvider:
                 thinking={"type": "adaptive"},
                 output_config={
                     "effort": self.effort,
-                    "format": {"type": "json_schema", "schema": schema},
+                    "format": {"type": "json_schema", "schema": _api_schema(schema)},
                 },
                 **_FALLBACK,
             )
@@ -79,8 +79,8 @@ class ClaudeProvider:
         # Step inputs are small, so they stream buffered (no eager_input_streaming), which
         # keeps the server's strict schema validation.
         tool_defs = [
-            {"name": t.name, "description": t.description, "input_schema": t.input_schema,
-             "strict": t.strict}
+            {"name": t.name, "description": t.description,
+             "input_schema": _api_schema(t.input_schema), "strict": t.strict}
             for t in tools
         ]
         try:
@@ -130,7 +130,8 @@ class ClaudeProvider:
 
         count_tokens is free (but rate-limited). None if it can't be reached.
         """
-        tool_defs = [{"name": t.name, "description": t.description, "input_schema": t.input_schema}
+        tool_defs = [{"name": t.name, "description": t.description,
+                      "input_schema": _api_schema(t.input_schema)}
                      for t in tools]
         key = hashlib.sha256(json.dumps([self.model, system, tool_defs]).encode()).hexdigest()
         if key not in self._counts:
@@ -234,3 +235,17 @@ def _api_errors():
         raise ProviderError(f"Could not reach the Anthropic API: {e}") from e
     except anthropic.APIStatusError as e:
         raise ProviderError(f"Anthropic API error {e.status_code}: {e.message}") from e
+
+
+def _api_schema(schema):
+    """The schema as strict structured outputs accept it: `maxItems` isn't supported there, so
+    it moves into the array's description (the evals' step count check catches answers over it)."""
+    if isinstance(schema, list):
+        return [_api_schema(s) for s in schema]
+    if not isinstance(schema, dict):
+        return schema
+    out = {k: _api_schema(v) for k, v in schema.items() if k != "maxItems"}
+    if "maxItems" in schema:
+        note = f"At most {schema['maxItems']} items."
+        out["description"] = f"{schema['description']} {note}" if schema.get("description") else note
+    return out

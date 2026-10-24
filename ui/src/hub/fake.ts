@@ -151,7 +151,7 @@ const tokensOf = (u: Usage) => u.input_tokens + u.cache_read_tokens + u.cache_wr
 
 interface FakeRecord {
   day: string;
-  kind: "chat" | "title" | "ask";
+  kind: "chat" | "title" | "ask" | "eval";
   chat_id: string | null;
   usage: Usage;
 }

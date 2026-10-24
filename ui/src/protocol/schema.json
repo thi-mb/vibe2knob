@@ -1888,7 +1888,7 @@
     "UsageGroup": {
       "properties": {
         "key": {
-          "description": "A model id, or a kind: chat, title or ask.",
+          "description": "A model id, or a kind: chat, title, ask or eval.",
           "type": "string"
         },
         "usage": {
