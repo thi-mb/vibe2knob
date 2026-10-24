@@ -23,7 +23,7 @@ One local **hub** (Python) owns the Live connection, the model calls and the cha
 ## Environment
 
 - Mac only for now, with Live 11 and 12 supported (tested on Live 11). Live 12-only APIs are optional extras.
-- v0.1 is for the maintainers only. The repo is private and has no license yet; pick one before it goes public.
+- v0.1 installs from source. The code is under the Apache License 2.0 (`LICENSE`, `NOTICE`).
 - Real-model evals need `ANTHROPIC_API_KEY`, which is only on Thiago's Mac. Pushes go from the cloud because a VPN blocks pushing from the Mac.
 
 ## Commands
