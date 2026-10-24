@@ -7,7 +7,7 @@ import pytest
 from live_bridge import LiveError
 from live_bridge.remote_script import (ABLETONOSC_COMMIT, DIFFERENT, MARKER, MISSING, OLDER,
                                        SAME, VENDORED, compare, install, install_dir)
-from vibe2knob import doctor
+from vibe2knob import doctor, server
 from vibe2knob.cli import main
 from vibe2knob.store import MemoryKeys, Store
 
@@ -136,6 +136,7 @@ def test_doctor_never_shows_the_key(tmp_path, monkeypatch):
 
 def test_doctor_report_and_exit_code(library, monkeypatch, capsys):
     monkeypatch.setattr(doctor, "check_live", lambda port: doctor.Check(doctor.OK, "Live"))
+    monkeypatch.setattr(server, "find_ui", lambda: Path("web"))  # CI's hub job doesn't build it
     assert main(["doctor", "--user-library", str(library)]) == 1  # AbletonOSC is missing
     assert "vibe2knob setup-live" in capsys.readouterr().out
     install(install_dir(library), Path(library) / "b")
