@@ -420,6 +420,39 @@ button:disabled {
 .chip.add:hover {
   color: var(--text);
 }
+/* Looked-at chips: the tracks the model read for an answer. */
+.looked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.looked-label {
+  font: 10px var(--font-mono);
+  letter-spacing: 0.08em;
+  color: var(--text-quiet);
+}
+.chip.looked-chip {
+  border-style: dashed;
+  background: transparent;
+  color: var(--text-body);
+  min-height: 24px;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.chip.looked-chip:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+.chip.looked-chip:disabled {
+  color: var(--text-quiet);
+  cursor: default;
+}
+.looked-pin {
+  color: var(--text-quiet);
+  font-size: 13px;
+  line-height: 1;
+}
 .chip .chip-remove {
   border: none;
   background: transparent;
@@ -589,6 +622,12 @@ button:disabled {
   font: 11px var(--font-mono);
   letter-spacing: 0.08em;
   color: var(--text-quiet);
+}
+.progress .progress-detail {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  letter-spacing: 0;
+  color: var(--text-body);
 }
 .progress .elapsed {
   font-variant-numeric: tabular-nums;
@@ -1153,6 +1192,36 @@ select.field {
 }
 .long-chat .link-button {
   flex: none;
+}
+.budget-banner {
+  margin: 8px var(--gutter) 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--caution);
+  background: var(--caution-bg);
+  border-radius: 8px;
+  padding: 6px 6px 6px 12px;
+}
+.budget-banner strong {
+  font-weight: 600;
+}
+.budget-banner .icon-button {
+  flex: none;
+  color: inherit;
+}
+.money-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-quiet);
+}
+.form-row label .over {
+  color: var(--caution);
 }
 .usage-pop {
   position: absolute;
