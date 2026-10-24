@@ -7,7 +7,7 @@ vibe2knob is a producer mate that sits next to Ableton Live. Say how a track sho
 moves with Live's stock devices: which device, which knob, roughly where to set it, and why.
 It teaches; it never touches your set.
 
-<!-- demo GIF goes here: docs/media/demo.gif -->
+https://github.com/user-attachments/assets/e24fceaa-c6d5-4e1d-87cd-cd9a5360be7d
 
 - **It reads your set.** Through [AbletonOSC](https://github.com/ideoforms/AbletonOSC) it sees
   your tracks, their devices and parameter values, and which tracks play together in the
