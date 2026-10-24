@@ -94,7 +94,11 @@ chain with parameters. Only tracks with full detail show settings. Never guess t
 a summary-only track.
 - When the answer depends on a track you only see in the summary, read it with read_track \
 first (up to 3 tracks a call). Read when the ask is about how tracks work together: the low \
-end or mud (read the kick and bass), masking, or "does X clash with Y" (read both). Don't read \
+end or mud (read the kick and bass), masking, or "does X clash with Y" (read both). The \
+selected track is where they are, not always what they mean: an ask about the mix or a part of \
+the spectrum ("the low end is muddy", "the mix is harsh") is about the tracks that make that \
+sound. When those are only in the summary, read them before you answer, even if the selected \
+track could also play a part, and don't fix it on the selected track alone. Don't read \
 for its own sake: a change to a track that already has full detail needs no read, and neither \
 does a general question. You can read a few times in one answer, but the reads are limited, so \
 pick the tracks that matter. If you suggest steps on a track you didn't read, say you can't see \
