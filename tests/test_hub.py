@@ -16,6 +16,7 @@ from vibe2knob.providers import ProviderError  # noqa: E402
 from vibe2knob.providers.fake import FakeProvider, Reply  # noqa: E402
 from vibe2knob.server import Access, create_app  # noqa: E402
 from vibe2knob.store import MemoryKeys, Store, StoredSettings  # noqa: E402
+from vibe2knob.usage import UsageRecord  # noqa: E402
 
 from .conftest import FIXTURES, WIDER_PAD  # noqa: E402
 
@@ -430,6 +431,43 @@ def test_usage_reaches_the_tab_the_turn_and_the_report(setup, tmp_path):
     with TestClient(again.app) as client, connect(client) as ws:
         m = hello(ws)
     assert m["chats"][0]["usage"]["output_tokens"] == tab["usage"]["output_tokens"]
+
+
+def test_monthly_budget_warns_after_each_turn(tmp_path):
+    # $1.00 spent earlier this month on Sonnet.
+    Store(tmp_path).usage.append([UsageRecord(model="claude-sonnet-5-5", input_tokens=500_000)])
+    setup = Setup(tmp_path)
+    with TestClient(setup.app) as client, connect(client) as ws:
+        hello(ws)
+        ws.send_json({"v": 1, "type": "settings.update", "monthly_budget_usd": 2.5,
+                      "request_id": "b"})
+        assert until(ws, "settings")["settings"]["monthly_budget_usd"] == 2.5
+        budget = until(ws, "usage.budget")
+        assert budget["limit_usd"] == 2.5 and budget["month_cost_usd"] == 1.0
+        assert budget["over"] is False
+        ws.send_json({"v": 1, "type": "settings.update", "monthly_budget_usd": 0.5})
+        assert until(ws, "usage.budget")["over"] is True
+        # Every finished turn reports the month again. Nothing stops the turn.
+        chat_id = create_chat(ws)
+        ws.send_json({"v": 1, "type": "chat.send", "chat_id": chat_id, "text": "make it wider"})
+        assert "chat.steps" in [m["type"] for m in collect_turn(ws)]
+        assert until(ws, "usage.budget")["over"] is True
+    # After a restart, a client hears it right after the welcome.
+    setup = Setup(tmp_path)
+    assert setup.hub.settings.monthly_budget_usd == 0.5
+    # Spend that `vibe2knob eval` writes to the ledger while the hub runs counts too.
+    before = setup.hub.budget().month_cost_usd
+    setup.store.usage.append([UsageRecord(kind="eval", model="claude-sonnet-5-5", input_tokens=500_000)])
+    assert setup.hub.budget().month_cost_usd == round(before + 1.0, 6)
+    with TestClient(setup.app) as client, connect(client) as ws:
+        hello(ws)
+        assert ws.receive_json()["type"] == "usage.budget"
+        # 0 or less turns it off, and no budget message follows.
+        ws.send_json({"v": 1, "type": "settings.update", "monthly_budget_usd": 0})
+        assert until(ws, "settings")["settings"]["monthly_budget_usd"] is None
+        ws.send_json({"v": 1, "type": "chat.create", "request_id": "c", "context": {}})
+        assert ws.receive_json()["type"] == "chat.changed"
+    assert setup.hub.budget() is None
 
 
 def test_first_run_backfills_the_ledger_from_saved_chats(tmp_path):

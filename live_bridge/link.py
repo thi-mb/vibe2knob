@@ -13,6 +13,12 @@ Reads return plain dicts, so this package doesn't depend on vibe2knob:
    "tracks": [{"index", "is_group", "is_grouped",
                "clips": [{"name", "start", "end"}] | None}]}
   Group tracks have clips None (their children carry the clips).
+- session_view(): Session view's clip grid and what plays from it, or None when the link
+  can't tell:
+  {"schema_version": 1, "is_playing": bool | None, "scenes": [{"index", "name"}],
+   "tracks": [{"index", "is_group", "slots": [{"name", "length"} | None],
+               "playing_slot": int | None, "fired_slot": int | None}]}
+  One slot per scene; length is in beats. Group slots are always None here.
 
 Callbacks from subscribe_selection() and subscribe_status() run on a background thread.
 Keep them short; they may call the read methods.
@@ -26,6 +32,7 @@ OFFLINE = "offline"
 
 SUMMARY_SCHEMA_VERSION = 1
 ARRANGEMENT_SCHEMA_VERSION = 1
+SESSION_VIEW_SCHEMA_VERSION = 1
 
 
 class LiveError(RuntimeError):
@@ -128,6 +135,9 @@ class LiveLink:
         raise NotImplementedError
 
     def arrangement(self):
+        return None
+
+    def session_view(self):
         return None
 
     def selected_track_state(self):

@@ -46,6 +46,10 @@ def test_settings(store):
     assert {k: data[k] for k in ("schema_version", "provider", "model")} == {
         "schema_version": 1, "provider": "ollama", "model": "qwen"}
     assert store.load_settings().model == "qwen"
+    # A file saved before the budget existed loads with it off.
+    assert store.load_settings().monthly_budget_usd is None
+    store.save_settings(StoredSettings(monthly_budget_usd=5.0))
+    assert store.load_settings().monthly_budget_usd == 5.0
     store.settings_path.write_text(json.dumps({"schema_version": 2}))
     with pytest.raises(ValueError, match="newer"):
         store.load_settings()

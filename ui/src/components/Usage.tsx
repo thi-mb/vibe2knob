@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ChatSummary, Usage, UsageReport } from "../protocol/types";
+import type { ChatSummary, Usage, UsageBudget, UsageReport } from "../protocol/types";
 import type { UsageRange } from "../state/store";
 import {
   KIND_LABELS,
@@ -291,6 +291,30 @@ function ChatUsagePop({ chat, usage, pct }: { chat: ChatSummary; usage: Usage; p
 }
 
 /** The small line under an answer, shown on hover or focus. */
+interface BudgetBannerProps {
+  budget: UsageBudget;
+  onSettings(): void;
+  onDismiss(): void;
+}
+
+/** Shown once a month, when this month's spend passes the limit. */
+export function BudgetBanner({ budget, onSettings, onDismiss }: BudgetBannerProps) {
+  return (
+    <div className="budget-banner" role="status">
+      <span>
+        This month's estimated spend passed your <strong className="mono">${budget.limit_usd.toFixed(2)}</strong> limit.
+        Answers keep working.{" "}
+        <button className="link-button" onClick={onSettings}>
+          See usage
+        </button>
+      </span>
+      <button className="icon-button" aria-label="Dismiss for this month" onClick={onDismiss}>
+        ×
+      </button>
+    </div>
+  );
+}
+
 export function TurnUsage({ usage }: { usage: Usage }) {
   const cost = fmtCost(usage);
   const parts = partRows(usage)
@@ -312,22 +336,87 @@ const RANGES: { id: UsageRange; label: string }[] = [
   { id: "all", label: "All" },
 ];
 
+/** "5", "2.5", "12.25": a limit as the user would type it. */
+function limitText(limit: number | null): string {
+  return limit === null ? "" : String(Number(limit.toFixed(2)));
+}
+
+interface BudgetFieldProps {
+  limit: number | null;
+  budget: UsageBudget | null;
+  onLimit(limit: number): void;
+}
+
+/** The monthly limit. Passing it shows a banner once that month; it never stops an answer. */
+function BudgetField({ limit, budget, onLimit }: BudgetFieldProps) {
+  const [text, setText] = useState(limitText(limit));
+  useEffect(() => setText(limitText(limit)), [limit]);
+  const value = text.trim() === "" ? 0 : Number(text);
+  const valid = Number.isFinite(value) && value >= 0;
+  const changed = valid && value !== (limit ?? 0);
+  return (
+    <form
+      className="form-row"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (changed) onLimit(value);
+      }}
+    >
+      <label htmlFor="budget">
+        <span>Monthly limit (USD)</span>
+        {budget && (
+          <span className={`mono ${budget.over ? "over" : ""}`}>
+            {fmtDollars(budget.month_cost_usd) ?? "$0"} of ${budget.limit_usd.toFixed(2)} this month
+          </span>
+        )}
+      </label>
+      <div className="input-row">
+        <span className="money-field">
+          <span className="mono" aria-hidden="true">$</span>
+          <input
+            id="budget"
+            className="field mono"
+            inputMode="decimal"
+            autoComplete="off"
+            placeholder="Off"
+            value={text}
+            aria-invalid={!valid}
+            onChange={(e) => setText(e.target.value)}
+          />
+        </span>
+        <button className="secondary" type="submit" disabled={!changed}>
+          {limit !== null && value === 0 && valid ? "Turn off" : "Save"}
+        </button>
+      </div>
+      <div className="hint">
+        {valid
+          ? "A heads-up once this month's estimated spend passes it. Answers keep working. Empty is off."
+          : "Type an amount in dollars, like 5 or 2.50."}
+      </div>
+    </form>
+  );
+}
+
 interface UsageSectionProps {
   report: UsageReport | null;
   range: UsageRange;
   provider: string;
+  limit: number | null;
+  budget: UsageBudget | null;
   onRange(range: UsageRange): void;
   onOpenChat(chatId: string): void;
+  onLimit(limit: number): void;
 }
 
 /** Settings › Usage: totals, a daily chart, and where the tokens went. */
-export function UsageSection({ report, range, provider, onRange, onOpenChat }: UsageSectionProps) {
+export function UsageSection({ report, range, provider, limit, budget, onRange, onOpenChat, onLimit }: UsageSectionProps) {
   const t = report?.totals[range];
   return (
     <section aria-labelledby="s-usage">
       <div className="label" id="s-usage">
         Usage
       </div>
+      {provider !== "ollama" && <BudgetField limit={limit} budget={budget} onLimit={onLimit} />}
       <div className="segmented" role="group" aria-label="Usage range">
         {RANGES.map((r) => (
           <button key={r.id} type="button" aria-pressed={range === r.id} onClick={() => onRange(r.id)}>
