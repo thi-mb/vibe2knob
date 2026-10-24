@@ -432,3 +432,97 @@ def test_fake_live_arrangement():
     assert [c["name"] for c in arrangement["locators"]][:3] == ["Intro", "Verse", "Chorus"]
     assert len(arrangement["tracks"]) == len(live._states)
     assert FakeLive([FIXTURES / "synth_pad.json"]).arrangement() is None
+
+
+# Session view
+
+
+class SessionProbeOSC(ProbeOSC):
+    """Replays the Session view probe of a real Live 11.3 set (fixtures/session)."""
+
+    def __init__(self, probe, reply_port, *, clips_work=True, playing=None):
+        self.clips_work = clips_work
+        # track -> slot, to replay a set with clips playing (the probe had none).
+        self.playing = playing or {}
+        super().__init__(probe, reply_port)
+
+    def _answer(self, address, args):
+        if address == "/live/song/get/scenes/name":
+            return self.probe["scene_lists"]["scenes/name"]
+        if address == "/live/song/get/is_playing" and self.playing:
+            return [True]
+        if address.startswith("/live/track/get/clips/") and not self.clips_work:
+            return None
+        if address == "/live/track/get/playing_slot_index" and args[0] in self.playing:
+            return [args[0], self.playing[args[0]]]
+        return super()._answer(address, args)
+
+
+@pytest.fixture
+def session_set():
+    servers, bridges = [], []
+
+    def connect(fixture="probe_live11.json", **kwargs):
+        probe = json.loads((FIXTURES / "session" / fixture).read_text())
+        receive_port = _free_port()
+        server = SessionProbeOSC(probe, receive_port, **kwargs)
+        servers.append(server)
+        bridge = LiveBridge(osc=OscClient("127.0.0.1", server.port, receive_port), timeout=0.3)
+        bridges.append(bridge)
+        return server, bridge
+
+    yield connect
+    for bridge in bridges:
+        bridge.close()
+    for server in servers:
+        server.close()
+
+
+def test_session_view_from_a_real_set(session_set):
+    server, live = session_set()
+    started = time.monotonic()
+    view = live.session_view()
+    assert time.monotonic() - started < 0.3  # everything answers, groups included
+    assert view["is_playing"] is False
+    assert [s["name"] for s in view["scenes"]] == [""] * 8
+    tracks = view["tracks"]
+    assert len(tracks) == 7
+    drums, bass = tracks[0], tracks[1]
+    assert drums["slots"][:2] == [{"name": "no hihat", "length": 16.0},
+                                  {"name": "mid hihat", "length": 16.0}]
+    assert drums["slots"][5:] == [None, None, None]
+    assert bass["is_group"] and bass["slots"] == [None] * 8
+    assert all(t["playing_slot"] is None and t["fired_slot"] is None for t in tracks)
+
+
+def test_session_view_playing(session_set):
+    server, live = session_set(playing={0: 2, 2: 2})
+    view = live.session_view()
+    assert view["is_playing"] is True
+    assert [t["playing_slot"] for t in view["tracks"]] == [2, None, 2, None, None, None, None]
+
+
+def test_session_view_with_a_scene_playing(session_set):
+    # Probed with the third scene launched. "bass filthy" has no clip there, so the scene
+    # fired its stop button (-2); the groups say -1 while their tracks play.
+    server, live = session_set("probe_live11_playing.json")
+    view = live.session_view()
+    assert view["is_playing"] is True
+    assert [t["playing_slot"] for t in view["tracks"]] == [2, None, 2, None, None, 2, 2]
+
+
+def test_session_view_with_an_old_abletonosc(session_set):
+    server, live = session_set(clips_work=False)
+    assert live.session_view() is None
+    asked = len(server.received)
+    assert live.session_view() is None
+    assert len(server.received) == asked
+
+
+def test_fake_live_session_view():
+    live = FakeLive()
+    view = live.session_view()
+    assert [s["name"] for s in view["scenes"]][:3] == ["Intro", "Verse", "Chorus"]
+    assert len(view["tracks"]) == len(live._states)
+    assert view["is_playing"]
+    assert FakeLive([FIXTURES / "synth_pad.json"]).session_view() is None
