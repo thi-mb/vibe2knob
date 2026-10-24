@@ -460,10 +460,10 @@ class SessionProbeOSC(ProbeOSC):
 
 @pytest.fixture
 def session_set():
-    probe = json.loads((FIXTURES / "session" / "probe_live11.json").read_text())
     servers, bridges = [], []
 
-    def connect(**kwargs):
+    def connect(fixture="probe_live11.json", **kwargs):
+        probe = json.loads((FIXTURES / "session" / fixture).read_text())
         receive_port = _free_port()
         server = SessionProbeOSC(probe, receive_port, **kwargs)
         servers.append(server)
@@ -500,6 +500,15 @@ def test_session_view_playing(session_set):
     view = live.session_view()
     assert view["is_playing"] is True
     assert [t["playing_slot"] for t in view["tracks"]] == [2, None, 2, None, None, None, None]
+
+
+def test_session_view_with_a_scene_playing(session_set):
+    # Probed with the third scene launched. "bass filthy" has no clip there, so the scene
+    # fired its stop button (-2); the groups say -1 while their tracks play.
+    server, live = session_set("probe_live11_playing.json")
+    view = live.session_view()
+    assert view["is_playing"] is True
+    assert [t["playing_slot"] for t in view["tracks"]] == [2, None, 2, None, None, 2, 2]
 
 
 def test_session_view_with_an_old_abletonosc(session_set):
