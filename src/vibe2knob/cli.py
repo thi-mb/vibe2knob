@@ -55,7 +55,8 @@ def cmd_ask(args: argparse.Namespace) -> int:
 
 def cmd_chat(args: argparse.Namespace) -> int:
     from .advice import format_step
-    from .chat import Chat, ChatEngine, ChatTitled, TurnDone, TurnError, TurnSteps, TurnText
+    from .chat import (Chat, ChatEngine, ChatTitled, TurnDone, TurnError, TurnLooked, TurnSteps,
+                       TurnText)
     from .protocol import ContextSet
     from .session import StaticLive
 
@@ -88,6 +89,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
                     print(f"Watch out: {event.caution}")
                 for w in event.warnings:
                     print(f"[check] {w}")
+            elif isinstance(event, TurnLooked):
+                print(f"\n(looked at {', '.join(t.name for t in event.tracks)})")
             elif isinstance(event, TurnError):
                 print(f"\nerror: {event.message}", file=sys.stderr)
             elif isinstance(event, ChatTitled):

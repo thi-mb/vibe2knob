@@ -60,7 +60,7 @@ def test_prose_only_answer():
     assert user.text.startswith("what's") and answer.steps == [] and answer.error is None
     sent = provider.calls[0]["messages"][-1]["content"]
     assert "No tracks are in this chat's context." in sent
-    assert [t.name for t in provider.calls[0]["tools"]] == ["suggest_steps"]
+    assert [t.name for t in provider.calls[0]["tools"]] == ["suggest_steps", "read_track"]
 
 
 def test_turn_reports_its_phases_before_anything_shows():
