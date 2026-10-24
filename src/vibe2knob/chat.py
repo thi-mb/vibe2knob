@@ -9,9 +9,9 @@ turn the engine reads Live afresh and builds the prompt from:
   the last answer (the "refine" diff).
 
 The answer is streamed prose plus an optional `suggest_steps` tool call (see tools.py).
-When the model calls a read tool (`read_track`), the engine runs it, sends the result back
-and calls the model again, up to a read budget per turn; the prose of every round joins
-into one answer.
+When the model calls a read tool (`read_track`, `read_arrangement`, `read_scenes`), the
+engine runs it, sends the result back and calls the model again, up to a read budget per
+turn; the prose of every round joins into one answer.
 """
 
 from __future__ import annotations
@@ -46,7 +46,8 @@ CHAT_SCHEMA_VERSION = 1
 # More changes than this are cut, so a big edit doesn't flood the prompt.
 MAX_CHANGES = 25
 
-# The read budget of one turn: model rounds that may read, and tracks read in all.
+# The read budget of one turn: model rounds that may read, and reads in all (a track read
+# with read_track, or one read_arrangement or read_scenes call).
 MAX_READ_ROUNDS = 3
 MAX_READS = 6
 
@@ -398,7 +399,7 @@ class ChatEngine:
 
         The model may call read tools; then the engine runs them, appends the results and
         calls it again, until a round reads nothing. The read budget (MAX_READ_ROUNDS rounds,
-        MAX_READS tracks) is told to the model as a tool result, so the tool list and the
+        MAX_READS reads) is told to the model as a tool result, so the tool list and the
         cached prefix never change within a turn.
         """
         turn = AssistantTurn()
@@ -467,9 +468,9 @@ class ChatEngine:
                 break
             over = read_rounds >= MAX_READ_ROUNDS
             read_rounds += 0 if over else 1
-            names = [n for c in reads for n in c.input.get("tracks") or [] if isinstance(n, str)]
-            if names and not over and tool_ctx.reads_left > 0:
-                yield TurnStatus(turn.id, "reading", "Reading " + ", ".join(names))
+            what = [d for c in reads if (d := self.tools.status(c.name, c.input))]
+            if what and not over and tool_ctx.reads_left > 0:
+                yield TurnStatus(turn.id, "reading", "Reading " + "; ".join(what))
             seen = len(tool_ctx.looked)
             for c in reads:
                 outcome = (ToolOutcome(result=BUDGET_USED) if over

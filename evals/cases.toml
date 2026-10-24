@@ -314,3 +314,34 @@ request = "how do these 2 interact?"
 why = "Like chat-never-overlap, but the Live link also reports an empty Session view (8 empty scenes). No Session view part goes to the model, and the answer still says the two never play at the same time."
 expect_no_steps = true
 mention_any = ["never", "same time", "at once", "don't overlap", "do not overlap", "take turns", "alternate", "hand off", "handover", "hand over"]
+
+# Range cases: the model reads a part of the song or a scene with read_arrangement or
+# read_scenes, because the context names only some of who plays there.
+#
+#   expect_tools     read tools the model must call
+
+[[case]]
+id = "chat-range-drop"
+chat_only = true
+session = ["../fixtures/lead_vocal.json", "../fixtures/sub_bass.json", "../fixtures/synth_pad.json", "../fixtures/guitar_plugins.json", "../fixtures/drum_group.json", "../fixtures/drum_rack.json"]
+fixture = "../fixtures/drum_rack.json"
+plays = { "../fixtures/lead_vocal.json" = [[9, 24], [45, 56]], "../fixtures/sub_bass.json" = [[9, 24], [41, 64]], "../fixtures/synth_pad.json" = [[1, 8], [25, 40], [49, 56]], "../fixtures/guitar_plugins.json" = [[1, 48]], "../fixtures/drum_rack.json" = [[9, 24], [41, 64]] }
+locators = [{ name = "Intro", bar = 1 }, { name = "Verse", bar = 9 }, { name = "Build", bar = 25 }, { name = "Drop", bar = 41 }, { name = "Outro", bar = 57 }]
+request = "what plays in the drop?"
+why = "Five tracks play in the Drop (bars 41-56), but its section line names only the two that play throughout. A good answer reads the range with read_arrangement and names the rest too: the guitar (4-Audio) in its first half, the vocal from bar 45, the pad from bar 49."
+expect_no_steps = true
+expect_tools = ["read_arrangement"]
+mention_any = ["Warm Pad", "4-Audio"]
+
+[[case]]
+id = "chat-scene-read"
+chat_only = true
+session = ["../fixtures/lead_vocal.json", "../fixtures/sub_bass.json", "../fixtures/synth_pad.json", "../fixtures/guitar_plugins.json", "../fixtures/drum_group.json", "../fixtures/drum_rack.json"]
+fixture = "../fixtures/lead_vocal.json"
+scenes = { "../fixtures/lead_vocal.json" = [2, 3], "../fixtures/sub_bass.json" = [2, 3, 4], "../fixtures/synth_pad.json" = [1, 3, 4], "../fixtures/guitar_plugins.json" = [1, 3], "../fixtures/drum_rack.json" = [2, 3, 4] }
+scene_names = ["Intro", "Verse", "Drop", "Break"]
+request = "which clips would I launch with the Drop scene?"
+why = "The Drop scene has five clips, but its line in the Session view part names four and says \"and 1 more\". A good answer reads the scene with read_scenes and lists all five, the Beat included."
+expect_no_steps = true
+expect_tools = ["read_scenes"]
+mention_any = ["Beat"]
