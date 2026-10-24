@@ -83,3 +83,26 @@ def test_example_tracks_are_additive():
     assert isinstance(use, protocol.LiveUseExample) and use.name is None
     ref = protocol.TrackRef(index=0, name="Warm Pad", type="midi")
     assert ref.devices == [] and protocol.LiveStatus(connected=False).example is None
+
+
+def test_v02_reads_and_budget_are_additive():
+    status = parse_hub('{"type": "chat.status", "chat_id": "c", "turn_id": "t", "phase": "reading"}')
+    assert status.detail is None
+    status = parse_hub(json.dumps({"type": "chat.status", "chat_id": "c", "turn_id": "t",
+                                   "phase": "reading", "detail": "Reading Kick, Sub Bass"}))
+    assert status.detail == "Reading Kick, Sub Bass"
+
+    looked = parse_hub(json.dumps({"type": "chat.looked", "chat_id": "c", "turn_id": "t",
+                                   "tracks": [{"index": 0, "name": "Kick", "type": "audio"}]}))
+    assert isinstance(looked, protocol.ChatLooked) and looked.tracks[0].name == "Kick"
+
+    turn = protocol.ChatTurn(id="t", role="assistant", text="x", created_at="t")
+    assert turn.looked_at == []
+    assert protocol.Settings().monthly_budget_usd is None
+    update = parse_client('{"type": "settings.update", "monthly_budget_usd": 10}')
+    assert update.monthly_budget_usd == 10.0
+
+    budget = parse_hub('{"type": "usage.budget", "month_cost_usd": 12.5, "limit_usd": 10, "over": true}')
+    assert isinstance(budget, protocol.UsageBudget) and budget.over
+    assert "ChatLooked" in schema()["$defs"] and "UsageBudget" in schema()["$defs"]
+    assert protocol.PROTOCOL_VERSION == 1

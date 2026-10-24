@@ -215,15 +215,15 @@ function seedChats(long = false): FakeChat[] {
     summary: { id: "c-pad", title: "Pad width", context: { follow_selection: true, pinned: [] }, updated_at: now(5),
       usage: null, title_usage: null, context_tokens: null, context_window: null },
     turns: [
-      { id: "u-1", role: "user", text: "make it wider", created_at: now(0), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null },
-      { id: "t-1", role: "assistant", text: WIDER.text, created_at: now(1), steps: WIDER.steps, listen_for: WIDER.listen_for, caution: WIDER.caution, warnings: [], error: null, usage: padUsage },
+      { id: "u-1", role: "user", text: "make it wider", created_at: now(0), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [] },
+      { id: "t-1", role: "assistant", text: WIDER.text, created_at: now(1), steps: WIDER.steps, listen_for: WIDER.listen_for, caution: WIDER.caution, warnings: [], error: null, usage: padUsage, looked_at: [] },
     ],
   };
   const mud: FakeChat = {
     summary: { id: "c-mud", title: "Low-end mud", context: { follow_selection: true, pinned: [0] }, updated_at: now(2),
       usage: null, title_usage: null, context_tokens: null, context_window: null },
     turns: [
-      { id: "u-2", role: "user", text: "the low end feels muddy", created_at: now(-30), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null },
+      { id: "u-2", role: "user", text: "the low end feels muddy", created_at: now(-30), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [] },
       {
         id: "t-2", role: "assistant", created_at: now(-29), caution: null,
         text: "Three things fight under 200 Hz: your sub, the kick in Beat, and the left hand of Warm Pad. Start by clearing the pad out, then let the kick duck the sub.",
@@ -237,6 +237,7 @@ function seedChats(long = false): FakeChat[] {
         warnings: ["Sidechain routing isn't readable through AbletonOSC, so check Audio From on the Compressor yourself."],
         error: null,
         usage: turnUsage({ live: 5900, history: 0, message: 6, thinking: 410, answer: 190, steps: 330 }),
+        looked_at: [],
       },
     ],
   };
@@ -279,7 +280,7 @@ export class FakeHub {
       this.records.push({ day: TODAY, kind: "title", chat_id: chat.summary.id, usage: titleUsage() });
       this.refreshSummary(chat);
     }
-    this.settings = { provider: "claude", model: "claude-haiku-5-5", api_key_set: !firstRun };
+    this.settings = { provider: "claude", model: "claude-haiku-5-5", api_key_set: !firstRun, monthly_budget_usd: null };
     this.live =
       this.scenario === "offline"
         ? { connected: false, selected_track: null, detail: "AbletonOSC isn't answering on port 11000.", example: null }
@@ -379,6 +380,7 @@ export class FakeHub {
           provider: m.provider ?? this.settings.provider,
           model: m.model ?? this.settings.model,
           api_key_set: this.settings.api_key_set || !!m.api_key,
+          monthly_budget_usd: this.settings.monthly_budget_usd,
         };
         this.broadcast({ v: 1, type: "settings", request_id, settings: this.settings, test_result: null });
         return;
@@ -472,7 +474,7 @@ export class FakeHub {
     const chat = this.find(chatId);
     if (!chat) return this.notFound(socket, request_id, chatId);
     const at = new Date().toISOString();
-    chat.turns.push({ id: `u-${this.nextId++}`, role: "user", text, created_at: at, steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null });
+    chat.turns.push({ id: `u-${this.nextId++}`, role: "user", text, created_at: at, steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [] });
     const turn_id = `t-${this.nextId++}`;
     const general = !chat.summary.context.follow_selection && chat.summary.context.pinned.length === 0;
     const lower = text.toLowerCase();
@@ -501,7 +503,7 @@ export class FakeHub {
         if (script.steps) {
           this.broadcast({ v: 1, type: "chat.steps", chat_id: chatId, turn_id, steps: script.steps, listen_for: script.listen_for, caution: script.caution, warnings: [] });
         }
-        chat.turns.push({ id: turn_id, role: "assistant", text: script.text, created_at: at, steps: script.steps, listen_for: script.listen_for, caution: script.caution, warnings: [], error: null, usage });
+        chat.turns.push({ id: turn_id, role: "assistant", text: script.text, created_at: at, steps: script.steps, listen_for: script.listen_for, caution: script.caution, warnings: [], error: null, usage, looked_at: [] });
         this.records.push({ day: TODAY, kind: "chat", chat_id: chatId, usage: usage! });
       }
       this.broadcast({ v: 1, type: "chat.done", chat_id: chatId, turn_id, usage });
@@ -515,7 +517,7 @@ export class FakeHub {
     };
     const status = (phase: "reading" | "thinking" | "steps") => {
       if (this.holdAt.has(phase)) this.held = true;
-      this.broadcast({ v: 1, type: "chat.status", chat_id: chatId, turn_id, phase });
+      this.broadcast({ v: 1, type: "chat.status", chat_id: chatId, turn_id, phase, detail: null });
     };
     const tick = () => {
       if (i >= words.length) {
