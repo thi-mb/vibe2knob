@@ -1,13 +1,13 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/media/banner-dark.png">
-    <img alt="vibe2knob: tell it the vibe, you turn the knobs" src="docs/media/banner-light.png" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/thi-mb/vibe2knob/main/docs/media/banner-dark.png">
+    <img alt="vibe2knob: tell it the vibe, you turn the knobs" src="https://raw.githubusercontent.com/thi-mb/vibe2knob/main/docs/media/banner-light.png" width="100%">
   </picture>
 </p>
 
 <p align="center">
-  <img alt="Status: v0.1" src="https://img.shields.io/badge/status-v0.1-ffb547?style=flat-square">
-  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-ffb547?style=flat-square"></a>
+  <img alt="Status: v0.2" src="https://img.shields.io/badge/status-v0.2-ffb547?style=flat-square">
+  <a href="https://github.com/thi-mb/vibe2knob/blob/main/LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-ffb547?style=flat-square"></a>
   <img alt="macOS" src="https://img.shields.io/badge/macOS-only-2a2622?style=flat-square&logo=apple&logoColor=white">
   <img alt="Ableton Live 11 and 12" src="https://img.shields.io/badge/Ableton%20Live-11%20%7C%2012-2a2622?style=flat-square">
   <img alt="Works with Claude or Ollama" src="https://img.shields.io/badge/models-Claude%20%7C%20Ollama-2a2622?style=flat-square">
@@ -34,31 +34,47 @@ https://github.com/user-attachments/assets/d3dd7c8f-d99a-4f13-8e09-6fe435dbef6a
   range, says why it works, and tells you what to listen for.
 - **You stay in control.** Nothing in Live changes unless you change it.
 
-> **Status: v0.1.** Mac only, Live 11 and 12 (tested on Live 11). Bring your own Claude API key,
+> **Status: v0.2.** Mac only, Live 11 and 12 (tested on Live 11). Bring your own Claude API key,
 > or run a model locally with Ollama. It's early, so expect rough edges and please open issues.
 
 ## Quick start
 
-You need macOS, Live 11 or later, Python 3.11+ and Node 22 (to build the panel).
+You need macOS, Live 11 or later, and Python 3.11+. [pipx](https://pipx.pypa.io) installs
+vibe2knob in its own environment; with [Homebrew](https://brew.sh) it's `brew install pipx`.
 
-1. **Install AbletonOSC.** Clone it into
-   `~/Music/Ableton/User Library/Remote Scripts/AbletonOSC`, restart Live, and pick
-   **AbletonOSC** as a Control Surface in Settings > Link, Tempo & MIDI.
-2. **Get vibe2knob and open the panel.**
+1. **Install vibe2knob.**
 
    ```sh
-   git clone https://github.com/thi-mb/vibe2knob && cd vibe2knob
-   python3 -m venv .venv
-   scripts/panel.sh
+   pipx install 'vibe2knob[window]'
    ```
 
-   `scripts/panel.sh` installs the package, builds the panel and opens it in a slim window that
-   stays on top of Live. Run it again after a `git pull`.
-3. **Follow the setup card.** Paste a Claude API key (or pick Ollama), check that Live is
+2. **Connect it to Live.** vibe2knob reads Live through
+   [AbletonOSC](https://github.com/ideoforms/AbletonOSC), a remote script. This copies it into
+   Live's Remote Scripts folder:
+
+   ```sh
+   vibe2knob setup-live
+   ```
+
+   Then restart Live, open Settings > Link, Tempo & MIDI (Preferences in Live 11) and pick
+   **AbletonOSC** as a Control Surface. `vibe2knob doctor` checks that it all works.
+3. **Open the panel.**
+
+   ```sh
+   vibe2knob panel --window
+   ```
+
+   It opens in a slim window that stays on top of Live. Leave out `--window` to use a browser
+   tab instead.
+4. **Follow the setup card.** Paste a Claude API key (or pick Ollama), check that Live is
    connected, then select a track in Live and say how it should feel.
 
-Want to look around first? `scripts/panel.sh --fake` runs on example tracks with a scripted
-model: no Live and no key.
+Want to look around first? `vibe2knob panel --window --fake` runs on example tracks with a
+scripted model: no Live and no key.
+
+To update, run `pipx upgrade vibe2knob`, then `vibe2knob setup-live` again in case AbletonOSC
+changed. To run it from a git checkout instead, see
+[docs/development.md](https://github.com/thi-mb/vibe2knob/blob/main/docs/development.md).
 
 ## Using it
 
@@ -98,7 +114,7 @@ flowchart LR
 
 1. **The hub** owns the connection to Live, the model calls and your chats. The panel is a thin
    client that only shows things and sends what you type.
-2. **The knowledge map.** [`terms.toml`](src/vibe2knob/knowledge/terms.toml) maps subjective
+2. **The knowledge map.** [`terms.toml`](https://github.com/thi-mb/vibe2knob/blob/main/src/vibe2knob/knowledge/terms.toml) maps subjective
    words to techniques with stock devices, starting values and pitfalls. For example, "wide"
    leads to Utility width, chorus, a Haas delay and mid/side EQ, with "keep the sub mono".
 3. **The check.** Steps are checked against your real device chain: stock devices only, and no
@@ -113,13 +129,12 @@ flowchart LR
 
 ## Command line
 
-The panel is the main way in, but the core works from a terminal too (with `.venv` active):
+The panel is the main way in, but there's more in the terminal:
 
 ```sh
-vibe2knob ask "make this wider" --state fixtures/synth_pad.json   # one answer for one track
-python3 -m live_bridge --json | vibe2knob ask "make this wider" --state -
-vibe2knob terms                                                    # the words it knows
-vibe2knob eval                                                     # run the advice test cases
+vibe2knob doctor          # check Python, the panel, your key, AbletonOSC and Live
+vibe2knob setup-live      # install or update AbletonOSC in Live
+vibe2knob terms           # the words it knows
 ```
 
 ## Known limits
@@ -132,26 +147,26 @@ vibe2knob eval                                                     # run the adv
 ## Roadmap
 
 - **v0.2:** Session view timing, a tool to ask what plays in a range of bars, tracks the model
-  reads on its own, and `pip install vibe2knob`.
+  reads on its own, and `pipx install vibe2knob`.
 - **v0.3:** speech input, and a Do mode that makes changes in Live for you, always shown,
   confirmed and undoable.
 - **v0.4:** our own remote script in place of AbletonOSC, for exact timing and loading devices.
 - **v0.5:** the panel on your phone.
 
-More ideas are in [docs/future-ideas.md](docs/future-ideas.md).
+More ideas are in [docs/future-ideas.md](https://github.com/thi-mb/vibe2knob/blob/main/docs/future-ideas.md).
 
 ## Contributing
 
 The easiest and most useful contribution needs no code: improve
-[`terms.toml`](src/vibe2knob/knowledge/terms.toml). Add a word people use, a better technique,
-or a pitfall you learned the hard way, and add a case to [`evals/cases.toml`](evals/cases.toml)
+[`terms.toml`](https://github.com/thi-mb/vibe2knob/blob/main/src/vibe2knob/knowledge/terms.toml). Add a word people use, a better technique,
+or a pitfall you learned the hard way, and add a case to [`evals/cases.toml`](https://github.com/thi-mb/vibe2knob/blob/main/evals/cases.toml)
 that says what a good answer must do. For example, "make the bass wider" must keep the sub mono.
 
-For code, see [docs/development.md](docs/development.md).
+For code, see [docs/development.md](https://github.com/thi-mb/vibe2knob/blob/main/docs/development.md).
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE).
+Apache License 2.0. See [LICENSE](https://github.com/thi-mb/vibe2knob/blob/main/LICENSE).
 
 vibe2knob is not affiliated with or endorsed by Ableton. Ableton and Live are trademarks of
 Ableton AG.

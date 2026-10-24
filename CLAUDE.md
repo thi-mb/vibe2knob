@@ -23,7 +23,7 @@ One local **hub** (Python) owns the Live connection, the model calls and the cha
 ## Environment
 
 - Mac only for now, with Live 11 and 12 supported (tested on Live 11). Live 12-only APIs are optional extras.
-- v0.1 installs from source. The code is under the Apache License 2.0 (`LICENSE`, `NOTICE`).
+- Users install with `pipx install 'vibe2knob[window]'` and `vibe2knob setup-live`, which copies the AbletonOSC vendored in `live_bridge/vendor/` (pinned commit, don't edit it by hand). A `v*` tag publishes to PyPI (see "Releasing" in `docs/development.md`). The code is under the Apache License 2.0 (`LICENSE`, `NOTICE`).
 - Real-model evals need `ANTHROPIC_API_KEY`, which is only on Thiago's Mac. Pushes go from the cloud because a VPN blocks pushing from the Mac.
 
 ## Commands
@@ -35,6 +35,7 @@ cd ui && npm run gen:types                    # regenerate protocol types after 
 cd ui && npm run dev:fake                     # the panel against a scripted fake hub (no Python, Live or key)
 cd ui && npm run e2e                          # Playwright journeys + screenshots against the fake hub
 vibe2knob panel --fake --no-browser --token dev   # the hub with fake Live and a scripted model
+vibe2knob doctor                              # check the install, the key, AbletonOSC and Live
 vibe2knob eval --model claude-haiku-5-5       # real-model evals, one-shot ask path (needs a key)
 vibe2knob eval --chat --model claude-haiku-5-5  # the same cases plus chat-only ones, on the chat path
 vibe2knob eval --chat --repeat 3 --model claude-haiku-5-5 --compare evals/reports/baseline-v0.2-chat.json  # pass rates vs the baseline

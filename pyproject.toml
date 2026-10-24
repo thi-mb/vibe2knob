@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vibe2knob"
-version = "0.1.0"
+dynamic = ["version"]
 description = "An open-source producer mate: turns subjective asks like 'wider' or 'trippier' into steps with Live's stock devices."
 readme = "README.md"
 license = "Apache-2.0"
@@ -13,6 +13,22 @@ requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.6",
 ]
+
+authors = [{ name = "the vibe2knob authors" }]
+keywords = ["ableton", "live", "music production", "mixing", "claude", "osc"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: MacOS X",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Sound/Audio",
+]
+
+[project.urls]
+Homepage = "https://github.com/thi-mb/vibe2knob"
+Issues = "https://github.com/thi-mb/vibe2knob/issues"
+Changelog = "https://github.com/thi-mb/vibe2knob/releases"
 
 [project.optional-dependencies]
 claude = ["anthropic>=1.17"]
@@ -23,6 +39,15 @@ dev = ["pytest>=8", "anthropic>=1.17", "fastapi>=0.115", "uvicorn[standard]>=0.3
 
 [project.scripts]
 vibe2knob = "vibe2knob.cli:main"
+
+[tool.hatch.version]
+path = "src/vibe2knob/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+# The built UI goes in too (it's git-ignored), so a wheel built from the sdist has the panel.
+include = ["/src", "/live_bridge", "/fixtures", "/tests", "/hatch_build.py", "/README.md", "/LICENSE",
+           "/NOTICE"]
+artifacts = ["/ui/dist"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vibe2knob", "live_bridge"]

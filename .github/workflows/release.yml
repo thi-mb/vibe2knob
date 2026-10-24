@@ -1,0 +1,166 @@
+name: Release
+
+# A v* tag (like v0.2.0) publishes that version to PyPI and makes a GitHub release.
+# Running this workflow by hand (Actions > Release > Run workflow) publishes a dev build such
+# as 0.2.0.dev12 to TestPyPI instead, then installs it from there with pipx to check it.
+# Both publish with PyPI trusted publishing, so no token is stored in the repo.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Pick the version
+        id: version
+        run: |
+          base=$(python -c "import re; print(re.search(r'__version__ = \"(.+)\"', open('src/vibe2knob/__init__.py').read())[1])")
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            if [[ "$GITHUB_REF_NAME" != "v$base" ]]; then
+              echo "::error::The tag $GITHUB_REF_NAME doesn't match __version__ $base in src/vibe2knob/__init__.py."
+              exit 1
+            fi
+            version="$base"
+          else
+            # TestPyPI never takes the same version twice, so each run gets its own.
+            version="$base.dev$GITHUB_RUN_NUMBER"
+            sed -i "s/__version__ = \".*\"/__version__ = \"$version\"/" src/vibe2knob/__init__.py
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building vibe2knob $version"
+      - name: Build the panel UI
+        working-directory: ui
+        run: npm ci && npm run build
+      - run: pip install build && python -m build
+      - name: Check the wheel and sdist
+        run: python scripts/check_dist.py dist --version "${{ steps.version.outputs.version }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  smoke:
+    name: Install the wheel (${{ matrix.os }})
+    needs: build
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            extra: window
+          - os: ubuntu-latest
+            extra: panel
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: pipx install the wheel, serve the panel, run setup-live
+        run: scripts/smoke-install.sh "$(ls "$PWD"/dist/*.whl)[${{ matrix.extra }}]" --python python3.11
+
+  testpypi:
+    name: Publish to TestPyPI
+    if: github.event_name == 'workflow_dispatch'
+    needs: [build, smoke]
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/vibe2knob/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write  # trusted publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  testpypi-install:
+    name: Install from TestPyPI (${{ matrix.os }})
+    needs: [build, testpypi]
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            extra: window
+          - os: ubuntu-latest
+            extra: panel
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Wait for TestPyPI to list it
+        run: |
+          for _ in $(seq 1 30); do
+            curl -sf "https://test.pypi.org/simple/vibe2knob/" | grep -q "vibe2knob-${{ needs.build.outputs.version }}-" && exit 0
+            sleep 10
+          done
+          echo "::error::TestPyPI doesn't list ${{ needs.build.outputs.version }} after 5 minutes."
+          exit 1
+      - name: pipx install from TestPyPI, serve the panel, run setup-live
+        # The dependencies come from the real PyPI; only vibe2knob is on TestPyPI.
+        run: >
+          scripts/smoke-install.sh "vibe2knob[${{ matrix.extra }}]==${{ needs.build.outputs.version }}"
+          --python python3.11
+          --pip-args="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/"
+
+  pypi:
+    name: Publish to PyPI
+    if: github.ref_type == 'tag'
+    needs: [build, smoke]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/vibe2knob/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write  # trusted publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: GitHub release
+    needs: [build, pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Create the release with the wheel and sdist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY"
+          --title "vibe2knob $GITHUB_REF_NAME" --generate-notes
