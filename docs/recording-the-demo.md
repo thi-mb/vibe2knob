@@ -1,16 +1,13 @@
 # Recording the demo
 
-How the README GIF and the video for X are made. One take gives both: the GIF is the silent,
-smaller cut, and the video keeps the sound.
+How the demo video in the README and on X is made. One take, edited in Cap, gives both.
 
 ## Tools
 
-- **OBS Studio** (free, `brew install --cask obs`) to record the screen *with Live's sound*. On
-  macOS 13 or later its **macOS Screen Capture** source can capture an app's audio, so no
-  loopback driver is needed. macOS's own recorder (Cmd-Shift-5) can't record app sound, so it's
-  only good for the GIF.
-- **ffmpeg** (`brew install ffmpeg`), and **gifski** (`brew install gifski`) for a sharper GIF.
-- `scripts/demo-media.sh` turns the take into `docs/media/demo.gif` and `docs/media/demo.mp4`.
+- **Cap** (free, `brew install --cask cap`) in Studio mode, with **Record System Audio** on so
+  Live's sound is in the take. Its editor adds the background, the zooms and the captions.
+- **ffmpeg** (`brew install ffmpeg`) for the copies below.
+- `scripts/demo-media.sh` trims a raw take into a video and a GIF, if you skip Cap's editor.
 
 ## Setting up
 
@@ -28,8 +25,7 @@ missing instrument plays silence, so check by ear. Loop 8 or 16 bars of a full s
 - Panel: `scripts/panel.sh --data-dir ~/vibe2knob-demo`, so the take starts with no old chats.
   If the setup card shows, finish it once before recording. Dock the window on the right,
   about 420 px wide, dark theme.
-- OBS: a macOS Screen Capture source for the display with Live's audio, a 1920 x 1080 canvas,
-  60 fps, MP4 (Settings > Output > Recording Format).
+- Cap: Studio mode, Display, system audio on.
 
 **Dry runs.** Ask the question two or three times, starting a new chat each time, and record only
 when an answer reads well. Answers vary from run to run, so the best take is a matter of picking
@@ -53,10 +49,17 @@ knowledge map knows (`vibe2knob terms`), like "warmer" or "punchier".
 
 ## Making the files
 
+Edit in Cap and export an MP4 (1080p, 30 fps, with audio). Then make two copies:
+
 ```sh
-scripts/demo-media.sh ~/Movies/take.mp4 3.5 41 9 21
+# For X: same picture, sound brought up to a normal streaming level.
+ffmpeg -i cut.mp4 -c:v copy -af "loudnorm=I=-16:TP=-2,alimiter=limit=0.75:level=false" \
+  -c:a aac -b:a 192k -movflags +faststart ad-x.mp4
+# For the README: 720p, under 10 MB.
+ffmpeg -i cut.mp4 -vf scale=1280:-2 -c:v libx264 -b:v 1300k -maxrate 1800k -bufsize 3600k \
+  -af loudnorm=I=-16:TP=-1.5 -c:a aac -b:a 128k -movflags +faststart ad-readme.mp4
 ```
 
-The arguments are the take, where to start and stop, and an optional stretch to play at 2x
-(the wait for the model). The times are in the original take. The GIF must stay under 10 MB for
-GitHub to show it; if it's bigger, cut the take shorter.
+GitHub only plays a README video that was uploaded through its own editor. Drag the README
+copy into any comment box on GitHub, copy the `https://github.com/user-attachments/assets/...`
+link it inserts, and put that link on its own line in the README.
