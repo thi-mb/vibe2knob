@@ -300,6 +300,13 @@ def report(records: list[UsageRecord], range_: UsageRange, titles: dict[str, str
     )
 
 
+def month_cost(records: Iterable[UsageRecord], today: date | None = None) -> float:
+    """Estimated spend since the 1st of this month, local time. Unpriced calls count as 0."""
+    today = today or datetime.now().astimezone().date()
+    start = today.replace(day=1)
+    return round(sum(r.cost() or 0.0 for r in records if start <= _local_day(r.at) <= today), 6)
+
+
 def _tokens(u: Usage) -> int:
     return u.input_tokens + u.cache_read_tokens + u.cache_write_tokens + u.output_tokens
 

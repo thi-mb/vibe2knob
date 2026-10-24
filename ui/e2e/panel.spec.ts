@@ -251,3 +251,68 @@ test("Settings › Usage shows totals, a daily chart and the chats that cost mos
   await chats.getByRole("button", { name: "Pad width" }).click();
   await expect(page.getByText("Spread the pad around")).toBeVisible();
 });
+
+test("a low-end ask reads tracks: the progress line names them and the chips pin them", async ({ page }) => {
+  await open(page, "chat");
+  await page.getByRole("button", { name: "Low-end mud", exact: true }).click();
+  // On replay: Sub Bass was read and can be pinned; Warm Pad is followed, so it's in already.
+  const replayed = page.locator(".assistant-turn").first().getByRole("group", { name: "Looked at" });
+  await expect(replayed.getByRole("button", { name: "Pin Sub Bass to this chat" })).toBeVisible();
+  await expect(replayed.getByRole("button", { name: "Warm Pad is in this chat" })).toBeDisabled();
+
+  await page.evaluate(() => window.__fakeHub!.hold(["looked"]));
+  await page.getByLabel("Describe the vibe").fill("the low end is still muddy");
+  await page.keyboard.press("Enter");
+  const progress = page.locator(".progress");
+  await expect(progress).toContainText("Reading Beat, Sub Bass");
+  const live = page.locator(".assistant-turn").last().getByRole("group", { name: "Looked at" });
+  await expect(live.getByRole("button", { name: "Beat is in this chat" })).toBeDisabled(); // pinned
+  await expect(live.getByRole("button", { name: "Pin Sub Bass to this chat" })).toBeVisible();
+  await shoot(page, "19-reading-tracks");
+
+  await page.evaluate(() => window.__fakeHub!.release(true));
+  await expect(page.locator(".assistant-turn").last()).toContainText("Three things fight under 200 Hz");
+  await expect(progress).toHaveCount(0);
+  await live.getByRole("button", { name: "Pin Sub Bass to this chat" }).click();
+  await expect(page.getByRole("button", { name: "Remove Sub Bass" })).toBeVisible();
+  await expect(live.getByRole("button", { name: "Sub Bass is in this chat" })).toBeDisabled();
+  await shoot(page, "20-looked-at");
+});
+
+test("a monthly limit warns once when an answer passes it", async ({ page }) => {
+  await open(page, "budget");
+  await expect(page.getByText("Spread the pad around")).toBeVisible();
+  const banner = page.locator(".budget-banner");
+  await expect(banner).toHaveCount(0);
+
+  await page.getByRole("button", { name: "too much" }).click();
+  await expect(page.getByText("The wash comes from the chorus")).toBeVisible();
+  await expect(banner).toContainText("passed your $5.00 limit");
+  await expect(banner).toContainText("Answers keep working");
+  await shoot(page, "21-budget-banner");
+
+  await banner.getByRole("button", { name: "Dismiss for this month" }).click();
+  await expect(banner).toHaveCount(0);
+  // A reload starts the fake hub afresh, just under the limit. Passing it again this month
+  // shows no banner: it was dismissed for the month.
+  await page.reload();
+  await page.getByRole("button", { name: "too much" }).click();
+  await expect(page.getByText("The wash comes from the chorus")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll(".turn-usage").length)).toBeGreaterThan(1);
+  await expect(banner).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Settings" }).click();
+  const limit = page.getByLabel("Monthly limit (USD)");
+  await expect(limit).toHaveValue("5");
+  const usage = page.getByRole("region", { name: "Usage" });
+  await expect(usage).toContainText("of $5.00 this month");
+  await usage.scrollIntoViewIfNeeded();
+  await shoot(page, "22-settings-budget");
+  await limit.fill("20");
+  await usage.getByRole("button", { name: "Save" }).click();
+  await expect(usage).toContainText("of $20.00 this month");
+  await limit.fill("");
+  await usage.getByRole("button", { name: "Turn off" }).click();
+  await expect(usage).not.toContainText("of $20.00");
+  await expect(limit).toHaveAttribute("placeholder", "Off");
+});

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatSummary, HubEnvelope, Usage, UsageReport } from "../protocol/types";
-import { initialState, isStreaming, reducer, type Action, type PanelState } from "./store";
+import { initialState, isStreaming, monthKey, reducer, showBudgetBanner, type Action, type PanelState } from "./store";
 
 const chat = (id: string, updated_at = "2026-10-21T10:00:00Z"): ChatSummary => ({
   id,
@@ -31,7 +31,49 @@ function welcomed(chats = [chat("a"), chat("b", "2026-10-21T11:00:00Z")]): Panel
   );
 }
 
+const track = (index: number, name: string) => ({ index, name, type: "midi" as const, color: null, devices: [] });
+
 describe("reducer", () => {
+  it("shows what a read is about and collects the tracks a turn looked at", () => {
+    let s = welcomed();
+    s = reducer(s, { type: "user-sent", chatId: "b", requestId: "r1", text: "muddy", at: "t" });
+    s = reducer(s, hub({ v: 1, type: "chat.status", chat_id: "b", turn_id: "t1", phase: "reading", detail: "Reading Beat, Sub Bass" }));
+    expect(s.progress.b).toMatchObject({ phase: "reading", detail: "Reading Beat, Sub Bass" });
+    s = reducer(s, hub({ v: 1, type: "chat.looked", chat_id: "b", turn_id: "t1", tracks: [track(0, "Beat"), track(1, "Sub Bass")] }));
+    s = reducer(s, hub({ v: 1, type: "chat.looked", chat_id: "b", turn_id: "t1", tracks: [track(1, "Sub Bass"), track(2, "Pad")] }));
+    expect(s.turns.b[1].looked_at.map((t) => t.name)).toEqual(["Beat", "Sub Bass", "Pad"]);
+    // The next phase has no detail of its own.
+    s = reducer(s, hub({ v: 1, type: "chat.status", chat_id: "b", turn_id: "t1", phase: "thinking", detail: null }));
+    expect(s.progress.b.detail).toBeNull();
+  });
+
+  it("replays looked-at tracks from history", () => {
+    let s = welcomed();
+    s = reducer(s, hub({
+      v: 1, type: "chat.history", request_id: null, chat_id: "b", turns: [{
+        id: "t1", role: "assistant", text: "Hi", created_at: "t", steps: null, listen_for: null, caution: null,
+        warnings: [], error: null, usage: null, looked_at: [track(3, "Kick")],
+      }],
+    }));
+    expect(s.turns.b[0].looked_at[0].name).toBe("Kick");
+  });
+
+  it("shows the budget banner once a month while over the limit", () => {
+    let s = welcomed();
+    expect(showBudgetBanner(s, null)).toBe(false);
+    s = reducer(s, hub({ v: 1, type: "usage.budget", month_cost_usd: 4.0, limit_usd: 5, over: false }));
+    expect(showBudgetBanner(s, null)).toBe(false);
+    s = reducer(s, hub({ v: 1, type: "usage.budget", month_cost_usd: 5.1, limit_usd: 5, over: true }));
+    expect(showBudgetBanner(s, null, "2026-10")).toBe(true);
+    expect(showBudgetBanner(s, "2026-10", "2026-10")).toBe(false); // dismissed this month
+    expect(showBudgetBanner(s, "2026-09", "2026-10")).toBe(true);
+    // Turning the limit off clears it.
+    s = reducer(s, hub({ v: 1, type: "settings", request_id: null, test_result: null,
+      settings: { provider: "claude", model: null, api_key_set: true, monthly_budget_usd: null } }));
+    expect(s.budget).toBeNull();
+    expect(monthKey(new Date(2026, 0, 5))).toBe("2026-01");
+  });
+
   it("opens the most recently updated chat on welcome", () => {
     expect(welcomed().activeChatId).toBe("b");
   });
@@ -54,7 +96,7 @@ describe("reducer", () => {
   it("tracks a turn's progress from the moment it's sent until it's done", () => {
     let s = welcomed();
     s = reducer(s, { type: "user-sent", chatId: "b", requestId: "r1", text: "wider", at: "2026-10-22T10:00:00Z" });
-    expect(s.progress.b).toEqual({ since: "2026-10-22T10:00:00Z", phase: "reading", requestId: "r1" });
+    expect(s.progress.b).toEqual({ since: "2026-10-22T10:00:00Z", phase: "reading", detail: null, requestId: "r1" });
     expect(isStreaming(s, "b")).toBe(true);
     s = reducer(s, hub({ v: 1, type: "chat.status", chat_id: "b", turn_id: "t1", phase: "thinking", detail: null }));
     expect(s.progress.b).toMatchObject({ since: "2026-10-22T10:00:00Z", phase: "thinking" });
