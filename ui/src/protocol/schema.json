@@ -285,6 +285,44 @@
       "title": "ChatHistory",
       "type": "object"
     },
+    "ChatLooked": {
+      "additionalProperties": false,
+      "description": "Tracks the model read during a turn, sent as each read happens. Each message carries\nonly the new reads; ChatTurn.looked_at has them all on replay.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "chat.looked",
+          "default": "chat.looked",
+          "type": "string"
+        },
+        "chat_id": {
+          "type": "string"
+        },
+        "turn_id": {
+          "type": "string"
+        },
+        "tracks": {
+          "items": {
+            "$ref": "#/$defs/TrackRef"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "chat_id",
+        "turn_id",
+        "tracks"
+      ],
+      "title": "ChatLooked",
+      "type": "object"
+    },
     "ChatOpen": {
       "additionalProperties": false,
       "description": "Ask for a chat's turns, e.g. when a tab is shown after a reload or reconnect.",
@@ -393,6 +431,18 @@
             "steps"
           ],
           "type": "string"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What the phase is about, e.g. \"Reading Kick, Sub Bass\"."
         }
       },
       "required": [
@@ -400,7 +450,8 @@
         "type",
         "chat_id",
         "turn_id",
-        "phase"
+        "phase",
+        "detail"
       ],
       "title": "ChatStatus",
       "type": "object"
@@ -648,6 +699,13 @@
           ],
           "default": null,
           "description": "Set on assistant turns."
+        },
+        "looked_at": {
+          "description": "Tracks the model read during an assistant turn.",
+          "items": {
+            "$ref": "#/$defs/TrackRef"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -660,7 +718,8 @@
         "caution",
         "warnings",
         "error",
-        "usage"
+        "usage",
+        "looked_at"
       ],
       "title": "ChatTurn",
       "type": "object"
@@ -948,12 +1007,14 @@
           "chat.delta": "#/$defs/ChatDelta",
           "chat.done": "#/$defs/ChatDone",
           "chat.history": "#/$defs/ChatHistory",
+          "chat.looked": "#/$defs/ChatLooked",
           "chat.status": "#/$defs/ChatStatus",
           "chat.steps": "#/$defs/ChatSteps",
           "error": "#/$defs/ErrorMessage",
           "live.status": "#/$defs/LiveStatusChanged",
           "settings": "#/$defs/SettingsChanged",
           "tracks": "#/$defs/Tracks",
+          "usage.budget": "#/$defs/UsageBudget",
           "usage.report": "#/$defs/UsageReport",
           "welcome": "#/$defs/Welcome"
         },
@@ -998,6 +1059,12 @@
         },
         {
           "$ref": "#/$defs/ErrorMessage"
+        },
+        {
+          "$ref": "#/$defs/ChatLooked"
+        },
+        {
+          "$ref": "#/$defs/UsageBudget"
         }
       ],
       "title": "HubEnvelope"
@@ -1150,12 +1217,25 @@
         "api_key_set": {
           "default": false,
           "type": "boolean"
+        },
+        "monthly_budget_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Warn once this month's spend passes it; null is off."
         }
       },
       "required": [
         "provider",
         "model",
-        "api_key_set"
+        "api_key_set",
+        "monthly_budget_usd"
       ],
       "title": "Settings",
       "type": "object"
@@ -1307,6 +1387,18 @@
           ],
           "default": null,
           "description": "Stored in the Keychain, never echoed."
+        },
+        "monthly_budget_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A new monthly limit; 0 or less turns it off."
         }
       },
       "title": "SettingsUpdate",
@@ -1660,6 +1752,43 @@
         "output_cost_usd"
       ],
       "title": "Usage",
+      "type": "object"
+    },
+    "UsageBudget": {
+      "additionalProperties": false,
+      "description": "This month's spend against the monthly budget. Sent after each turn while a budget is\nset.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "usage.budget",
+          "default": "usage.budget",
+          "type": "string"
+        },
+        "month_cost_usd": {
+          "description": "Estimated spend since the 1st, local time.",
+          "type": "number"
+        },
+        "limit_usd": {
+          "type": "number"
+        },
+        "over": {
+          "description": "True once month_cost_usd passes limit_usd.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "month_cost_usd",
+        "limit_usd",
+        "over"
+      ],
+      "title": "UsageBudget",
       "type": "object"
     },
     "UsageChat": {

@@ -102,7 +102,8 @@ def test_welcome(setup):
     assert selected["index"] == 0 and selected["name"] == "acoustic-pick"
     assert "Chorus" in selected["devices"]
     # No model saved yet: Settings shows the one the chats will really use.
-    assert m["settings"] == {"provider": "claude", "model": "claude-haiku-5-5", "api_key_set": True}
+    assert m["settings"] == {"provider": "claude", "model": "claude-haiku-5-5", "api_key_set": True,
+                             "monthly_budget_usd": None}
     assert [e["name"] for e in m["examples"]] == ["Lead Vox"]
     assert m["examples"][0]["devices"] == ["EQ Eight", "Compressor", "Reverb"]
 
@@ -340,7 +341,8 @@ def test_settings_update_keeps_the_key_in_the_hub(tmp_path):
         raw = ws.receive_text()
     m = json.loads(raw)
     assert m["type"] == "settings" and m["request_id"] == "u"
-    assert m["settings"] == {"provider": "claude", "model": "m1", "api_key_set": True}
+    assert m["settings"] == {"provider": "claude", "model": "m1", "api_key_set": True,
+                             "monthly_budget_usd": None}
     assert "sk-new" not in raw
     assert s.store.keys.get() == "sk-new"
     assert s.store.load_settings() == StoredSettings(model="m1")

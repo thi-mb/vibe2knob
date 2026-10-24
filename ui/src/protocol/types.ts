@@ -37,7 +37,9 @@ export type HubEnvelope =
   | ChatDone
   | SettingsChanged
   | UsageReport
-  | ErrorMessage;
+  | ErrorMessage
+  | ChatLooked
+  | UsageBudget;
 
 /**
  * vibe2knob hub protocol v1
@@ -198,6 +200,10 @@ export interface SettingsUpdate {
    * Stored in the Keychain, never echoed.
    */
   api_key?: string | null;
+  /**
+   * A new monthly limit; 0 or less turns it off.
+   */
+  monthly_budget_usd?: number | null;
 }
 /**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
@@ -411,6 +417,10 @@ export interface Settings {
   provider: "claude" | "ollama";
   model: string | null;
   api_key_set: boolean;
+  /**
+   * Warn once this month's spend passes it; null is off.
+   */
+  monthly_budget_usd: number | null;
 }
 /**
  * Sent when Live connects or disconnects, or the selected track changes.
@@ -513,6 +523,10 @@ export interface ChatTurn {
    * Set on assistant turns.
    */
   usage: Usage | null;
+  /**
+   * Tracks the model read during an assistant turn.
+   */
+  looked_at: TrackRef[];
 }
 /**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
@@ -578,6 +592,10 @@ export interface ChatStatus {
    * reading: the hub reads Live. thinking: the model works before it writes. steps: the model writes its steps.
    */
   phase: "reading" | "thinking" | "steps";
+  /**
+   * What the phase is about, e.g. "Reading Kick, Sub Bass".
+   */
+  detail: string | null;
 }
 /**
  * A piece of the assistant's prose, streamed as it is written.
@@ -740,4 +758,44 @@ export interface ErrorMessage {
    * The failed turn; chat.done for it follows.
    */
   turn_id: string | null;
+}
+/**
+ * Tracks the model read during a turn, sent as each read happens. Each message carries
+ * only the new reads; ChatTurn.looked_at has them all on replay.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "ChatLooked".
+ */
+export interface ChatLooked {
+  /**
+   * Protocol version.
+   */
+  v: 1;
+  type: "chat.looked";
+  chat_id: string;
+  turn_id: string;
+  tracks: TrackRef[];
+}
+/**
+ * This month's spend against the monthly budget. Sent after each turn while a budget is
+ * set.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "UsageBudget".
+ */
+export interface UsageBudget {
+  /**
+   * Protocol version.
+   */
+  v: 1;
+  type: "usage.budget";
+  /**
+   * Estimated spend since the 1st, local time.
+   */
+  month_cost_usd: number;
+  limit_usd: number;
+  /**
+   * True once month_cost_usd passes limit_usd.
+   */
+  over: boolean;
 }
