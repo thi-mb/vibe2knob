@@ -11,10 +11,20 @@ import type {
   Step,
   TrackRef,
   Usage,
+  UsageBudget,
   UsageReport,
 } from "../protocol/types";
 
 export type UsageRange = UsageReport["range"];
+
+/** What the panel can change in settings.update. */
+export interface SettingsChange {
+  provider?: "claude" | "ollama";
+  model?: string;
+  api_key?: string;
+  /** 0 turns the limit off. */
+  monthly_budget_usd?: number;
+}
 
 /** "rejected" is a bad token (relaunch the panel); "offline" is a hub that went away. */
 export type Connection = "connecting" | "open" | "offline" | "rejected";
@@ -34,6 +44,8 @@ export interface Turn {
   error: string | null;
   /** What the answer used; null until chat.done says. */
   usage: Usage | null;
+  /** Tracks the model read for this answer, in the order it read them. */
+  looked_at: TrackRef[];
 }
 
 /** What a running turn is on. "writing" is implied by its prose arriving. */
@@ -44,6 +56,8 @@ export interface Progress {
   /** When the user sent (or this client first heard of the turn), for the elapsed timer. */
   since: string;
   phase: Phase;
+  /** What the phase is about, e.g. "Reading Kick, Sub Bass", when the hub says. */
+  detail: string | null;
   /** The chat.send's request_id, so an error answering it ends the wait. */
   requestId: string | null;
 }
@@ -75,6 +89,8 @@ export interface PanelState {
   /** Settings › Usage: the range picked and the hub's latest report for it. */
   usageRange: UsageRange;
   usage: UsageReport | null;
+  /** This month's spend against the monthly limit; null while no limit is set. */
+  budget: UsageBudget | null;
 }
 
 export const initialState: PanelState = {
@@ -95,6 +111,7 @@ export const initialState: PanelState = {
   notice: null,
   usageRange: "30d",
   usage: null,
+  budget: null,
 };
 
 export type Action =
@@ -120,6 +137,7 @@ function blankTurn(id: string, role: Turn["role"], at: string): Turn {
     pending: role === "assistant",
     error: null,
     usage: null,
+    looked_at: [],
   };
 }
 
@@ -136,6 +154,7 @@ function fromHistory(turn: ChatTurn): Turn {
     pending: false,
     error: turn.error,
     usage: turn.usage,
+    looked_at: turn.looked_at ?? [],
   };
 }
 
@@ -155,10 +174,18 @@ function withTurn(
   return { ...state, turns: { ...state.turns, [chatId]: next } };
 }
 
-function withPhase(state: PanelState, chatId: string, phase: Phase): PanelState {
+function withPhase(state: PanelState, chatId: string, phase: Phase, detail: string | null = null): PanelState {
   const was = state.progress[chatId];
   const since = was?.since ?? new Date().toISOString();
-  return { ...state, progress: { ...state.progress, [chatId]: { since, phase, requestId: was?.requestId ?? null } } };
+  const next: Progress = { since, phase, detail, requestId: was?.requestId ?? null };
+  return { ...state, progress: { ...state.progress, [chatId]: next } };
+}
+
+/** Adds tracks to what a turn looked at, once each. */
+function addLooked(turn: Turn, tracks: TrackRef[]): Turn {
+  const seen = new Set(turn.looked_at.map((t) => t.index));
+  const fresh = tracks.filter((t) => !seen.has(t.index) && (seen.add(t.index), true));
+  return fresh.length ? { ...turn, looked_at: [...turn.looked_at, ...fresh] } : turn;
 }
 
 /** Something the user can see arrived, so the progress line steps aside. */
@@ -200,6 +227,8 @@ function onHub(state: PanelState, m: HubEnvelope): PanelState {
         // A turn still running on the hub says so again with its next chat.status.
         progress: {},
         pendingCreate: null,
+        // The hub sends usage.budget right after the welcome when a limit is set.
+        budget: null,
       };
     }
     case "live.status":
@@ -239,7 +268,9 @@ function onHub(state: PanelState, m: HubEnvelope): PanelState {
       return { ...state, turns: { ...state.turns, [m.chat_id]: [...history, ...echoes] } };
     }
     case "chat.status":
-      return withPhase(withTurn(state, m.chat_id, m.turn_id, (t) => t), m.chat_id, m.phase);
+      return withPhase(withTurn(state, m.chat_id, m.turn_id, (t) => t), m.chat_id, m.phase, m.detail ?? null);
+    case "chat.looked":
+      return withTurn(state, m.chat_id, m.turn_id, (t) => addLooked(t, m.tracks));
     case "chat.delta":
       return writing(
         withTurn(state, m.chat_id, m.turn_id, (t) => ({ ...t, text: t.text + m.text, pending: true })),
@@ -261,10 +292,8 @@ function onHub(state: PanelState, m: HubEnvelope): PanelState {
         withTurn(state, m.chat_id, m.turn_id, (t) => ({ ...t, pending: false, usage: m.usage ?? t.usage })),
         m.chat_id,
       );
-    // Looked-at chips and the budget banner come with the panel's v0.2 work.
-    case "chat.looked":
     case "usage.budget":
-      return state;
+      return { ...state, budget: m };
     case "usage.report":
       return m.range === state.usageRange ? { ...state, usage: m } : state;
     case "settings":
@@ -272,6 +301,7 @@ function onHub(state: PanelState, m: HubEnvelope): PanelState {
         ...state,
         settings: m.settings,
         testResult: m.test_result ?? state.testResult,
+        budget: m.settings.monthly_budget_usd === null ? null : state.budget,
       };
     case "error": {
       if (m.chat_id && m.turn_id) {
@@ -309,7 +339,7 @@ export function reducer(state: PanelState, action: Action): PanelState {
         turns: { ...state.turns, [action.chatId]: [...turns, turn] },
         progress: {
           ...state.progress,
-          [action.chatId]: { since: action.at, phase: "reading", requestId: action.requestId },
+          [action.chatId]: { since: action.at, phase: "reading", detail: null, requestId: action.requestId },
         },
       };
     }
@@ -341,4 +371,14 @@ export function canSeeLive(state: PanelState): boolean {
 /** A chat with no tracks in its context: general questions about Live. */
 export function isGeneral(chat: ChatSummary | null): boolean {
   return !!chat && !chat.context.follow_selection && chat.context.pinned.length === 0;
+}
+
+/** The month a budget warning belongs to, as "YYYY-MM" in local time. */
+export function monthKey(at: Date = new Date()): string {
+  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Show the budget banner: over the limit, and not yet dismissed this month. */
+export function showBudgetBanner(state: PanelState, dismissedMonth: string | null, month = monthKey()): boolean {
+  return !!state.budget?.over && dismissedMonth !== month;
 }

@@ -4,7 +4,9 @@ from vibe2knob import pricing
 from vibe2knob.chat import AssistantTurn, Chat, ChatEngine, TurnDone, UserTurn
 from vibe2knob.protocol import ContextSet
 from vibe2knob.providers.fake import FakeProvider, Reply
-from vibe2knob.usage import Ledger, Sizes, UsageRecord, backfill, report, split_parts, total
+from vibe2knob.usage import (
+    Ledger, Sizes, UsageRecord, backfill, month_cost, report, split_parts, total,
+)
 
 
 def rec(**kw):
@@ -133,3 +135,15 @@ def test_total_splits_cost_between_prompt_and_output():
     assert t.prompt_cost_usd == round((1000 * 4 + 1000 * 0.2) / 1e6, 6)
     assert t.output_cost_usd == round(500 * 20 / 1e6, 6)
     assert t.cost_usd == round(t.prompt_cost_usd + t.output_cost_usd, 6)
+
+
+def test_month_cost_counts_this_month_only():
+    sonnet = dict(model="claude-sonnet-5-5", input_tokens=50_000)  # $0.10 each
+    records = [
+        UsageRecord(at="2026-10-01T12:00:00+00:00", **sonnet),
+        UsageRecord(at="2026-10-22T12:00:00+00:00", kind="eval", **sonnet),
+        UsageRecord(at="2026-09-30T12:00:00+00:00", **sonnet),
+        UsageRecord(at="2026-10-22T12:00:00+00:00", model="unknown-model", input_tokens=5),
+    ]
+    assert month_cost(records, today=date(2026, 10, 22)) == 0.2
+    assert month_cost([], today=date(2026, 10, 22)) == 0

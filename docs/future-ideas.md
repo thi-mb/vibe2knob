@@ -35,9 +35,9 @@ These came up on 2026-10-21. The hub-and-clients architecture leaves room for ea
 
 ## Usage and cost
 
-Token usage shipped on 2026-10-22 (chat totals, a context meter, Settings › Usage). Left for later:
+Token usage shipped on 2026-10-22 (chat totals, a context meter, Settings › Usage), and a monthly limit with a once-a-month banner in v0.2. Left for later:
 
-- **Budget warning.** "You've spent $5 this month", with a limit the user sets.
+- **Hard budget stop.** The monthly limit only warns today. An opt-in "stop answering past it" switch, with a way to go on anyway.
 - **Price override in Settings**, for when the bundled table is behind.
 - **Export** of the ledger as CSV.
 - **Exact per-turn parts.** Live context, history and the answer are split by text length today. One `count_tokens` call per turn would make them exact.
