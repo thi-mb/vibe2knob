@@ -3,3 +3,9 @@ Copyright 2026 the vibe2knob authors
 
 This product includes software developed by the vibe2knob authors
 (https://github.com/thi-mb/vibe2knob).
+
+This product includes AbletonOSC (https://github.com/ideoforms/AbletonOSC), commit
+0ca68214bd62c9b5cb641ca34006cfd70ba94430, Copyright (c) Daniel John Jones and
+contributors, under the MIT License. Its license is in live_bridge/vendor/AbletonOSC/LICENSE.md.
+AbletonOSC bundles python-osc (https://github.com/attwad/python-osc), which is released
+into the public domain under the Unlicense.

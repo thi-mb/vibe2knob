@@ -16,6 +16,23 @@ cd ui && npm run e2e                          # Playwright journeys + screenshot
 The UI's types in `ui/src/protocol/` are generated from `protocol.py`, so commit both. CI fails
 when they drift.
 
+## From source
+
+You need macOS, Live 11 or later, Python 3.11+ and Node 22 (to build the panel).
+
+```sh
+git clone https://github.com/thi-mb/vibe2knob && cd vibe2knob
+python3 -m venv .venv
+.venv/bin/pip install -e '.[window,dev]'
+.venv/bin/vibe2knob setup-live     # AbletonOSC into Live's Remote Scripts, once
+scripts/panel.sh
+```
+
+`scripts/panel.sh` installs the package, builds the panel and opens it in the window. Run it
+again after a `git pull`. If you'd rather have AbletonOSC as a git clone of your own, clone it
+into `~/Music/Ableton/User Library/Remote Scripts/AbletonOSC`; `setup-live` leaves a copy it
+didn't install alone unless you pass `--force`.
+
 ## The panel
 
 After a `git pull`, `scripts/panel.sh` does the rest: it reinstalls the Python package, rebuilds
@@ -73,6 +90,15 @@ Live. Writes (mute, solo, parameters) are part of the interface but not built ye
 
 The JSON for one track is described in [track-state-format.md](track-state-format.md).
 
+### AbletonOSC
+
+`vibe2knob setup-live` installs the copy of AbletonOSC vendored in `live_bridge/vendor/AbletonOSC`,
+at the commit pinned in `live_bridge/remote_script.py` (credited in `NOTICE`). It writes a
+`.vibe2knob` marker next to it, so a later `setup-live` may update that copy, while someone's own
+copy needs `--force` and is moved to `~/Library/Application Support/vibe2knob/backups/` first.
+To move to a newer AbletonOSC, run `scripts/vendor-abletonosc.sh <commit>`, update the pin and
+`NOTICE`, and check the reads on a real Live before releasing.
+
 ## The command line
 
 ```sh
@@ -123,3 +149,26 @@ vibe2knob eval --chat --repeat 3 --model claude-haiku-5-5 \
 
 The baseline is the one report kept in git. Eval spend goes to the usage ledger as "Evals", so
 Settings › Usage shows it apart from chats.
+
+## Releasing
+
+Releases go to [PyPI](https://pypi.org/project/vibe2knob/) from GitHub Actions
+(`.github/workflows/release.yml`) with trusted publishing, so no token is kept anywhere.
+
+1. **Try it on TestPyPI.** Actions > Release > Run workflow. It builds the UI and the wheel,
+   checks the wheel holds the panel, fixtures and AbletonOSC, installs it with pipx on macOS
+   and Linux, publishes `X.Y.Z.devN` to [TestPyPI](https://test.pypi.org/project/vibe2knob/),
+   then installs that from TestPyPI and checks the panel again.
+2. **Release.** Set `__version__` in `src/vibe2knob/__init__.py` (the wheel takes its version
+   from there), merge, then tag main and push the tag:
+
+   ```sh
+   git checkout main && git pull
+   git tag v0.2.0 && git push origin v0.2.0
+   ```
+
+   The tag must match `__version__`. The workflow publishes to PyPI and makes a GitHub release
+   with generated notes. A version can't be published twice, so a broken release is fixed with
+   the next version.
+
+CI's "Package (pip install)" job runs the same wheel checks on every pull request.
