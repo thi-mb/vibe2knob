@@ -58,6 +58,7 @@ from .protocol import (
     TrackRef,
     Tracks,
     TracksList,
+    UsageBudget,
     UsageGet,
     Welcome,
     parse_client,
@@ -66,7 +67,7 @@ from .providers import Provider, ProviderError, get_provider
 from .providers.claude import DEFAULT_MODEL, ClaudeProvider
 from .providers.ollama import DEFAULT_MODEL as OLLAMA_DEFAULT_MODEL
 from .store import StoredSettings, Store
-from .usage import UsageRecord, backfill, report, total
+from .usage import UsageRecord, backfill, month_cost, report, total
 
 log = logging.getLogger("vibe2knob.hub")
 
@@ -286,6 +287,9 @@ class Hub:
             examples=[_track_ref({**e["track"], "index": i}, e["track"].get("devices", []))
                       for i, e in enumerate(self.examples.values())],
         ))
+        budget = await self._run(self.budget)
+        if budget is not None:
+            conn.send(budget)
 
     async def _on_ChatCreate(self, conn: Connection, m: ChatCreate) -> None:
         chat = Chat(context=m.context)
@@ -369,6 +373,9 @@ class Hub:
             del changes["provider"]
         if changes.get("provider", self.settings.provider) != self.settings.provider:
             changes.setdefault("model", None)  # a model name only fits its own provider
+        if m.monthly_budget_usd is not None:
+            limit = m.monthly_budget_usd
+            changes["monthly_budget_usd"] = round(limit, 2) if limit > 0 else None
         if changes:
             self.settings = self.settings.model_copy(update=changes)
             await self._run(self.store.save_settings, self.settings)
@@ -380,6 +387,10 @@ class Hub:
                 return
         self.broadcast(SettingsChanged(request_id=m.request_id,
                                        settings=await self._run(self.settings_view)))
+        if "monthly_budget_usd" in changes:
+            budget = await self._run(self.budget)
+            if budget is not None:
+                self.broadcast(budget)
 
     async def _on_SettingsTest(self, conn: Connection, m: SettingsTest) -> None:
         # A model call can take seconds: answer in the background, so the client's other
@@ -417,7 +428,26 @@ class Hub:
 
     def settings_view(self) -> Settings:
         return Settings(provider=self.settings.provider, model=panel_model(self.settings),
-                        api_key_set=bool(self.store.api_key()))
+                        api_key_set=bool(self.store.api_key()),
+                        monthly_budget_usd=self.settings.monthly_budget_usd)
+
+    def budget(self) -> UsageBudget | None:
+        """This month's spend against the limit, or None when no limit is set. A warning
+        only: nothing stops a turn past it.
+
+        Reads the ledger file, not just this hub's records, so `vibe2knob eval` and `ask`
+        runs since the hub started count too. Blocks on disk: call it off the loop.
+        """
+        limit = self.settings.monthly_budget_usd
+        if limit is None:
+            return None
+        try:
+            records = self.store.usage.read()
+        except OSError:
+            with self._usage_lock:
+                records = list(self.usage_records)
+        spent = month_cost(records)
+        return UsageBudget(month_cost_usd=spent, limit_usd=limit, over=spent > limit)
 
     def _provider(self) -> Provider:
         return self.make_provider(self.settings, self.store.api_key())
@@ -465,6 +495,9 @@ class Hub:
                     self.publish(ChatDone(chat_id=chat.id, turn_id=event.turn_id,
                                           usage=event.record.as_usage() if event.record else None))
                     self.publish(ChatChanged(chat=self.summary(chat)))
+                    budget = self.budget()
+                    if budget is not None:
+                        self.publish(budget)
                 elif isinstance(event, ChatTitled):
                     self._record_usage(event.record)
                     self.store.save_chat(chat)

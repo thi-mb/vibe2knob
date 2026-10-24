@@ -5,7 +5,8 @@ import { FakeHub } from "./fake";
 
 function collect(hub: HubClient) {
   const got: HubEnvelope[] = [];
-  for (const t of ["welcome", "chat.changed", "chat.delta", "chat.steps", "chat.done", "chat.history"] as const) {
+  for (const t of ["welcome", "chat.changed", "chat.status", "chat.looked", "chat.delta", "chat.steps", "chat.done",
+    "chat.history", "usage.budget"] as const) {
     hub.on(t, (m) => got.push(m));
   }
   return got;
@@ -35,5 +36,25 @@ describe("FakeHub", () => {
     await until(() => got.some((m) => m.type === "chat.history"));
     const history = got.find((m) => m.type === "chat.history");
     expect(history?.type === "chat.history" && history.turns.length).toBe(4);
+  });
+
+  it("reads tracks before a low-end answer and passes the budget in the budget scenario", async () => {
+    const fake = new FakeHub({ scenario: "budget", wordDelay: 0 });
+    const client = new HubClient("ws://fake/ws", () => fake.socket());
+    const got = collect(client);
+    client.onOpen(() => client.send({ type: "hello", client: "browser" }));
+    client.connect();
+    await until(() => got.some((m) => m.type === "usage.budget"));
+    const before = got.find((m) => m.type === "usage.budget");
+    expect(before?.type === "usage.budget" && [before.limit_usd, before.over]).toEqual([5, false]);
+
+    client.send({ type: "chat.send", chat_id: "c-mud", text: "the low end is muddy" });
+    await until(() => got.filter((m) => m.type === "usage.budget").length === 2);
+    const detail = got.find((m) => m.type === "chat.status" && m.detail);
+    expect(detail?.type === "chat.status" && detail.detail).toBe("Reading Beat, Sub Bass");
+    const looked = got.find((m) => m.type === "chat.looked");
+    expect(looked?.type === "chat.looked" && looked.tracks.map((t) => t.name)).toEqual(["Beat", "Sub Bass"]);
+    const after = got.findLast((m) => m.type === "usage.budget");
+    expect(after?.type === "usage.budget" && after.over).toBe(true);
   });
 });

@@ -3,7 +3,7 @@
 Everything lives in one folder (by default ~/Library/Application Support/vibe2knob):
 - chats/<id>.json: one Chat each (chat.py versions and migrates them),
 - chats/closed/: chats whose tab was closed, kept so nothing is lost,
-- settings.json: provider and model, and the panel window's size, position and on-top
+- settings.json: provider, model and monthly budget, and the panel window's size, position and on-top
   switch, with its own schema_version,
 - usage.jsonl: the token usage ledger (usage.py), counts only.
 
@@ -55,6 +55,7 @@ class StoredSettings(BaseModel):
     schema_version: Literal[1] = SETTINGS_SCHEMA_VERSION
     provider: Literal["claude", "ollama"] = "claude"
     model: str | None = None
+    monthly_budget_usd: float | None = None  # None: no budget warning
     window: WindowState = Field(default_factory=WindowState)
 
 
