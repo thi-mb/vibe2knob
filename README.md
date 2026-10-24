@@ -1,6 +1,24 @@
-# vibe2knob
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/banner-dark.png">
+    <img alt="vibe2knob: tell it the vibe, you turn the knobs" src="docs/media/banner-light.png" width="100%">
+  </picture>
+</p>
 
-**Tell it the vibe. You turn the knobs.**
+<p align="center">
+  <img alt="Status: v0.1" src="https://img.shields.io/badge/status-v0.1-ffb547?style=flat-square">
+  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-ffb547?style=flat-square"></a>
+  <img alt="macOS" src="https://img.shields.io/badge/macOS-only-2a2622?style=flat-square&logo=apple&logoColor=white">
+  <img alt="Ableton Live 11 and 12" src="https://img.shields.io/badge/Ableton%20Live-11%20%7C%2012-2a2622?style=flat-square">
+  <img alt="Works with Claude or Ollama" src="https://img.shields.io/badge/models-Claude%20%7C%20Ollama-2a2622?style=flat-square">
+</p>
+
+<p align="center">
+  <a href="#quick-start"><b>Quick start</b></a> ·
+  <a href="#using-it"><b>Using it</b></a> ·
+  <a href="#how-it-works"><b>How it works</b></a> ·
+  <a href="#roadmap"><b>Roadmap</b></a>
+</p>
 
 vibe2knob is a producer mate that sits next to Ableton Live. Say how a track should feel
 ("wider", "warmer", "the low end feels muddy") and it reads your set, then walks you through the
@@ -69,10 +87,14 @@ model: no Live and no key.
 
 ## How it works
 
-```text
-Live ── AbletonOSC ── hub (Python, on your Mac) ── model (Claude or Ollama)
-                        │
-                        └── panel (window or browser tab)
+```mermaid
+flowchart LR
+    live["Ableton Live"] <-->|"OSC"| osc["AbletonOSC"]
+    osc <--> hub["vibe2knob hub<br/>Python, on your Mac"]
+    hub <--> model["Claude or Ollama"]
+    hub <--> panel["Panel<br/>window or browser tab"]
+    you(["You"]) -->|"the vibe"| panel
+    panel -->|"knob moves"| you
 ```
 
 1. **The hub** owns the connection to Live, the model calls and your chats. The panel is a thin
