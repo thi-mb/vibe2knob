@@ -15,7 +15,7 @@ export const PARTS = [
   { key: "steps", label: "Steps", exact: false, side: "out" },
 ] as const;
 
-export const KIND_LABELS: Record<string, string> = { chat: "Chats", title: "Chat titles", ask: "One-shot ask" };
+export const KIND_LABELS: Record<string, string> = { chat: "Chats", title: "Chat titles", ask: "One-shot ask", eval: "Evals" };
 
 /** Past this many resent tokens, or this share of the window, the header suggests a new chat. */
 export const LONG_CHAT_TOKENS = 150_000;

@@ -29,7 +29,7 @@ log = logging.getLogger("vibe2knob.usage")
 
 USAGE_SCHEMA_VERSION = 1
 
-Kind = Literal["chat", "title", "ask"]
+Kind = Literal["chat", "title", "ask", "eval"]
 INPUT_PARTS = ("instructions", "tools", "live", "history", "message")
 OUTPUT_PARTS = ("thinking", "answer", "steps")
 

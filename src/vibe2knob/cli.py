@@ -130,17 +130,35 @@ def cmd_terms(args: argparse.Namespace) -> int:
 
 
 def cmd_eval(args: argparse.Namespace) -> int:
-    from .evals import load_cases, run_cases
+    from .evals import compare, load_cases, load_report, report_rows, run_cases
+    from .usage import total
 
+    if args.repeat < 1:
+        print("error: --repeat must be at least 1", file=sys.stderr)
+        return 2
+    baseline = load_report(args.compare) if args.compare else None
     cases = load_cases(args.cases)
     if args.only:
         cases = [c for c in cases if c.id in args.only]
     provider = get_provider(args.provider, args.model)
     results = run_cases(
-        cases, provider, Path(args.cases).parent, report_dir=args.report_dir, chat=args.chat
+        cases, provider, Path(args.cases).parent, report_dir=args.report_dir, chat=args.chat,
+        repeat=args.repeat, record_usage=_record_usage,
     )
     failed = [r for r in results if not r.passed]
-    print(f"\n{len(results) - len(failed)}/{len(results)} cases passed")
+    if args.repeat > 1:
+        rate = sum(r.pass_rate for r in results)
+        print(f"\n{len(results) - len(failed)}/{len(results)} cases passed every run; "
+              f"pass rate {rate:.2f}/{len(results)}")
+    else:
+        print(f"\n{len(results) - len(failed)}/{len(results)} cases passed")
+    spent = total(rec for r in results for run in r.runs for rec in run.records)
+    if spent.calls:
+        cost = f"${spent.cost_usd:.4f}" if spent.cost_usd is not None else "cost unknown"
+        print(f"{spent.calls} model calls, {cost}")
+    if baseline is not None:
+        print(f"\nCompared with {args.compare}:")
+        return 0 if compare(baseline, report_rows(results)) else 1
     return 1 if failed else 0
 
 
@@ -233,6 +251,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--report-dir", default="evals/reports", help="Where to save full answers.")
     p.add_argument("--chat", action="store_true",
                    help="Run the cases through the chat path (streamed prose + suggest_steps).")
+    p.add_argument("--repeat", type=int, default=1, metavar="N",
+                   help="Run each case N times and report its pass rate (use 3 for decisions).")
+    p.add_argument("--compare", metavar="REPORT",
+                   help="Compare with an earlier report: list the cases whose pass rate dropped, "
+                   "and fail if the total dropped by more than one case.")
     add_provider_args(p)
     p.set_defaults(func=cmd_eval)
     return parser

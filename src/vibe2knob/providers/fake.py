@@ -97,7 +97,10 @@ class FakeProvider:
 
     def generate(self, system: str, user: str, schema: dict) -> str:
         self.calls.append({"system": system, "user": user, "schema": schema})
-        return json.dumps(self.advice or {})
+        answer = json.dumps(self.advice or {})
+        self.last_usage = {"input_tokens": (len(system) + len(user)) // 4,
+                           "output_tokens": len(answer) // 4, "model": self.model}
+        return answer
 
 
 def demo_provider(delay: float = 0.03, think: float = 1.5) -> FakeProvider:

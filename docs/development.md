@@ -110,3 +110,16 @@ vibe2knob eval --only bass-wider --provider ollama
 
 Full answers are saved in `evals/reports/` so you can read them, not just the score. Real-model
 runs vary from run to run, so read a failure before trusting it.
+
+For a decision (a prompt change, a new tool), run each case three times and compare with the
+baseline. `--repeat 3` reports each case as `passed/3` and shows which checks failed on which run.
+`--compare` lists the cases whose pass rate dropped, and fails if the total dropped by more than
+one case's worth:
+
+```sh
+vibe2knob eval --chat --repeat 3 --model claude-haiku-5-5 \
+  --compare evals/reports/baseline-v0.2-chat.json
+```
+
+The baseline is the one report kept in git. Eval spend goes to the usage ledger as "Evals", so
+Settings › Usage shows it apart from chats.
