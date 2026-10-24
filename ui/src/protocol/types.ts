@@ -701,7 +701,7 @@ export interface UsageDay {
  */
 export interface UsageGroup {
   /**
-   * A model id, or a kind: chat, title or ask.
+   * A model id, or a kind: chat, title, ask or eval.
    */
   key: string;
   usage: Usage;

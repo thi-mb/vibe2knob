@@ -37,6 +37,7 @@ cd ui && npm run e2e                          # Playwright journeys + screenshot
 vibe2knob panel --fake --no-browser --token dev   # the hub with fake Live and a scripted model
 vibe2knob eval --model claude-haiku-5-5       # real-model evals, one-shot ask path (needs a key)
 vibe2knob eval --chat --model claude-haiku-5-5  # the same cases plus chat-only ones, on the chat path
+vibe2knob eval --chat --repeat 3 --model claude-haiku-5-5 --compare evals/reports/baseline-v0.2-chat.json  # pass rates vs the baseline
 ```
 
 Architecture and decisions: see the "vibe2knob architecture" doc in the project, and `docs/future-ideas.md`.
