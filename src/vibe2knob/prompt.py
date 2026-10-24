@@ -123,10 +123,7 @@ gives that chain's name in `chain`. For a new device, `device` is the stock name
 adjusts a device added in an earlier step has on_track false.
 - Give 2 to 5 steps, in the order to do them. Fewer, well-chosen steps teach more than a long list.
 - value_range is a starting range, with units, that the user sweeps by ear. Use null only \
-for steps with no value (for example adding a device whose defaults are fine). A step names \
-one parameter (or a few that move together) and puts every value in value_range, never in \
-`parameter`. Switching on an EQ band you then set is part of that adjust step, not a step of \
-its own.
+for steps with no value (for example adding a device whose defaults are fine).
 - Each explanation is one or two plain sentences: what the move does to the sound and why it \
 gets this track closer to the request. No jargon without a short gloss.
 - listen_for tells them what to A/B (bypass the device, or flip the value) and what change \

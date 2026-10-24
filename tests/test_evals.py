@@ -187,3 +187,13 @@ def test_steps_are_capped_at_five():
         assert sent["properties"]["steps"]["description"] == "At most 5 items."
     case = next(c for c in load_cases(CASES) if c.id == "pad-wider")
     assert (case.min_steps, case.max_steps) == (2, 5)
+
+
+def test_switch_steps_need_no_value_range():
+    case = next(c for c in load_cases(CASES) if c.id == "pad-wider")
+    advice = Advice.model_validate(copy.deepcopy(WIDER_PAD))
+    advice.steps[0].action, advice.steps[0].value_range = "enable", None
+    checks = {c.name: c.passed for c in grade(case, advice)}
+    assert checks["gives starting values"]
+    advice.steps[0].action = "adjust"
+    assert not {c.name: c.passed for c in grade(case, advice)}["gives starting values"]

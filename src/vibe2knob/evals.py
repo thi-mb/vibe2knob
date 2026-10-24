@@ -144,7 +144,9 @@ def grade(case: Case, advice: Advice) -> list[Check]:
         ),
         Check(
             "gives starting values",
-            all(s.value_range for s in advice.steps if s.parameter),
+            # Turning a switch on or off (an EQ band, Bass Mono) has no range to give.
+            all(s.value_range for s in advice.steps
+                if s.parameter and s.action not in ("enable", "disable")),
             "a step names a parameter without a value range",
         ),
     ]
