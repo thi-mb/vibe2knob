@@ -39,7 +39,8 @@ def _now() -> str:
 
 
 class UsageRecord(BaseModel):
-    """One model call."""
+    """One model call, or one chat turn summed over its rounds (a turn that read tracks
+    calls the model once per round)."""
 
     schema_version: Literal[1] = USAGE_SCHEMA_VERSION
     at: str = Field(default_factory=_now)
@@ -53,6 +54,7 @@ class UsageRecord(BaseModel):
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     thinking_tokens: int = 0
+    rounds: int = Field(default=1, description="Model calls summed into this record.")
     parts: dict[str, int] = Field(default_factory=dict)
     backfilled: bool = Field(default=False, description="Rebuilt from an old chat file.")
 
@@ -82,6 +84,7 @@ class UsageRecord(BaseModel):
             cache_read_tokens=raw.get("cache_read_input_tokens") or 0,
             cache_write_tokens=raw.get("cache_creation_input_tokens") or 0,
             thinking_tokens=raw.get("thinking_tokens") or 0,
+            rounds=raw.get("rounds") or 1,
             **fields,
         )
 
@@ -99,7 +102,7 @@ def total(records: Iterable[UsageRecord]) -> Usage:
         u.cache_read_tokens += r.cache_read_tokens
         u.cache_write_tokens += r.cache_write_tokens
         u.thinking_tokens += r.thinking_tokens
-        u.calls += 1
+        u.calls += r.rounds
         for k, v in r.parts.items():
             parts[k] += v
         models.add(r.model)

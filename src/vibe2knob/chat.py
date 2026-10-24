@@ -9,6 +9,9 @@ turn the engine reads Live afresh and builds the prompt from:
   the last answer (the "refine" diff).
 
 The answer is streamed prose plus an optional `suggest_steps` tool call (see tools.py).
+When the model calls a read tool (`read_track`), the engine runs it, sends the result back
+and calls the model again, up to a read budget per turn; the prose of every round joins
+into one answer.
 """
 
 from __future__ import annotations
@@ -27,13 +30,13 @@ from pydantic import BaseModel, Field
 from .advice import Step, format_step
 from .knowledge import Term, load_terms, match_terms
 from .prompt import build_chat_system_prompt, build_chat_user_message
-from .protocol import ChatSummary, ContextSet
+from .protocol import ChatSummary, ContextSet, TrackRef
 from .providers import Provider, ProviderError
 from .providers.base import Done, Error, Phase, TextDelta, ToolCall
 from .session import (LiveView, SessionSummary, as_summary, as_track_state, describe_summary,
                       read_arrangement)
-from .state import Device, TrackState
-from .tools import ToolContext, ToolRegistry, default_tools
+from .state import Device, TrackState, TrackType
+from .tools import BUDGET_USED, Look, ToolContext, ToolOutcome, ToolRegistry, default_tools
 from .usage import Sizes, UsageRecord, split_parts
 
 log = logging.getLogger("vibe2knob.chat")
@@ -42,6 +45,10 @@ CHAT_SCHEMA_VERSION = 1
 
 # More changes than this are cut, so a big edit doesn't flood the prompt.
 MAX_CHANGES = 25
+
+# The read budget of one turn: model rounds that may read, and tracks read in all.
+MAX_READ_ROUNDS = 3
+MAX_READS = 6
 
 
 def _now() -> str:
@@ -59,6 +66,18 @@ class UserTurn(BaseModel):
     created_at: str = Field(default_factory=_now)
 
 
+class LookedAt(BaseModel):
+    """A track the model read during a turn."""
+
+    index: int
+    name: str
+    type: TrackType
+    why: str = ""
+
+    def ref(self) -> TrackRef:
+        return TrackRef(index=self.index, name=self.name, type=self.type)
+
+
 class AssistantTurn(BaseModel):
     role: Literal["assistant"] = "assistant"
     id: str = Field(default_factory=_new_id)
@@ -71,7 +90,13 @@ class AssistantTurn(BaseModel):
         default_factory=dict,
         description="Full-detail tracks this answer saw, keyed by track index.",
     )
-    usage: dict = Field(default_factory=dict, description="The provider's raw counts.")
+    looked_at: list[LookedAt] = Field(
+        default_factory=list, description="Tracks the model read with read tools."
+    )
+    usage: dict = Field(
+        default_factory=dict,
+        description="The provider's raw counts, summed over the turn's rounds (`rounds`).",
+    )
     parts: dict[str, int] = Field(
         default_factory=dict, description="The usage split into parts (see usage.py)."
     )
@@ -152,6 +177,15 @@ class TurnStarted:
 class TurnStatus:
     turn_id: str
     phase: str  # "reading" (Live), "thinking" (waiting for the model) or "steps"
+    detail: str | None = None  # e.g. "Reading Kick, Sub Bass" when the model reads tracks
+
+
+@dataclass
+class TurnLooked:
+    """Tracks the model just read (only the new ones)."""
+
+    turn_id: str
+    tracks: list[TrackRef]
 
 
 @dataclass
@@ -188,7 +222,8 @@ class ChatTitled:
     record: UsageRecord | None = None  # what naming the chat used
 
 
-ChatEvent = Union[TurnStarted, TurnStatus, TurnText, TurnSteps, TurnError, TurnDone, ChatTitled]
+ChatEvent = Union[TurnStarted, TurnStatus, TurnLooked, TurnText, TurnSteps, TurnError, TurnDone,
+                  ChatTitled]
 
 
 @dataclass
@@ -307,6 +342,8 @@ def render_answer(turn: AssistantTurn) -> str:
         if turn.caution:
             lines.append(f"Watch out: {turn.caution}")
         parts.append("\n".join(lines) + "]")
+    if turn.looked_at:
+        parts.append("(looked at " + ", ".join(t.name for t in turn.looked_at) + ")")
     return "\n\n".join(p for p in parts if p)
 
 
@@ -353,7 +390,13 @@ class ChatEngine:
         return messages
 
     def send(self, chat: Chat, text: str, live: LiveView | None = None) -> Iterator[ChatEvent]:
-        """Run one turn: read Live, stream the answer, and append both turns to `chat`."""
+        """Run one turn: read Live, stream the answer, and append both turns to `chat`.
+
+        The model may call read tools; then the engine runs them, appends the results and
+        calls it again, until a round reads nothing. The read budget (MAX_READ_ROUNDS rounds,
+        MAX_READS tracks) is told to the model as a tool result, so the tool list and the
+        cached prefix never change within a turn.
+        """
         turn = AssistantTurn()
         yield TurnStarted(turn.id)
         yield TurnStatus(turn.id, "reading")
@@ -363,35 +406,92 @@ class ChatEngine:
         chat.turns.append(UserTurn(text=text))
         yield TurnStatus(turn.id, "thinking")
         only = ctx.detail[0][2] if len(ctx.detail) == 1 else None
-        tool_ctx = ToolContext(ctx.check_tracks(), only)
+        tool_ctx = ToolContext(ctx.check_tracks(), only, live=live, summary=ctx.summary,
+                               detail={i for _, i, _ in ctx.detail}, reads_left=MAX_READS)
         prose: list[str] = []
-        steps_chars = 0
-        for event in self._stream(messages):
-            if isinstance(event, TextDelta):
-                prose.append(event.text)
-                yield TurnText(turn.id, event.text)
-            elif isinstance(event, ToolCall):
-                steps_chars += len(json.dumps(event.input))
-                outcome = self.tools.handle(event.name, event.input, tool_ctx)
+        steps_chars = calls_chars = 0
+        usages: list[dict] = []
+        rounds: list[list[dict]] = []
+        read_rounds = 0
+        last_call = MAX_READ_ROUNDS + 1  # one more round to answer after the budget is used
+        for call in range(last_call + 1):
+            rounds.append(messages)
+            round_text: list[str] = []
+            tool_calls: list[ToolCall] = []
+            done: Done | None = None
+            for event in self._stream(messages):
+                if isinstance(event, TextDelta):
+                    if not round_text and prose and not prose[-1][-1:].isspace():
+                        prose.append("\n\n")
+                        yield TurnText(turn.id, "\n\n")
+                    round_text.append(event.text)
+                    prose.append(event.text)
+                    yield TurnText(turn.id, event.text)
+                elif isinstance(event, ToolCall):
+                    if event.id is None:
+                        event.id = f"call_{call}_{len(tool_calls)}"
+                    tool_calls.append(event)
+                elif isinstance(event, Phase):
+                    if self.tools.kind(event.tool) != "read":
+                        yield TurnStatus(turn.id, event.name)
+                elif isinstance(event, Done):
+                    done = event
+                    usages.append(event.usage)
+                elif isinstance(event, Error):
+                    turn.error = event.message
+                    yield TurnError(turn.id, event.message)
+            if turn.error is not None:
+                break
+            results: dict[str, str] = {}
+            reads = []
+            for c in tool_calls:
+                if self.tools.kind(c.name) == "read":
+                    reads.append(c)
+                    calls_chars += len(json.dumps(c.input))
+                    continue
+                steps_chars += len(json.dumps(c.input))
+                outcome = self.tools.handle(c.name, c.input, tool_ctx)
                 turn.warnings += outcome.warnings
+                results[c.id] = outcome.result or "Shown to the user."
                 if outcome.steps is not None and outcome.steps.steps:
                     turn.steps = outcome.steps.steps
                     turn.listen_for = outcome.steps.listen_for
                     turn.caution = outcome.steps.caution
                     yield TurnSteps(turn.id, turn.steps, turn.listen_for, turn.caution,
                                     list(outcome.warnings))
-            elif isinstance(event, Phase):
-                yield TurnStatus(turn.id, event.name)
-            elif isinstance(event, Done):
-                turn.usage = event.usage
-            elif isinstance(event, Error):
-                turn.error = event.message
-                yield TurnError(turn.id, event.message)
+            if not reads or call == last_call:
+                break
+            over = read_rounds >= MAX_READ_ROUNDS
+            read_rounds += 0 if over else 1
+            names = [n for c in reads for n in c.input.get("tracks") or [] if isinstance(n, str)]
+            if names and not over and tool_ctx.reads_left > 0:
+                yield TurnStatus(turn.id, "reading", "Reading " + ", ".join(names))
+            seen = len(tool_ctx.looked)
+            for c in reads:
+                outcome = (ToolOutcome(result=BUDGET_USED) if over
+                           else self.tools.handle(c.name, c.input, tool_ctx))
+                turn.warnings += outcome.warnings
+                results[c.id] = outcome.result or ""
+            new = tool_ctx.looked[seen:]
+            if new:
+                self._looked(turn, tool_ctx, ctx, new)
+                yield TurnLooked(turn.id, [_ref(look) for look in new])
+            messages = messages + [
+                {"role": "assistant", "content": "".join(round_text),
+                 "tool_calls": [{"id": c.id, "name": c.name, "input": c.input}
+                                for c in tool_calls],
+                 "raw": done.raw if done else None},
+                {"role": "user", "content": "",
+                 "tool_results": [{"id": c.id, "name": c.name, "content": results[c.id]}
+                                  for c in tool_calls]},
+            ]
+            yield TurnStatus(turn.id, "thinking")
         turn.text = "".join(prose)
+        turn.usage = _sum_usage(usages)
         record = None
         if turn.usage:
-            sizes = self._sizes(messages, text)
-            sizes.answer, sizes.steps = len(turn.text), steps_chars
+            sizes = self._sizes(rounds, text)
+            sizes.answer, sizes.steps = len(turn.text) + calls_chars, steps_chars
             record = turn.usage_record(chat.id, self.provider.name,
                                        getattr(self.provider, "model", None))
             turn.parts = record.parts = split_parts(record, sizes)
@@ -404,22 +504,42 @@ class ChatEngine:
                 chat.title = title
                 yield ChatTitled(title, self._last_record("title", chat.id))
 
-    def _sizes(self, messages: list[dict], request: str) -> Sizes:
-        """How long each part of the prompt was, plus exact counts if the provider has them."""
-        newest = messages[-1]["content"]
-        sizes = Sizes(
-            instructions=len(self.system),
-            tools=len(json.dumps([s.input_schema for s in self.tools.specs()])),
-            history=sum(len(m["content"]) for m in messages[:-1]),
-            message=len(request),
-            live=max(0, len(newest) - len(request)),
-        )
+    @staticmethod
+    def _looked(turn: AssistantTurn, tool_ctx: ToolContext, ctx: TurnContext,
+                new: list[Look]) -> None:
+        """Tracks just read join the snapshots, the looked-at list and the step check."""
+        for look in new:
+            turn.snapshots[str(look.index)] = look.state
+            turn.looked_at.append(LookedAt(index=look.index, name=look.state.track.name,
+                                           type=look.state.track.type, why=look.why))
+        full = [s for _, _, s in ctx.detail] + [look.state for look in tool_ctx.looked]
+        known = {s.track.index for s in full}
+        tool_ctx.tracks = full + [s for s in tool_ctx.tracks if s.track.index not in known]
+
+    def _sizes(self, rounds: list[list[dict]], request: str) -> Sizes:
+        """How long each part of the prompt was over the turn's rounds, plus exact counts of
+        the instructions and tools if the provider has them.
+
+        Each round resends the instructions, tools and history. What it adds after the
+        user's message (earlier rounds and read results) counts as live.
+        """
+        first = rounds[0]
+        newest = len(first) - 1  # the user's message with the context block
+        sizes = Sizes()
+        for messages in rounds:
+            sizes.instructions += len(self.system)
+            sizes.tools += len(json.dumps([s.input_schema for s in self.tools.specs()]))
+            sizes.history += sum(_length(m) for m in messages[:newest])
+            sizes.message += len(request)
+            sizes.live += max(0, _length(messages[newest]) - len(request))
+            sizes.live += sum(_length(m) for m in messages[newest + 1:])
         count_parts = getattr(self.provider, "count_parts", None)
         if count_parts is not None:
             try:
-                sizes.exact = count_parts(self.system, self.tools.specs()) or {}
+                exact = count_parts(self.system, self.tools.specs()) or {}
             except Exception:  # noqa: BLE001 - the split falls back to estimates
-                sizes.exact = {}
+                exact = {}
+            sizes.exact = {k: v * len(rounds) for k, v in exact.items()}
         return sizes
 
     def _last_record(self, kind: str, chat_id: str | None) -> UsageRecord | None:
@@ -448,3 +568,32 @@ class ChatEngine:
             return None
         title = (raw or "").strip().splitlines()[0].strip().strip("\"'").rstrip(".") if raw else ""
         return title[:60] or None
+
+
+def _length(message: dict) -> int:
+    """A message's length in characters, tool calls and results included."""
+    return (len(message["content"])
+            + sum(len(r["content"]) for r in message.get("tool_results", ()))
+            + sum(len(json.dumps(c["input"])) for c in message.get("tool_calls", ())))
+
+
+def _sum_usage(usages: list[dict]) -> dict:
+    """The provider's counts summed over a turn's rounds; `model` is the last one's."""
+    usages = [u for u in usages if u]
+    if not usages:
+        return {}
+    out: dict = {}
+    for u in usages:
+        for k, v in u.items():
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                out[k] = out.get(k, 0) + v
+            else:
+                out[k] = v
+    out["rounds"] = len(usages)
+    return out
+
+
+def _ref(look: Look) -> TrackRef:
+    t = look.state.track
+    return TrackRef(index=look.index, name=t.name, type=t.type, color=t.color,
+                    devices=[d.name for d in t.devices])
