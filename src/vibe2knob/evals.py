@@ -399,8 +399,11 @@ def compare(old: list[dict], new: list[dict], echo=print) -> bool:
     def rate(row: dict) -> str:
         return f"{row['passes']}/{row['repeat']}"
 
-    dropped = [i for i in shared if after[i]["pass_rate"] < before[i]["pass_rate"] - 1e-9]
-    raised = [i for i in shared if after[i]["pass_rate"] > before[i]["pass_rate"] + 1e-9]
+    def share(row: dict) -> float:  # exact, where the saved pass_rate is rounded
+        return row["passes"] / row["repeat"]
+
+    dropped = [i for i in shared if share(after[i]) < share(before[i]) - 1e-9]
+    raised = [i for i in shared if share(after[i]) > share(before[i]) + 1e-9]
     if dropped:
         echo("Dropped:")
         for i in dropped:
@@ -415,8 +418,8 @@ def compare(old: list[dict], new: list[dict], echo=print) -> bool:
         echo(f"Not in the old report (not compared): {', '.join(added)}")
     if gone:
         echo(f"Not run this time: {', '.join(gone)}")
-    total_before = sum(before[i]["pass_rate"] for i in shared)
-    total_after = sum(after[i]["pass_rate"] for i in shared)
+    total_before = sum(share(before[i]) for i in shared)
+    total_after = sum(share(after[i]) for i in shared)
     ok = total_before - total_after <= 1 + 1e-9
     echo(f"Pass rate over {len(shared)} shared cases: {total_before:.2f} -> {total_after:.2f} "
          f"({total_after - total_before:+.2f} cases). "
