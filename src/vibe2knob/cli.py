@@ -216,6 +216,13 @@ def cmd_setup_live(args: argparse.Namespace) -> int:
         print(f"{verb} AbletonOSC ({ABLETONOSC_COMMIT[:7]}) in {target}.")
         if result.backup:
             print(f"The copy that was there is now in {result.backup}.")
+    if result.action == "unchanged":
+        from .doctor import OK, check_live
+
+        if check_live().status == OK:
+            print("Live already answers through it, so there's nothing left to do in Live.\n"
+                  "Open the panel with `vibe2knob panel --window`.")
+            return 0
     print("""
 One step is left, in Live:
   1. Restart Live (quit and open it again), so it finds the script.
@@ -223,7 +230,7 @@ One step is left, in Live:
   3. In an empty Control Surface slot pick AbletonOSC. Leave its Input and Output as None.
      Live's status bar says "AbletonOSC: Listening for OSC on port 11000".
 
-Then check everything with `vibe2knob doctor`, and open the panel with `vibe2knob panel`.""")
+Then check everything with `vibe2knob doctor`, and open the panel with `vibe2knob panel --window`.""")
     return 0
 
 
