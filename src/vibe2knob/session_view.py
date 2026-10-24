@@ -18,7 +18,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 MAX_SCENES = 12
-MAX_PER_SCENE = 8
+MAX_PER_SCENE = 4
 MAX_CONTEXT = 6
 MAX_PLAYING = 8
 MAX_SHARED = 4
@@ -144,7 +144,7 @@ def describe_session_view(grid: Grid, names: dict[int, str], context: list[int])
         return None
     used = [s for s in grid.scenes if any(t in names for t in s.tracks)]
     lines = [f"Session view ({len(grid.scenes)} scenes, {len(used)} with clips). Clips "
-             "playing from it are what the user hears now:"]
+             "playing from it are what the user hears now (read_scenes shows a scene's clips):"]
     for s in used[:MAX_SCENES]:
         lines.append(f"  - {s.label()}: {_list(names, s.tracks, MAX_PER_SCENE)}")
     if len(used) > MAX_SCENES:
@@ -207,3 +207,100 @@ def _pair_text(grid: Grid, names: dict[int, str], a: int, b: int) -> str:
         where += f" and {len(both) - MAX_SHARED} more"
     only = " only" if len(both) < max(len(mine), len(theirs)) else ""
     return f"{na} and {nb} have clips together{only} in {where}."
+
+
+# read_scenes' answer.
+MAX_SCENES_PER_READ = 4
+MAX_EMPTY = 8
+
+
+def find_scene(grid: Grid, ref: str) -> tuple[int | None, list[str]]:
+    """A scene as the model wrote it (a number from 1, "scene 3", or a name) -> (index, []),
+    or (None, the scenes it might mean); (None, []) when nothing matches. Names match exactly, then ignoring case, then by a unique prefix,
+    then by a unique part of the name."""
+    want = ref.strip().strip('"').strip()
+    number = want.casefold().removeprefix("scene").strip()
+    if number.isdigit():
+        n = int(number)
+        if 1 <= n <= len(grid.scenes):
+            return n - 1, []
+        return None, []
+    named = [s for s in grid.scenes if s.name.strip()]
+    low = want.casefold()
+    for match in (lambda n: n == want, lambda n: n.casefold() == low,
+                  lambda n: n.casefold().startswith(low), lambda n: low in n.casefold()):
+        hits = [s for s in named if match(s.name.strip())]
+        if len(hits) == 1:
+            return hits[0].index, []
+        if len(hits) > 1:
+            return None, [s.label() for s in hits]
+    return None, []
+
+
+def _upper(text: str) -> str:
+    return text[:1].upper() + text[1:]
+
+
+def _clip_text(slot: Slot | None, beats_per_bar: float) -> str:
+    if slot is None:
+        return "a clip"
+    name = f'clip "{slot.name.strip()}"' if slot.name.strip() else "an unnamed clip"
+    if slot.length:
+        bars = slot.length / beats_per_bar
+        name += f" ({bars:g} bar{'' if bars == 1 else 's'})"
+    return name
+
+
+def describe_scene(grid: Grid, names: dict[int, str], scene: int,
+                   beats_per_bar: float = 4.0) -> str:
+    """read_scenes' answer for one scene: each track's clip in it, and whether it plays now."""
+    s = grid.scenes[scene]
+    tracks = [t for t in s.tracks if t in names]
+    if not tracks:
+        return f"{_upper(s.label())} has no clips."
+    playing = grid.playing()
+    on = [t for t in tracks if playing.get(t) == scene]
+    if grid.whole_scene() == scene:
+        state = "playing now, all of it"
+    elif on:
+        state = f"{len(on)} of its {len(tracks)} clips play now"
+    else:
+        state = "not playing now"
+    lines = [f"{_upper(s.label())} ({state}):"]
+    for t in tracks:
+        line = f'  - "{names[t]}": {_clip_text(grid.clip(t, scene), beats_per_bar)}'
+        if t in on:
+            line += ", playing now"
+        elif t in playing:
+            line += f", but it plays its clip in {grid.scenes[playing[t]].label()} now"
+        lines.append(line)
+    empty = [t for t in names if t not in grid.groups and t not in tracks
+             and any(v.index == t for v in grid.view.tracks)]
+    if empty:
+        lines.append(f"  No clip in this scene: {_list(names, empty, MAX_EMPTY)}.")
+    return "\n".join(lines)
+
+
+def describe_playing(grid: Grid, names: dict[int, str], beats_per_bar: float = 4.0) -> str:
+    """read_scenes' answer for "playing": every clip playing from Session view now."""
+    if grid.view.is_playing is False:
+        return "Nothing plays now: the transport is stopped."
+    playing = {t: s for t, s in grid.playing().items() if t in names}
+    fired = {t: s for t, s in grid.fired().items() if t in names}
+    lines = []
+    whole = grid.whole_scene()
+    if whole is not None and playing:
+        lines.append(f"Playing now from Session view: all of {grid.scenes[whole].label()}.")
+    elif playing:
+        lines.append("Playing now from Session view:")
+    else:
+        lines.append("No Session view clips play now (tracks follow the arrangement).")
+    for t, s in sorted(playing.items()):
+        lines.append(f'  - "{names[t]}": {_clip_text(grid.clip(t, s), beats_per_bar)} '
+                     f"from {grid.scenes[s].label()}")
+    if fired:
+        lines.append("Launched, about to start:")
+        for t, s in sorted(fired.items()):
+            lines.append(f'  - "{names[t]}": {_clip_text(grid.clip(t, s), beats_per_bar)} '
+                         f"from {grid.scenes[s].label()}")
+    return "\n".join(lines)

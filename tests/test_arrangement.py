@@ -123,5 +123,5 @@ def test_a_failing_arrangement_read_doesnt_break_the_turn():
 def test_fake_live_has_an_arrangement():
     ctx = gather_context(ContextSet(follow_selection=True), FakeLive())
     text = describe_summary(ctx.summary, {0: "selected in Live"})
-    assert "Sections, from the set's locators:" in text
+    assert "Sections, from the set's locators (" in text
     assert "Intro (bars 1-16)" in text
