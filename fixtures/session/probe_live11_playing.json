@@ -1,0 +1,346 @@
+{
+ "abletonosc": {
+  "path": "/Users/thiago/Music/Ableton/User Library/Remote Scripts/AbletonOSC",
+  "commit": "0ca68214bd62c9b5cb641ca34006cfd70ba94430 2025-11-19 Add issue templates",
+  "newest_py_mtime": "2026-10-20"
+ },
+ "batches": {
+  "song": 0.102,
+  "song scenes/name": 0.104,
+  "scene/get/name per scene": 0.109,
+  "track name": 0.111,
+  "track is_foldable": 0.109,
+  "track is_grouped": 0.098,
+  "track clips/name": 0.101,
+  "track clips/length": 0.098,
+  "track playing_slot_index": 0.107,
+  "track fired_slot_index": 0.105,
+  "all clip reads, groups skipped": 0.106,
+  "all clip reads, every track": 0.119
+ },
+ "missing": [],
+ "live_version": [
+  11,
+  3
+ ],
+ "song": {
+  "num_scenes": [
+   8
+  ],
+  "num_tracks": [
+   7
+  ],
+  "is_playing": [
+   true
+  ],
+  "tempo": [
+   82.0
+  ]
+ },
+ "scene_lists": {
+  "scenes/name": [
+   "",
+   "",
+   "",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ]
+ },
+ "scenes": [
+  [
+   ""
+  ],
+  [
+   ""
+  ],
+  [
+   ""
+  ],
+  [
+   ""
+  ],
+  [
+   ""
+  ],
+  [
+   ""
+  ],
+  [
+   ""
+  ],
+  [
+   ""
+  ]
+ ],
+ "tracks": [
+  {
+   "index": 0,
+   "name": [
+    "drum rack"
+   ],
+   "is_foldable": [
+    false
+   ],
+   "is_grouped": [
+    false
+   ],
+   "clips/name": [
+    "no hihat",
+    "mid hihat",
+    "hi hihat",
+    "hi hihat",
+    "mid hihat",
+    null,
+    null,
+    null
+   ],
+   "clips/length": [
+    16.0,
+    16.0,
+    16.0,
+    16.0,
+    16.0,
+    null,
+    null,
+    null
+   ],
+   "playing_slot_index": [
+    2
+   ],
+   "fired_slot_index": [
+    -1
+   ]
+  },
+  {
+   "index": 1,
+   "name": [
+    "bass"
+   ],
+   "is_foldable": [
+    true
+   ],
+   "is_grouped": [
+    false
+   ],
+   "clips/name": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "clips/length": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "playing_slot_index": [
+    -1
+   ],
+   "fired_slot_index": [
+    -1
+   ]
+  },
+  {
+   "index": 2,
+   "name": [
+    "bass lo"
+   ],
+   "is_foldable": [
+    false
+   ],
+   "is_grouped": [
+    true
+   ],
+   "clips/name": [
+    "riff 1",
+    "riff 1",
+    "riff 1",
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "clips/length": [
+    8.0,
+    8.0,
+    8.0,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "playing_slot_index": [
+    2
+   ],
+   "fired_slot_index": [
+    -1
+   ]
+  },
+  {
+   "index": 3,
+   "name": [
+    "bass filthy"
+   ],
+   "is_foldable": [
+    false
+   ],
+   "is_grouped": [
+    true
+   ],
+   "clips/name": [
+    null,
+    null,
+    null,
+    "riff 2",
+    "riff 2",
+    null,
+    null,
+    null
+   ],
+   "clips/length": [
+    null,
+    null,
+    null,
+    8.0,
+    8.0,
+    null,
+    null,
+    null
+   ],
+   "playing_slot_index": [
+    -2
+   ],
+   "fired_slot_index": [
+    -1
+   ]
+  },
+  {
+   "index": 4,
+   "name": [
+    "ear candy"
+   ],
+   "is_foldable": [
+    true
+   ],
+   "is_grouped": [
+    false
+   ],
+   "clips/name": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "clips/length": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "playing_slot_index": [
+    -1
+   ],
+   "fired_slot_index": [
+    -1
+   ]
+  },
+  {
+   "index": 5,
+   "name": [
+    "6-64 Pads Dub Techno Kit"
+   ],
+   "is_foldable": [
+    false
+   ],
+   "is_grouped": [
+    true
+   ],
+   "clips/name": [
+    null,
+    null,
+    "64 Pads Dub Techno Kit groove 03_128 bpm",
+    "64 Pads Dub Techno Kit groove 03_128 bpm",
+    null,
+    null,
+    null,
+    null
+   ],
+   "clips/length": [
+    null,
+    null,
+    8.0,
+    8.0,
+    null,
+    null,
+    null,
+    null
+   ],
+   "playing_slot_index": [
+    2
+   ],
+   "fired_slot_index": [
+    -1
+   ]
+  },
+  {
+   "index": 6,
+   "name": [
+    "chimes+delay"
+   ],
+   "is_foldable": [
+    false
+   ],
+   "is_grouped": [
+    true
+   ],
+   "clips/name": [
+    null,
+    "3-Komplete Kontrol 2",
+    "3-Komplete Kontrol 2",
+    "3-Komplete Kontrol 2",
+    null,
+    null,
+    null,
+    null
+   ],
+   "clips/length": [
+    null,
+    4.0,
+    4.0,
+    4.0,
+    null,
+    null,
+    null,
+    null
+   ],
+   "playing_slot_index": [
+    2
+   ],
+   "fired_slot_index": [
+    -1
+   ]
+  }
+ ]
+}

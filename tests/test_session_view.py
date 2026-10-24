@@ -11,15 +11,17 @@ from .conftest import FIXTURES
 from .test_chat import load, session
 
 
-def real_set():
+def real_set(fixture="probe_live11.json"):
     """Thiago's 7-track Session set, as LiveBridge.session_view() reads it."""
-    probe = json.loads((FIXTURES / "session" / "probe_live11.json").read_text())
+    probe = json.loads((FIXTURES / "session" / fixture).read_text())
     tracks = []
     for r in probe["tracks"]:
         slots = [None if n is None else {"name": n, "length": length}
                  for n, length in zip(r["clips/name"], r["clips/length"])]
-        tracks.append({"index": r["index"], "is_group": r["is_foldable"][0], "slots": slots})
-    view = SessionView(is_playing=False, tracks=tracks,
+        playing = r["playing_slot_index"][0]
+        tracks.append({"index": r["index"], "is_group": r["is_foldable"][0], "slots": slots,
+                       "playing_slot": playing if playing >= 0 else None})
+    view = SessionView(is_playing=probe["song"]["is_playing"][0], tracks=tracks,
                        scenes=[{"index": i, "name": n}
                                for i, n in enumerate(probe["scene_lists"]["scenes/name"])])
     return view, {r["index"]: r["name"][0] for r in probe["tracks"]}
@@ -56,6 +58,12 @@ def test_bass_parts_never_share_a_scene():
     view, names = real_set()
     text = describe_session_view(Grid(view), names, [2, 3])
     assert '"bass lo" and "bass filthy" never have clips in the same scene.' in text
+
+
+def test_real_set_playing_the_third_scene():
+    view, names = real_set("probe_live11_playing.json")
+    text = describe_session_view(Grid(view), names, [])
+    assert "Playing now: all of scene 3." in text
 
 
 def test_whole_scene_playing():
