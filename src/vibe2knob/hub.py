@@ -26,7 +26,7 @@ from pydantic import BaseModel, ValidationError
 
 from . import __version__, pricing
 from .chat import (
-    AssistantTurn, Chat, ChatEngine, ChatTitled, TurnDone, TurnError, TurnStatus, TurnSteps,
+    AssistantTurn, Chat, ChatEngine, ChatTitled, TurnDone, TurnError, TurnLooked, TurnStatus, TurnSteps,
     TurnText,
 )
 from .knowledge import Term, load_terms
@@ -41,6 +41,7 @@ from .protocol import (
     ChatSend,
     ChatHistory,
     ChatOpen,
+    ChatLooked,
     ChatStatus,
     ChatSteps,
     ChatSummary,
@@ -473,7 +474,10 @@ class Hub:
                 if isinstance(event, TurnStatus):
                     turn_id = event.turn_id
                     self.publish(ChatStatus(chat_id=chat.id, turn_id=event.turn_id,
-                                            phase=event.phase))
+                                            phase=event.phase, detail=event.detail))
+                elif isinstance(event, TurnLooked):
+                    self.publish(ChatLooked(chat_id=chat.id, turn_id=event.turn_id,
+                                            tracks=event.tracks))
                 elif isinstance(event, TurnText):
                     turn_id = event.turn_id
                     self.publish(ChatDelta(chat_id=chat.id, turn_id=event.turn_id,
@@ -586,7 +590,7 @@ def _chat_turn(turn, default_model: str | None = None) -> ChatTurn:
         return ChatTurn(id=turn.id, role="assistant", text=turn.text, created_at=turn.created_at,
                         steps=turn.steps or None, listen_for=turn.listen_for,
                         caution=turn.caution, warnings=turn.warnings, error=turn.error,
-                        usage=usage)
+                        usage=usage, looked_at=[t.ref() for t in turn.looked_at])
     return ChatTurn(id=turn.id, role="user", text=turn.text, created_at=turn.created_at)
 
 

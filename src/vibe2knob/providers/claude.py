@@ -89,7 +89,7 @@ class ClaudeProvider:
                     model=self.model,
                     max_tokens=16000,
                     system=self._system(system),
-                    messages=messages,
+                    messages=_messages(messages),
                     tools=tool_defs,
                     thinking={"type": "adaptive"},
                     output_config={"effort": self.effort},
@@ -100,7 +100,7 @@ class ClaudeProvider:
                             yield TextDelta(event.delta.text)
                         elif (event.type == "content_block_start"
                               and event.content_block.type == "tool_use"):
-                            yield Phase("steps")
+                            yield Phase("steps", getattr(event.content_block, "name", None))
                     final = stream.get_final_message()
             # A refusal or a cut-off can leave a half-written tool call: don't use it.
             _check_stop(final.stop_reason)
@@ -110,7 +110,7 @@ class ClaudeProvider:
         for block in final.content:
             if block.type == "tool_use":
                 yield ToolCall(block.name, dict(block.input), block.id)
-        yield Done(_usage(final), final.stop_reason)
+        yield Done(_usage(final), final.stop_reason, raw=final.content)
 
     def generate_text(self, system: str, user: str) -> str:
         with _api_errors():
@@ -156,6 +156,38 @@ class ClaudeProvider:
             except Exception:  # noqa: BLE001
                 return pricing.context_window(self.model)
         return self._window
+
+
+def _messages(messages: list[dict]) -> list[dict]:
+    """The engine's messages as Messages API params (see providers/base.py for the shapes).
+
+    The newest message carries the second cache breakpoint, so the next read round of the
+    same turn reads everything before it from cache.
+    """
+    out = []
+    for m in messages:
+        if m.get("tool_results"):
+            content: list | str = [
+                {"type": "tool_result", "tool_use_id": r["id"], "content": r["content"]}
+                for r in m["tool_results"]
+            ]
+        elif m["role"] == "assistant" and m.get("raw") is not None:
+            # Passed back as it came, so its thinking blocks stay valid.
+            content = m["raw"]
+        elif m["role"] == "assistant" and m.get("tool_calls"):
+            content = ([{"type": "text", "text": m["content"]}] if m["content"] else []) + [
+                {"type": "tool_use", "id": c["id"], "name": c["name"], "input": c["input"]}
+                for c in m["tool_calls"]
+            ]
+        else:
+            content = m["content"]
+        out.append({"role": m["role"], "content": content})
+    if out and out[-1]["role"] == "user":
+        last = out[-1]
+        if isinstance(last["content"], str):
+            last["content"] = [{"type": "text", "text": last["content"]}]
+        last["content"][-1] = {**last["content"][-1], "cache_control": {"type": "ephemeral"}}
+    return out
 
 
 def _check_stop(stop_reason: str | None) -> None:

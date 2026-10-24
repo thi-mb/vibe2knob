@@ -136,6 +136,7 @@ expect_any_device = ["Reverb", "Hybrid Reverb", "Echo", "Delay", "Grain Delay", 
 #                    a scripted earlier turn
 #   fixture_after    the selected track as the user left it after that turn (the refine diff)
 #   expect_no_steps  a prose-only answer is the right one
+#   min_steps = 0    steps are optional (a prose-only answer passes too)
 
 [[case]]
 id = "chat-pad-refine"
@@ -228,6 +229,42 @@ request = "how do these 2 interact?"
 why = "No clips in Arrangement view (they may be in Session view), so the answer can't know whether the two play together. A good answer says so or asks, instead of claiming either way."
 expect_no_steps = true
 mention_any = ["arrangement", "session view", "same time", "together"]
+
+# Read cases: the model reads tracks it only sees in the summary (read_track).
+#
+#   expect_reads_any  the model must read at least one of these tracks
+#   expect_reads_all  the model must read all of these tracks
+#   forbid_reads      the model must not read any of these tracks
+
+[[case]]
+id = "chat-reads-low-end"
+chat_only = true
+session = ["../fixtures/lead_vocal.json", "../fixtures/drum_rack.json", "../fixtures/sub_bass.json", "../fixtures/synth_pad.json", "../fixtures/drum_group.json"]
+fixture = "../fixtures/lead_vocal.json"
+request = "the low end is muddy"
+why = "Only the vocal is selected, but the low end lives in the kick and the bass. A good answer reads them (Beat, Sub Bass or the drum group) before it advises, instead of EQing the vocal or guessing their settings."
+expect_reads_any = ["Sub Bass", "Beat", "Drums"]
+min_steps = 1
+
+[[case]]
+id = "chat-no-read-wider"
+chat_only = true
+session = ["../fixtures/synth_pad.json", "../fixtures/lead_vocal.json", "../fixtures/sub_bass.json", "../fixtures/drum_group.json"]
+fixture = "../fixtures/synth_pad.json"
+request = "make this wider"
+why = "Widening the selected pad needs nothing but the pad, which already has full detail. Reading other tracks would spend time and tokens for nothing."
+forbid_reads = ["Lead Vox", "Sub Bass", "Drums"]
+expect_on_track_any = ["Utility", "Chorus-Ensemble", "Wavetable"]
+
+[[case]]
+id = "chat-reads-both-clash"
+chat_only = true
+session = ["../fixtures/drum_group.json", "../fixtures/sub_bass.json", "../fixtures/acoustic_native_fx.json", "../fixtures/lead_vocal.json"]
+fixture = "../fixtures/drum_group.json"
+request = "does the guitar clash with the vocal?"
+why = "Neither the guitar (acoustic-pick) nor the vocal is in context; the drums are selected. A good answer reads both before judging, and resolves \"the guitar\" to acoustic-pick from the summary."
+expect_reads_all = ["acoustic-pick", "Lead Vox"]
+min_steps = 0
 
 # Session view cases: the clip grid and what plays from it.
 #

@@ -77,7 +77,8 @@ def stream_client(stop_reason="tool_use"):
         return SimpleNamespace(type="content_block_delta", delta=SimpleNamespace(type="text_delta", text=text))
 
     def start(kind):
-        return SimpleNamespace(type="content_block_start", content_block=SimpleNamespace(type=kind))
+        block = SimpleNamespace(type=kind, name="suggest_steps") if kind == "tool_use" else SimpleNamespace(type=kind)
+        return SimpleNamespace(type="content_block_start", content_block=block)
 
     final = SimpleNamespace(
         stop_reason=stop_reason,
@@ -102,7 +103,7 @@ def test_claude_stream_chat():
     client, kw = stream_client()
     events = list(ClaudeProvider(client=client).stream_chat("sys", [{"role": "user", "content": "hi"}], TOOLS))
     # Only a tool call's start becomes a phase: the hub already says "thinking" until text.
-    assert events[:3] == [TextDelta("Open "), TextDelta("it up."), Phase("steps")]
+    assert events[:3] == [TextDelta("Open "), TextDelta("it up."), Phase("steps", "suggest_steps")]
     assert events[3] == ToolCall("suggest_steps", {"steps": []}, "toolu_1")
     assert isinstance(events[4], Done) and events[4].usage["cache_read_input_tokens"] == 900
     assert kw["tools"] == [{"name": "suggest_steps", "description": "Show steps.",
@@ -152,7 +153,7 @@ def test_ollama_stream_chat(monkeypatch):
 
     monkeypatch.setattr(provider, "_post", post)
     events = list(provider.stream_chat("sys", [{"role": "user", "content": "hi"}], TOOLS))
-    assert events == [TextDelta("Open "), TextDelta("it up."), ToolCall("suggest_steps", {"steps": []}),
+    assert events == [TextDelta("Open "), TextDelta("it up."), ToolCall("suggest_steps", {"steps": []}, "call_0"),
                       Done({"input_tokens": 12, "output_tokens": 7, "model": "llama3.1"}, "end_turn")]
     assert sent[0]["messages"][0] == {"role": "system", "content": "sys"}
     assert sent[0]["tools"][0]["function"]["name"] == "suggest_steps"

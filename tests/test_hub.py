@@ -199,6 +199,29 @@ def test_chat_turn_streams_and_saves(setup):
     assert saved.title == "Wider pad" and len(saved.turns) == 2
 
 
+def test_a_read_turn_says_what_it_read(tmp_path):
+    provider = FakeProvider([Reply.reads("Sub Bass", "Beat", reason="the low end"),
+                             Reply("The kick and the bass share 60 Hz.")])
+    setup = Setup(tmp_path, provider=provider)
+    with TestClient(setup.app) as client, connect(client) as ws:
+        hello(ws)
+        chat_id = create_chat(ws, follow_selection=True)
+        ws.send_json({"v": 1, "type": "chat.send", "chat_id": chat_id, "text": "muddy low end"})
+        turn = collect_turn(ws)
+        statuses = [(m["phase"], m["detail"]) for m in turn if m["type"] == "chat.status"]
+        assert ("reading", "Reading Sub Bass, Beat") in statuses
+        looked = [m for m in turn if m["type"] == "chat.looked"]
+        assert [[t["name"] for t in m["tracks"]] for m in looked] == [["Sub Bass", "Beat"]]
+        assert looked[0]["turn_id"] == turn[-1]["turn_id"]
+        assert turn[-1]["usage"]["calls"] == 2
+        ws.send_json({"v": 1, "type": "chat.open", "chat_id": chat_id, "request_id": "o"})
+        history = until(ws, "chat.history")
+    answer = history["turns"][-1]
+    assert [(t["index"], t["name"], t["type"]) for t in answer["looked_at"]] == [
+        (6, "Sub Bass", "midi"), (2, "Beat", "midi")]
+    assert history["turns"][0]["looked_at"] == []
+
+
 def test_chats_survive_a_restart(setup, tmp_path):
     with TestClient(setup.app) as client, connect(client) as ws:
         hello(ws)

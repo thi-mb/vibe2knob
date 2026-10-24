@@ -25,9 +25,17 @@ class Reply:
         payload = {"steps": steps, "listen_for": listen_for, "caution": caution}
         return cls(text, (("suggest_steps", payload),))
 
+    @classmethod
+    def reads(cls, *tracks: str, text: str = "", reason: str = "to check it") -> "Reply":
+        """A round that reads tracks with read_track; the next reply answers."""
+        return cls(text, (("read_track", {"tracks": list(tracks), "reason": reason}),))
+
 
 class FakeProvider:
     """Plays back scripted replies in order and records each call.
+
+    Each model call takes the next reply, so a turn that reads tracks is scripted as a
+    read reply followed by the answer (one reply per round).
 
     The last reply repeats, or with `cycle` the replies go round. `delay` pauses between
     words, so a UI can watch the answer stream in, and `think` pauses before the first word
@@ -70,13 +78,14 @@ class FakeProvider:
             yield Error(reply.error)
             return
         if reply.tool_calls:
-            yield Phase("steps")
+            yield Phase("steps", reply.tool_calls[0][0])
             if self.think:
                 time.sleep(self.think)
-        for name, payload in reply.tool_calls:
-            yield ToolCall(name, payload, f"call_{len(self.calls)}")
+        for k, (name, payload) in enumerate(reply.tool_calls):
+            yield ToolCall(name, payload, f"call_{len(self.calls)}_{k}")
         # Rough counts, about four characters a token, so the usage views have numbers.
-        prompt = len(system) + sum(len(m["content"]) for m in messages)
+        prompt = len(system) + sum(len(m["content"]) + sum(len(r["content"]) for r in
+                                   m.get("tool_results", ())) for m in messages)
         yield Done({"input_tokens": prompt // 4, "output_tokens": len(words) * 2,
                     "model": self.model}, "end_turn")
 
