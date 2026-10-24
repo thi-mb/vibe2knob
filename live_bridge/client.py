@@ -9,7 +9,8 @@ import threading
 import time
 
 from .link import (ARRANGEMENT_SCHEMA_VERSION, CONNECTED, OFFLINE, RECONNECTING,
-                   SUMMARY_SCHEMA_VERSION, LiveError, LiveLink, NotSupportedYet)
+                   SESSION_VIEW_SCHEMA_VERSION, SUMMARY_SCHEMA_VERSION, LiveError, LiveLink,
+                   NotSupportedYet)
 from .osc import OscClient
 
 __all__ = ["LiveBridge", "LiveError", "NotSupportedYet"]
@@ -53,9 +54,15 @@ _SONG_PROPS = ["song_length", "signature_numerator", "signature_denominator", "c
 _ARRANGEMENT_LISTS = ["arrangement_clips/name", "arrangement_clips/start_time",
                       "arrangement_clips/length"]
 
-for _p in _SONG_PROPS:
+# What session_view() reads. Probed on Live 11.3 (fixtures/session): every track answers,
+# groups included (their slots come back empty), and scenes/name lists every scene at once.
+_SESSION_SONG_PROPS = ["num_scenes", "scenes/name", "is_playing"]
+_SESSION_LISTS = ["is_foldable", "clips/name", "clips/length", "playing_slot_index",
+                  "fired_slot_index"]
+
+for _p in _SONG_PROPS + _SESSION_SONG_PROPS:
     _KEY_LEN[f"/live/song/get/{_p}"] = 0
-for _p in _TRACK_PROPS + _TRACK_LISTS + _ARRANGEMENT_LISTS + ["arm"]:
+for _p in _TRACK_PROPS + _TRACK_LISTS + _ARRANGEMENT_LISTS + _SESSION_LISTS + ["arm"]:
     _KEY_LEN[f"/live/track/get/{_p}"] = 1
 for _p in _DEVICE_LISTS:
     _KEY_LEN[f"/live/device/get/{_p}"] = 2
@@ -117,9 +124,10 @@ class LiveBridge(LiveLink):
         self._stop = threading.Event()
         self._watcher = None
         self._unsubscribe_push = None
-        # False once AbletonOSC has shown it can't read arrangement clips (an old version),
-        # so later turns don't each wait out the timeout. Reset when Live comes back.
+        # False once AbletonOSC has shown it can't read arrangement or Session clips (an old
+        # version), so later turns don't each wait out the timeout. Reset when Live comes back.
         self._arrangement_works = True
+        self._session_works = True
 
     def close(self):
         self._stop.set()
@@ -167,6 +175,7 @@ class LiveBridge(LiveLink):
                         # restart of Live, so subscribe again.
                         self._osc.send(_LISTEN_SELECTED)
                         self._arrangement_works = True
+                        self._session_works = True
                         self._set_status(CONNECTED)
                 else:
                     failures += 1
@@ -294,6 +303,62 @@ class LiveBridge(LiveLink):
                 ({"name": cues[i], "time": cues[i + 1]} for i in range(0, len(cues) - 1, 2)),
                 key=lambda c: c["time"],
             ),
+            "tracks": tracks,
+        }
+
+    def session_view(self):
+        if not self._session_works:
+            return None
+        with self._io_lock:
+            head = self._batch([(f"/live/song/get/{p}", [])
+                                for p in _SESSION_SONG_PROPS + ["num_tracks"]])
+            num = head.get(("/live/song/get/num_tracks",))
+            if not num:
+                raise LiveError(_NO_ANSWER)
+            count = int(num[0])
+            replies = self._batch([(f"/live/track/get/{p}", [t]) for t in range(count)
+                                   for p in _SESSION_LISTS])
+
+        def one(name):
+            value = head.get((f"/live/song/get/{name}",))
+            return value[0] if value else None
+
+        def slot_index(value):
+            # Live says -1 for none, and -2 for a fired stop button.
+            return int(value[0]) if value and value[0] is not None and value[0] >= 0 else None
+
+        if count and not any(replies.get(("/live/track/get/clips/name", t)) is not None
+                             for t in range(count)):
+            # An AbletonOSC without clip lists: don't wait out the timeout every turn.
+            self._session_works = False
+            return None
+        # Scene names are a nicety; an AbletonOSC without scenes/name leaves them blank.
+        scene_names = list(head.get(("/live/song/get/scenes/name",)) or [])
+        num_scenes = one("num_scenes")
+        num_scenes = int(num_scenes) if num_scenes is not None else len(scene_names)
+        tracks = []
+        for t in range(count):
+            def get(name, t=t):
+                return replies.get((f"/live/track/get/{name}", t))
+
+            names, lengths = get("clips/name"), get("clips/length")
+            if names is None or lengths is None:
+                raise LiveError(f"No reply for track {t}. Did the set change while reading?")
+            foldable = get("is_foldable")
+            tracks.append({
+                "index": t,
+                "is_group": bool(foldable and foldable[0]),
+                "slots": [None if name is None else {"name": name, "length": length}
+                          for name, length in zip(names, lengths)],
+                "playing_slot": slot_index(get("playing_slot_index")),
+                "fired_slot": slot_index(get("fired_slot_index")),
+            })
+        playing = one("is_playing")
+        return {
+            "schema_version": SESSION_VIEW_SCHEMA_VERSION,
+            "is_playing": bool(playing) if playing is not None else None,
+            "scenes": [{"index": i, "name": scene_names[i] if i < len(scene_names) else ""}
+                       for i in range(num_scenes)],
             "tracks": tracks,
         }
 
