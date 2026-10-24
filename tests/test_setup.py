@@ -66,12 +66,20 @@ def test_a_copy_we_installed_is_updated_without_force(library, tmp_path):
     assert compare(target) == SAME
 
 
-def test_setup_live_command(library, capsys):
+def test_setup_live_command(library, monkeypatch, capsys):
+    live = doctor.Check(doctor.FAIL, "Live")
+    monkeypatch.setattr(doctor, "check_live", lambda: live)
     assert main(["setup-live", "--user-library", str(library)]) == 0
     out = capsys.readouterr().out
     assert "Installed AbletonOSC (0ca6821)" in out and "Control Surface" in out
     assert main(["setup-live", "--user-library", str(library)]) == 0
-    assert "already installed" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "already installed" in out and "Control Surface" in out
+    # Already installed and Live answers: nothing is left to do in Live.
+    live = doctor.Check(doctor.OK, "Live")
+    assert main(["setup-live", "--user-library", str(library)]) == 0
+    out = capsys.readouterr().out
+    assert "nothing left to do" in out and "Control Surface" not in out
 
     (install_dir(library) / MARKER).unlink()  # someone's own copy from here on
     (install_dir(library) / "manager.py").write_text("changed")

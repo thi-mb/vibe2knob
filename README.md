@@ -39,10 +39,18 @@ https://github.com/user-attachments/assets/d3dd7c8f-d99a-4f13-8e09-6fe435dbef6a
 
 ## Quick start
 
-You need macOS, Live 11 or later, and Python 3.11+. [pipx](https://pipx.pypa.io) installs
-vibe2knob in its own environment; with [Homebrew](https://brew.sh) it's `brew install pipx`.
+You need macOS, Live 11 or later, and [Homebrew](https://brew.sh). vibe2knob installs with
+[pipx](https://pipx.pypa.io), which keeps it in its own environment. It needs Python 3.11 or
+later, and Homebrew's pipx brings one.
 
-1. **Install vibe2knob.**
+1. **Install vibe2knob.** If you don't have pipx yet, install it first and open a new
+   Terminal window afterwards:
+
+   ```sh
+   brew install pipx && pipx ensurepath
+   ```
+
+   Then:
 
    ```sh
    pipx install 'vibe2knob[window]'
