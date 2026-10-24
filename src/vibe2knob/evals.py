@@ -11,15 +11,17 @@ import json
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 from .advice import Advice, Step
-from .chat import AssistantTurn, Chat, ChatEngine, TurnError, UserTurn
+from .chat import AssistantTurn, Chat, ChatEngine, ChatTitled, TurnDone, TurnError, UserTurn
 from .core import ask
 from .protocol import ContextSet
 from .providers import Provider, ProviderError
 from .arrangement import Arrangement
 from .session import StaticLive
 from .state import TrackState
+from .usage import UsageRecord, total
 
 
 @dataclass
@@ -58,14 +60,41 @@ class Check:
 
 @dataclass
 class Result:
+    """One run of a case."""
+
     case: Case
     checks: list[Check]
     advice: Advice | None = None
     error: str | None = None
+    records: list[UsageRecord] = field(default_factory=list)  # the model calls it made
 
     @property
     def passed(self) -> bool:
         return self.error is None and all(c.passed for c in self.checks)
+
+    @property
+    def rounds(self) -> int:
+        return sum(r.rounds for r in self.records)
+
+
+@dataclass
+class CaseResult:
+    """Every run of one case. It passes only if every run passed."""
+
+    case: Case
+    runs: list[Result]
+
+    @property
+    def passes(self) -> int:
+        return sum(r.passed for r in self.runs)
+
+    @property
+    def pass_rate(self) -> float:
+        return self.passes / len(self.runs) if self.runs else 0.0
+
+    @property
+    def passed(self) -> bool:
+        return bool(self.runs) and self.passes == len(self.runs)
 
 
 def load_cases(path: str | Path) -> list[Case]:
@@ -151,18 +180,21 @@ def _mention_check(case: Case, advice: Advice) -> list[Check]:
     ]
 
 
-def chat_answer(case: Case, provider: Provider, base_dir: Path) -> Advice:
+def chat_answer(case: Case, provider: Provider, base_dir: Path,
+                records: list[UsageRecord] | None = None) -> Advice:
     """Run a case through the chat path and shape the answer like `ask()`'s for grading.
 
     The session is `session` (default: just `fixture`), with `fixture` selected and
     `pinned` pinned. A case with no fixture is a general chat with nothing in context.
     `prior_*` adds a scripted earlier turn, and `fixture_after` is the selected track as
-    the user left it after that turn (for the refine diff).
+    the user left it after that turn (for the refine diff). The calls' usage is added to
+    `records`, as kind "eval".
     """
     def load(rel: str) -> TrackState:
         return TrackState.load(base_dir / rel)
 
-    chat = Chat(context=ContextSet(follow_selection=bool(case.fixture)))
+    # A title saves the naming call, which the cases don't grade.
+    chat = Chat(context=ContextSet(follow_selection=bool(case.fixture)), title="Eval")
     live = None
     if case.fixture:
         paths = case.session or [case.fixture]
@@ -184,14 +216,18 @@ def chat_answer(case: Case, provider: Provider, base_dir: Path) -> Advice:
             AssistantTurn(text=case.prior_answer, snapshots=selected,
                           steps=[Step.model_validate(s) for s in case.prior_steps]),
         ]
-        chat.title = "Earlier turn"
         if case.fixture_after:
             after = load(case.fixture_after)
             after.track.index = live.selected
             live.states[live.selected] = after
+    error = None
     for event in engine.send(chat, case.request, live):
         if isinstance(event, TurnError):
-            raise ProviderError(event.message)
+            error = event.message
+        elif isinstance(event, (TurnDone, ChatTitled)) and event.record and records is not None:
+            records.append(event.record.model_copy(update={"kind": "eval", "chat_id": None}))
+    if error:
+        raise ProviderError(error)
     turn = chat.turns[-1]
     return Advice(
         interpretation=turn.text,
@@ -227,52 +263,165 @@ def run_cases(
     report_dir: str | Path | None = None,
     echo=print,
     chat: bool = False,
-) -> list[Result]:
+    repeat: int = 1,
+    record_usage: Callable[[list[UsageRecord]], None] | None = None,
+) -> list[CaseResult]:
+    """Run each case `repeat` times. `record_usage` gets each run's model calls as it ends."""
     results = []
     for case in cases:
         if case.chat_only and not chat:
             continue
-        try:
-            if chat:
-                advice = chat_answer(case, provider, base_dir)
-            else:
-                advice = ask(TrackState.load(base_dir / case.fixture), case.request, provider)
-            result = Result(case, grade(case, advice), advice)
-        except ProviderError as e:
-            result = Result(case, [], error=str(e))
+        runs = []
+        for _ in range(repeat):
+            run = _run_once(case, provider, base_dir, chat)
+            if record_usage and run.records:
+                record_usage(run.records)
+            runs.append(run)
+        result = CaseResult(case, runs)
         results.append(result)
-        mark = "PASS" if result.passed else "FAIL"
-        echo(f"{mark}  {case.id}: \"{case.request}\" on {case.fixture or 'no track'}")
-        if result.error:
-            echo(f"      error: {result.error}")
-        for c in result.checks:
-            if not c.passed:
-                echo(f"      x {c.name}: {c.detail}")
+        _echo_result(result, repeat, echo)
     if report_dir:
         _save_report(results, Path(report_dir), provider, "-chat" if chat else "")
     return results
 
 
+def _run_once(case: Case, provider: Provider, base_dir: Path, chat: bool) -> Result:
+    records: list[UsageRecord] = []
+    try:
+        if chat:
+            advice = chat_answer(case, provider, base_dir, records)
+        else:
+            if hasattr(provider, "last_usage"):
+                provider.last_usage = None
+            try:
+                advice = ask(TrackState.load(base_dir / case.fixture), case.request, provider)
+            finally:
+                raw = getattr(provider, "last_usage", None)
+                if raw:
+                    records.append(UsageRecord.from_raw(
+                        raw, kind="eval", provider=provider.name,
+                        model=getattr(provider, "model", None)))
+        return Result(case, grade(case, advice), advice, records=records)
+    except ProviderError as e:
+        return Result(case, [], error=str(e), records=records)
+
+
+def _echo_result(result: CaseResult, repeat: int, echo) -> None:
+    case = result.case
+    mark = "PASS" if result.passed else "FAIL"
+    if repeat > 1:
+        mark += f" {result.passes}/{len(result.runs)}"
+    echo(f"{mark}  {case.id}: \"{case.request}\" on {case.fixture or 'no track'}")
+    for n, run in enumerate(result.runs, 1):
+        prefix = f"      run {n}: " if repeat > 1 else "      "
+        if run.error:
+            echo(f"{prefix}error: {run.error}")
+        for c in run.checks:
+            if not c.passed:
+                echo(f"{prefix}x {c.name}: {c.detail}")
+
+
+# Reports
+
+
+def _run_row(run: Result) -> dict:
+    u = total(run.records)
+    return {
+        "passed": run.passed,
+        "error": run.error,
+        "checks": [c.__dict__ for c in run.checks],
+        "advice": run.advice.model_dump() if run.advice else None,
+        "rounds": run.rounds,
+        "tokens": _tokens(u),
+        "cost_usd": u.cost_usd,
+    }
+
+
+def _tokens(u) -> dict:
+    return {"input": u.input_tokens, "output": u.output_tokens, "cache_read": u.cache_read_tokens,
+            "cache_write": u.cache_write_tokens, "thinking": u.thinking_tokens}
+
+
+def report_rows(results: list[CaseResult]) -> list[dict]:
+    """The report: one row per case. The top-level fields are the first run's, as in reports
+    from before `--repeat`, so old and new reports read the same way."""
+    rows = []
+    for r in results:
+        runs = [_run_row(run) for run in r.runs]
+        first = runs[0] if runs else {"error": None, "checks": [], "advice": None}
+        u = total(rec for run in r.runs for rec in run.records)
+        rows.append({
+            "id": r.case.id,
+            "request": r.case.request,
+            "fixture": r.case.fixture,
+            "passed": r.passed,
+            "error": first["error"],
+            "checks": first["checks"],
+            "advice": first["advice"],
+            "repeat": len(r.runs),
+            "passes": r.passes,
+            "pass_rate": round(r.pass_rate, 4),
+            "rounds": sum(run["rounds"] for run in runs),
+            "tokens": _tokens(u),
+            "cost_usd": u.cost_usd,
+            "runs": runs,
+        })
+    return rows
+
+
 def _save_report(
-    results: list[Result], report_dir: Path, provider: Provider, suffix: str = ""
-) -> None:
+    results: list[CaseResult], report_dir: Path, provider: Provider, suffix: str = ""
+) -> Path:
     report_dir.mkdir(parents=True, exist_ok=True)
     model = getattr(provider, "model", "")
     out = report_dir / f"{provider.name}-{model or 'default'}{suffix}.json".replace("/", "_")
-    out.write_text(
-        json.dumps(
-            [
-                {
-                    "id": r.case.id,
-                    "request": r.case.request,
-                    "fixture": r.case.fixture,
-                    "passed": r.passed,
-                    "error": r.error,
-                    "checks": [c.__dict__ for c in r.checks],
-                    "advice": r.advice.model_dump() if r.advice else None,
-                }
-                for r in results
-            ],
-            indent=2,
-        )
-    )
+    out.write_text(json.dumps(report_rows(results), indent=2))
+    return out
+
+
+def load_report(path: str | Path) -> list[dict]:
+    """A saved report's rows, with `repeat`, `passes` and `pass_rate` filled in for old ones."""
+    rows = json.loads(Path(path).read_text())
+    for row in rows:
+        if "pass_rate" not in row:
+            row["repeat"], row["passes"] = 1, int(bool(row.get("passed")))
+            row["pass_rate"] = float(row["passes"])
+    return rows
+
+
+def compare(old: list[dict], new: list[dict], echo=print) -> bool:
+    """Print the cases whose pass rate dropped. False if, over the cases both reports ran, the
+    summed pass rate dropped by more than one case's worth (a whole case failing every run)."""
+    before = {r["id"]: r for r in old}
+    after = {r["id"]: r for r in new}
+    shared = [i for i in after if i in before]
+
+    def rate(row: dict) -> str:
+        return f"{row['passes']}/{row['repeat']}"
+
+    def share(row: dict) -> float:  # exact, where the saved pass_rate is rounded
+        return row["passes"] / row["repeat"]
+
+    dropped = [i for i in shared if share(after[i]) < share(before[i]) - 1e-9]
+    raised = [i for i in shared if share(after[i]) > share(before[i]) + 1e-9]
+    if dropped:
+        echo("Dropped:")
+        for i in dropped:
+            echo(f"  {i}: {rate(before[i])} -> {rate(after[i])}")
+    if raised:
+        echo("Improved:")
+        for i in raised:
+            echo(f"  {i}: {rate(before[i])} -> {rate(after[i])}")
+    added = [i for i in after if i not in before]
+    gone = [i for i in before if i not in after]
+    if added:
+        echo(f"Not in the old report (not compared): {', '.join(added)}")
+    if gone:
+        echo(f"Not run this time: {', '.join(gone)}")
+    total_before = sum(share(before[i]) for i in shared)
+    total_after = sum(share(after[i]) for i in shared)
+    ok = total_before - total_after <= 1 + 1e-9
+    echo(f"Pass rate over {len(shared)} shared cases: {total_before:.2f} -> {total_after:.2f} "
+         f"({total_after - total_before:+.2f} cases). "
+         + ("OK" if ok else "Dropped by more than one case."))
+    return ok

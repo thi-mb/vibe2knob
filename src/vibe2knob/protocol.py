@@ -350,7 +350,7 @@ class UsageDay(_Shape):
 
 
 class UsageGroup(_Shape):
-    key: str = Field(description="A model id, or a kind: chat, title or ask.")
+    key: str = Field(description="A model id, or a kind: chat, title, ask or eval.")
     usage: Usage
 
 
