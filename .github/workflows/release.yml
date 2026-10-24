@@ -123,12 +123,15 @@ jobs:
           done
           echo "::error::TestPyPI doesn't list ${{ needs.build.outputs.version }} after 5 minutes."
           exit 1
-      - name: pipx install from TestPyPI, serve the panel, run setup-live
-        # The dependencies come from the real PyPI; only vibe2knob is on TestPyPI.
+      - name: Download the wheel TestPyPI serves
+        # Only vibe2knob comes from TestPyPI. Its dependencies must come from the real PyPI:
+        # TestPyPI holds broken uploads of packages like fastapi that pip would pick instead.
         run: >
-          scripts/smoke-install.sh "vibe2knob[${{ matrix.extra }}]==${{ needs.build.outputs.version }}"
-          --python python3.11
-          --pip-args="--index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/"
+          pip download --no-deps --only-binary :all: --dest testpypi
+          --index-url https://test.pypi.org/simple/
+          "vibe2knob==${{ needs.build.outputs.version }}"
+      - name: pipx install it, serve the panel, run setup-live
+        run: scripts/smoke-install.sh "$(ls "$PWD"/testpypi/*.whl)[${{ matrix.extra }}]" --python python3.11
 
   pypi:
     name: Publish to PyPI
