@@ -160,15 +160,18 @@ Releases go to [PyPI](https://pypi.org/project/vibe2knob/) from GitHub Actions
    and Linux, publishes `X.Y.Z.devN` to [TestPyPI](https://test.pypi.org/project/vibe2knob/),
    then installs that from TestPyPI and checks the panel again.
 2. **Release.** Set `__version__` in `src/vibe2knob/__init__.py` (the wheel takes its version
-   from there), merge, then tag main and push the tag:
+   from there) and merge. Then make the tag on GitHub's site: Releases > Draft a new release,
+   choose a tag `v0.2.0` (create it on publish, target `main`), Generate release notes,
+   Publish release. Pushing the tag with git works too:
 
    ```sh
    git checkout main && git pull
    git tag v0.2.0 && git push origin v0.2.0
    ```
 
-   The tag must match `__version__`. The workflow publishes to PyPI and makes a GitHub release
-   with generated notes. A version can't be published twice, so a broken release is fixed with
+   The tag must match `__version__`. The workflow waits for an Approve on the `pypi`
+   environment, publishes to PyPI, and adds the wheel and sdist to the GitHub release (making
+   one with generated notes if the tag came from git). A version can't be published twice, so a broken release is fixed with
    the next version.
 
 CI's "Package (pip install)" job runs the same wheel checks on every pull request.
