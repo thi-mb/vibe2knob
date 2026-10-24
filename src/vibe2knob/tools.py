@@ -2,7 +2,11 @@
 
 - `suggest_steps` ("answer"): the optional structured part of an answer.
 - `read_track` ("read"): the full detail of tracks the model only knows from the summary.
-  Its result goes back to the model, which answers in the next round (see ChatEngine.send).
+- `read_arrangement` ("read"): who plays in a range of bars or at a locator, with clip names.
+- `read_scenes` ("read"): the clips in Session view scenes, or what plays from it now.
+
+A read tool's result goes back to the model, which answers in the next round (see
+ChatEngine.send). Each read spends one of the turn's reads (one per track for read_track).
 
 Later, actions that change Live plug in here too (`action` tools, allowed only in Do mode and
 always confirmed by the user).
@@ -18,9 +22,12 @@ from typing import Callable, Literal
 from pydantic import ValidationError
 
 from .advice import SUGGEST_STEPS_SCHEMA, SuggestedSteps
+from .arrangement import Timeline, describe_range, find_locator
 from .core import check_steps
 from .providers.base import ToolSpec
 from .session import LiveView, SessionSummary, as_track_state
+from .session_view import (MAX_SCENES_PER_READ, Grid, describe_playing, describe_scene,
+                           find_scene)
 from .state import TrackState
 
 log = logging.getLogger("vibe2knob.tools")
@@ -72,6 +79,8 @@ class Tool:
     # "answer" tools end the turn; "read" and "action" tools (later) return a result to
     # the model, and "action" tools are gated by Teach/Do mode.
     kind: ToolKind = "answer"
+    # For read tools: what a call reads, for the progress line ("Reading <this>").
+    status: Callable[[dict], str | None] | None = None
 
 
 class ToolRegistry:
@@ -90,6 +99,15 @@ class ToolRegistry:
     def kind(self, name: str) -> ToolKind | None:
         tool = self._tools.get(name)
         return tool.kind if tool else None
+
+    def status(self, name: str, payload: dict) -> str | None:
+        tool = self._tools.get(name)
+        if tool is None or tool.status is None:
+            return None
+        try:
+            return tool.status(payload)
+        except Exception:  # noqa: BLE001 - a malformed call just shows no detail
+            return None
 
     def handle(self, name: str, payload: dict, ctx: ToolContext) -> ToolOutcome:
         tool = self._tools.get(name)
@@ -115,7 +133,9 @@ SUGGEST_STEPS = Tool(
         description=(
             "Show the user concrete steps with Live's stock devices, as cards they can follow. "
             "Optional: call it once, after your prose, only when the user wants a sound changed "
-            "and a track in the context fits. Don't call it for questions or explanations."
+            "and a track in the context fits. Don't call it for questions or explanations. "
+            "Every step changes a setting; an A/B or bypass check goes in listen_for, never "
+            "in a step."
         ),
         input_schema=SUGGEST_STEPS_SCHEMA,
     ),
@@ -218,8 +238,184 @@ READ_TRACK = Tool(
     ),
     _read_track,
     kind="read",
+    status=lambda p: ", ".join(n for n in p.get("tracks") or [] if isinstance(n, str)) or None,
+)
+
+
+def _bar(value) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def _read_arrangement(payload: dict, ctx: ToolContext) -> ToolOutcome:
+    if ctx.summary is None:
+        return ToolOutcome(result="Live isn't connected, so there's no arrangement to read.")
+    if ctx.summary.arrangement is None:
+        return ToolOutcome(result="The Live link can't read the arrangement in this set.")
+    timeline = Timeline(ctx.summary.arrangement)
+    locator = str(payload.get("locator") or "").strip()
+    first, last = _bar(payload.get("from_bar")), _bar(payload.get("to_bar"))
+    name = None
+    if locator:
+        section, candidates = find_locator(timeline, locator)
+        if section is None:
+            if not timeline.locator_sections():
+                return ToolOutcome(result="The set has no locators. Give from_bar and to_bar "
+                                          "instead (the Arrangement part lists sections by bar).")
+            if candidates:
+                return ToolOutcome(result=f'"{locator}" could be: '
+                                   + ", ".join(f'"{c}"' for c in candidates)
+                                   + ". Read again with the exact name.")
+            return ToolOutcome(result=f'No locator is called "{locator}". The locators are: '
+                               + ", ".join(f'"{s.name}"' for s in timeline.locator_sections())
+                               + ".")
+        first, last, name = section.first, section.last, section.name
+    elif first is None and last is None:
+        return ToolOutcome(result="Give from_bar and to_bar, or a locator name.")
+    if ctx.reads_left <= 0:
+        return ToolOutcome(result=BUDGET_USED)
+    ctx.reads_left -= 1
+    names = {t.index: t.name for t in ctx.summary.tracks}
+    first = 1 if first is None else first
+    last = timeline.last_bar if last is None else last
+    return ToolOutcome(result=describe_range(timeline, names, first, last, name))
+
+
+def _arrangement_status(p: dict) -> str:
+    if p.get("locator"):
+        return f"the arrangement at {str(p['locator']).strip()}"
+    first, last = _bar(p.get("from_bar")), _bar(p.get("to_bar"))
+    if first is not None and last is not None:
+        return f"the arrangement, bars {first}-{last}" if first != last else f"the arrangement, bar {first}"
+    return "the arrangement"
+
+
+READ_ARRANGEMENT = Tool(
+    ToolSpec(
+        name="read_arrangement",
+        description=(
+            "Read who plays in a stretch of Arrangement view: every track with clips there, "
+            "in which bars, its clip names, and where tracks come in and drop out. Give a "
+            "range of bars, or a locator name. Use it when the ask is about a part of the song "
+            "(\"the drop\", \"the second verse\", bars 33-48) and the Arrangement part of the "
+            "context doesn't list everyone who plays there."
+        ),
+        input_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["from_bar", "to_bar", "locator", "reason"],
+            "properties": {
+                "from_bar": {"anyOf": [{"type": "integer"}, {"type": "null"}],
+                             "description": "First bar, numbered from 1 as Live shows it, or null."},
+                "to_bar": {"anyOf": [{"type": "integer"}, {"type": "null"}],
+                           "description": "Last bar (included), or null for the song's end."},
+                "locator": {"anyOf": [{"type": "string"}, {"type": "null"}],
+                            "description": "A locator name from the Arrangement part, instead of "
+                                           "bars; null when giving bars."},
+                "reason": {
+                    "type": "string",
+                    "description": "Why you need it, in a few words, e.g. \"who plays in the drop\".",
+                },
+            },
+        },
+    ),
+    _read_arrangement,
+    kind="read",
+    status=_arrangement_status,
+)
+
+
+PLAYING = {"playing", "playing now", "now", "what's playing", "what plays now"}
+
+
+def _read_scenes(payload: dict, ctx: ToolContext) -> ToolOutcome:
+    wanted = [str(s).strip() for s in payload.get("scenes") or []
+              if isinstance(s, (str, int)) and not isinstance(s, bool) and str(s).strip()]
+    if not wanted:
+        return ToolOutcome(result='Give 1 to 4 scene names or numbers, or "playing".')
+    if ctx.summary is None:
+        return ToolOutcome(result="Live isn't connected, so there's no Session view to read.")
+    if ctx.summary.session is None:
+        return ToolOutcome(result="The Live link can't read Session view in this set.")
+    grid = Grid(ctx.summary.session)
+    if not grid.has_clips:
+        return ToolOutcome(result="Session view has no clips in this set.")
+    if ctx.reads_left <= 0:
+        return ToolOutcome(result=BUDGET_USED)
+    names = {t.index: t.name for t in ctx.summary.tracks}
+    bpb = ctx.summary.arrangement.beats_per_bar if ctx.summary.arrangement else 4.0
+    parts = []
+    if len(wanted) > MAX_SCENES_PER_READ:
+        parts.append(f"Only the first {MAX_SCENES_PER_READ} were read; ask again for more.")
+        wanted = wanted[:MAX_SCENES_PER_READ]
+    read = False
+    for ref in wanted:
+        if ref.casefold() in PLAYING:
+            parts.append(describe_playing(grid, names, bpb))
+            read = True
+            continue
+        index, candidates = find_scene(grid, ref)
+        if index is None:
+            if candidates:
+                parts.append(f'"{ref}" could be: ' + ", ".join(candidates)
+                             + ". Read again with the number.")
+            else:
+                named = [s.label() for s in grid.scenes if s.name.strip()][:12]
+                parts.append(f'No scene matches "{ref}". There are {len(grid.scenes)}, numbered '
+                             "from 1" + (f"; the named ones: {', '.join(named)}." if named else "."))
+            continue
+        parts.append(describe_scene(grid, names, index, bpb))
+        read = True
+    if read:
+        ctx.reads_left -= 1
+    return ToolOutcome(result="\n".join(parts))
+
+
+def _scenes_status(p: dict) -> str:
+    wanted = [str(s).strip() for s in p.get("scenes") or [] if str(s).strip()]
+    if wanted and all(w.casefold() in PLAYING for w in wanted):
+        return "what plays now"
+    shown = [w for w in wanted if w.casefold() not in PLAYING]
+    return ("scene " if len(shown) == 1 else "scenes ") + ", ".join(shown)
+
+
+READ_SCENES = Tool(
+    ToolSpec(
+        name="read_scenes",
+        description=(
+            "Read Session view scenes: each track's clip in the scene (name and length) and "
+            "whether it plays now. Give scene names or numbers (from 1), or \"playing\" for "
+            "every clip playing from Session view now. Use it when the ask is about a scene "
+            "(\"the drop scene\", scene 4) or what they hear now, and the Session view part "
+            "of the context doesn't show enough."
+        ),
+        input_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["scenes", "reason"],
+            "properties": {
+                "scenes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "1 to 4 scene names or numbers, or \"playing\".",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why you need them, in a few words, e.g. \"what's in the drop\".",
+                },
+            },
+        },
+    ),
+    _read_scenes,
+    kind="read",
+    status=_scenes_status,
 )
 
 
 def default_tools() -> ToolRegistry:
-    return ToolRegistry([SUGGEST_STEPS, READ_TRACK])
+    return ToolRegistry([SUGGEST_STEPS, READ_TRACK, READ_ARRANGEMENT, READ_SCENES])

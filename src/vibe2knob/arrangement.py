@@ -24,7 +24,12 @@ MIN_SECTION_BARS = 2
 MAX_RANGES = 6
 MAX_CONTEXT = 6
 MAX_ALONGSIDE = 6
-MAX_PER_SECTION = 10
+# Who plays throughout a section, named on its line in the block; read_arrangement tells the rest.
+MAX_WHOLE = 4
+# read_arrangement's answer for one range.
+MAX_RANGE_TRACKS = 24
+MAX_RANGE_CHANGES = 8
+MAX_CLIP_NAMES = 4
 # Less than this many beats of clip in a bar (a tail spilling over the bar line) doesn't count.
 MIN_BEATS_IN_BAR = 0.5
 
@@ -188,6 +193,22 @@ class Timeline:
             sections = self._merge(sections, min_bars=MIN_SECTION_BARS)
         return self._merge(sections, max_count=MAX_SECTIONS), from_locators
 
+    def locator_sections(self) -> list[Section]:
+        """One section per locator, unmerged, so read_arrangement can find each by name."""
+        locators = sorted(self.arrangement.locators, key=lambda c: c.time)
+        last = self.last_bar
+        return self._locator_sections(locators, last) if locators and last else []
+
+    def clip_names(self, index: int, first: int, last: int) -> list[str]:
+        """The names of the clips a track has in bars first..last, in time order."""
+        track = next((t for t in self.arrangement.tracks if t.index == index), None)
+        if track is None or not track.clips:
+            return []
+        lo, hi = (first - 1) * self.bpb, last * self.bpb
+        inside = [c.name.strip() for c in sorted(track.clips, key=lambda c: c.start)
+                  if min(c.end, hi) - max(c.start, lo) >= MIN_BEATS_IN_BAR and c.name.strip()]
+        return list(dict.fromkeys(inside))
+
     def _locator_sections(self, locators: list[Locator], last: int) -> list[Section]:
         starts: list[tuple[int, str]] = []
         for c in locators:
@@ -271,8 +292,9 @@ def describe_arrangement(timeline: Timeline, names: dict[int, str], context: lis
     lines = [f"Arrangement ({', '.join(h for h in head if h)}). A track plays where it has "
              "clips, which may still be muted or silent:"]
     sections, from_locators = timeline.sections()
-    lines.append("  Sections, from the set's locators:" if from_locators
-                 else "  Sections, from where tracks start and stop (the set has no locators):")
+    lines.append("  Sections, from the set's locators (read_arrangement lists who plays in one):"
+                 if from_locators else "  Sections, from where tracks start and stop (the set has "
+                 "no locators; read_arrangement lists who plays in one):")
     for s in sections:
         lines.append(f"  - {s.label()}: {_players_text(timeline, names, s)}")
 
@@ -306,18 +328,22 @@ def describe_arrangement(timeline: Timeline, names: dict[int, str], context: lis
 
 
 def _players_text(timeline: Timeline, names: dict[int, str], s: Section) -> str:
-    """Who plays in a section: whole-section players first, then the busiest of the rest."""
+    """Who plays in a section. A short list names everyone; a long one names who plays
+    throughout and counts the rest (read_arrangement lists them all)."""
     players = []
     for i in timeline._players(s.first, s.last):
         if i in names:
             inside = sum(1 for b in timeline.bars(i) if s.first <= b <= s.last)
-            players.append((-inside, i))
+            players.append((inside != s.bars, -inside, i))
     if not players:
         return "nothing plays"
-    shown = sorted(sorted(players)[:MAX_PER_SECTION], key=lambda p: (p[0] != -s.bars, p[1]))
-    parts = [f'"{names[i]}"' + ("" if -n == s.bars else " (part)") for n, i in shown]
+    players.sort()
+    shown = players if len(players) <= MAX_WHOLE else [p for p in players if not p[0]][:MAX_WHOLE]
+    if not shown:
+        return f"{len(players)} tracks, none throughout"
+    parts = [f'"{names[i]}"' + (" (part)" if part else "") for part, _, i in shown]
     if len(players) > len(shown):
-        parts.append(f"and {len(players) - len(shown)} more in part")
+        parts.append(f"and {len(players) - len(shown)} more")
     return ", ".join(parts)
 
 
@@ -342,3 +368,82 @@ def plays_note(timeline: Timeline, index: int) -> str | None:
     if not bars:
         return "no clips in the arrangement"
     return "plays " + bar_ranges(bars, MAX_RANGES)
+
+
+def find_locator(timeline: Timeline, name: str) -> tuple[Section | None, list[str]]:
+    """A locator name as the model wrote it -> (its section, []), or (None, the names it
+    might mean). An unknown name gives (None, []).
+
+    Exact first, then ignoring case, then a unique prefix, then a unique part of a name.
+    """
+    sections = timeline.locator_sections()
+    want = name.strip().strip('"').casefold()
+    for match in (lambda n: n == name.strip().strip('"'), lambda n: n.casefold() == want,
+                  lambda n: n.casefold().startswith(want), lambda n: want in n.casefold()):
+        hits = [s for s in sections if s.name and match(s.name)]
+        if len(hits) == 1:
+            return hits[0], []
+        if len(hits) > 1:
+            return None, [s.name for s in hits]
+    return None, []
+
+
+def describe_range(timeline: Timeline, names: dict[int, str], first: int, last: int,
+                   name: str | None = None) -> str:
+    """read_arrangement's answer: who plays in bars first..last, their clips, and where
+    tracks come in and drop out inside the range."""
+    end = timeline.last_bar
+    if not timeline.has_clips:
+        return "No clips are placed in Arrangement view, so nothing plays there."
+    first, last = sorted((first, last))
+    first = max(first, 1)
+    if first > end:
+        return f"The arrangement ends at bar {end}, so nothing plays from bar {first}."
+    last = min(last, end)
+    where = Section(first, last, name)
+    span = where.bars
+    players = []
+    for i in timeline._players(first, last):
+        if i in names:
+            inside = {b for b in timeline.bars(i) if first <= b <= last}
+            players.append((-len(inside), i, inside))
+    players.sort(key=lambda p: (p[0], p[1]))
+    known = sum(1 for i in names if timeline.bars(i) and i not in timeline.groups)
+    if not players:
+        return f"Nothing plays in {where.label()} ({known} tracks have clips elsewhere)."
+    lines = [f"Who plays in {where.label()}: {len(players)} of the {known} tracks with clips. "
+             "A track plays where it has clips, which may still be muted or silent:"]
+    for _, i, inside in players[:MAX_RANGE_TRACKS]:
+        when = ("the whole range" if len(inside) == span
+                else f"{bar_ranges(inside, MAX_RANGES)} ({len(inside)} of {span})")
+        line = f'  - "{names[i]}": {when}'
+        clips = timeline.clip_names(i, first, last)
+        if clips:
+            shown = ", ".join(f'"{c}"' for c in clips[:MAX_CLIP_NAMES])
+            more = f" and {len(clips) - MAX_CLIP_NAMES} more" if len(clips) > MAX_CLIP_NAMES else ""
+            line += f"; clip{'s' if len(clips) > 1 else ''} {shown}{more}"
+        lines.append(line)
+    if len(players) > MAX_RANGE_TRACKS:
+        lines.append(f"  - and {len(players) - MAX_RANGE_TRACKS} more, in fewer bars")
+
+    changes = []
+    before = None
+    for bar in range(first, last + 1):
+        now = {i for _, i, inside in players if bar in inside}
+        if before is not None and now != before:
+            parts = []
+            came = sorted(now - before)
+            left = sorted(before - now)
+            if came:
+                parts.append(", ".join(f'"{names[i]}"' for i in came) + (" comes in" if len(came) == 1 else " come in"))
+            if left:
+                parts.append(", ".join(f'"{names[i]}"' for i in left) + (" stops" if len(left) == 1 else " stop"))
+            changes.append(f"  - bar {bar}: " + "; ".join(parts))
+        before = now
+    if changes:
+        lines.append("  Where it changes inside the range:")
+        lines += changes[:MAX_RANGE_CHANGES]
+        if len(changes) > MAX_RANGE_CHANGES:
+            more = len(changes) - MAX_RANGE_CHANGES
+            lines.append(f"  - and {more} more change{'s' if more > 1 else ''}")
+    return "\n".join(lines)
