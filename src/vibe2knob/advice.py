@@ -44,6 +44,10 @@ class Advice(BaseModel):
     )
 
 
+# The most steps one answer may give. The prompt asks for 2 to 5, and the evals check it.
+MAX_STEPS = 5
+
+
 def _nullable(t: str) -> dict:
     return {"anyOf": [{"type": t}, {"type": "null"}]}
 
@@ -58,6 +62,7 @@ ADVICE_SCHEMA: dict = {
         "interpretation": {"type": "string"},
         "steps": {
             "type": "array",
+            "maxItems": MAX_STEPS,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
@@ -95,7 +100,7 @@ SUGGEST_STEPS_SCHEMA: dict = {
     "additionalProperties": False,
     "required": ["steps", "listen_for", "caution"],
     "properties": {
-        "steps": {"type": "array", "items": _CHAT_STEP},
+        "steps": {"type": "array", "maxItems": MAX_STEPS, "items": _CHAT_STEP},
         "listen_for": {"type": "string"},
         "caution": _nullable("string"),
     },
