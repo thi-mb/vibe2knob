@@ -4,6 +4,7 @@
     python3 -m live_bridge --json     # JSON only, for piping into a file
     python3 -m live_bridge --summary  # every track, light, with its size and read time
     python3 -m live_bridge --arrangement  # where clips sit in Arrangement view, with read time
+    python3 -m live_bridge --session  # Session view's clip grid and what plays, with read time
     python3 -m live_bridge --watch    # print connection and selection changes until Ctrl-C
 """
 
@@ -60,6 +61,21 @@ def _print_arrangement(live):
           file=sys.stderr)
 
 
+def _print_session_view(live):
+    started = time.monotonic()
+    view = live.session_view()
+    elapsed = time.monotonic() - started
+    if view is None:
+        print("This AbletonOSC doesn't report Session view clips.", file=sys.stderr)
+        return
+    print(json.dumps(view, indent=2, ensure_ascii=False))
+    clips = sum(1 for t in view["tracks"] for s in t["slots"] if s is not None)
+    playing = sum(1 for t in view["tracks"] if t["playing_slot"] is not None)
+    print(f"{len(view['scenes'])} scenes, {clips} clips, {playing} tracks playing a clip, "
+          f"transport {'playing' if view['is_playing'] else 'stopped'}, read in {elapsed:.2f} s",
+          file=sys.stderr)
+
+
 def _watch(live):
     def on_status(status, detail):
         print(f"{time.strftime('%H:%M:%S')} status {status}" + (f": {detail}" if detail else ""))
@@ -84,6 +100,8 @@ def main(argv=None):
     parser.add_argument("--summary", action="store_true", help="print the light session summary")
     parser.add_argument("--arrangement", action="store_true",
                         help="print where clips sit in Arrangement view")
+    parser.add_argument("--session", action="store_true",
+                        help="print Session view's clip grid and what plays from it")
     parser.add_argument("--watch", action="store_true", help="print status and selection changes")
     parser.add_argument("--no-poll", action="store_true",
                         help="with --watch, rely on Live's selection listener only")
@@ -102,6 +120,9 @@ def main(argv=None):
                 return 0
             if args.arrangement:
                 _print_arrangement(live)
+                return 0
+            if args.session:
+                _print_session_view(live)
                 return 0
             if args.track is None:
                 state = live.selected_track_state()

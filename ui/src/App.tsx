@@ -3,10 +3,10 @@ import { Composer, Conversation } from "./components/Chat";
 import { ContextBar, Tabs } from "./components/Context";
 import { Icon } from "./components/Icon";
 import { OfflineCard, SettingsPage, SetupCard, type Theme } from "./components/Screens";
-import { ChatUsageBar } from "./components/Usage";
+import { BudgetBanner, ChatUsageBar } from "./components/Usage";
 import { load, save } from "./lib/storage";
-import type { ContextSet } from "./protocol/types";
-import { activeChat, canSeeLive, isGeneral, isStreaming, type PanelState } from "./state/store";
+import type { ContextSet, TrackRef } from "./protocol/types";
+import { activeChat, canSeeLive, isGeneral, isStreaming, monthKey, showBudgetBanner, type PanelState } from "./state/store";
 import { useHub, type HubActions } from "./state/useHub";
 
 const QUICK_REPLIES = ["too much", "not enough", "I made the changes"];
@@ -151,6 +151,7 @@ export function App() {
           onBackToLive={() => actions.useExample(null)}
           onTheme={setTheme}
           usage={state.usage}
+          budget={state.budget}
           usageRange={state.usageRange}
           onUsageRange={actions.loadUsage}
           onOpenChat={actions.selectChat}
@@ -169,7 +170,21 @@ interface ChatViewProps {
   setPickerOpen(open: boolean): void;
 }
 
+/** The month the budget banner was last dismissed in ("YYYY-MM"), kept in this browser. */
+function useBudgetDismissed(): [string | null, () => void] {
+  const [month, setMonth] = useState<string | null>(() => load<string | null>("budgetDismissed", null));
+  return [
+    month,
+    () => {
+      const now = monthKey();
+      save("budgetDismissed", now);
+      setMonth(now);
+    },
+  ];
+}
+
 function ChatView({ state, actions, pickerOpen, setPickerOpen }: ChatViewProps) {
+  const [dismissedMonth, dismissBudget] = useBudgetDismissed();
   const chat = activeChat(state);
   const context: ContextSet = chat?.context ?? { follow_selection: true, pinned: [] };
   const general = isGeneral(chat);
@@ -188,6 +203,11 @@ function ChatView({ state, actions, pickerOpen, setPickerOpen }: ChatViewProps) 
   const setContext = (next: ContextSet) => {
     if (chat) actions.setContext(chat.id, next);
     else actions.newChat(next);
+  };
+  const inContext = new Set(context.pinned);
+  if (context.follow_selection && state.live.selected_track) inContext.add(state.live.selected_track.index);
+  const pin = (track: TrackRef) => {
+    if (!context.pinned.includes(track.index)) setContext({ ...context, pinned: [...context.pinned, track.index] });
   };
 
   return (
@@ -209,6 +229,9 @@ function ChatView({ state, actions, pickerOpen, setPickerOpen }: ChatViewProps) 
             </button>
           </div>
         )}
+        {state.budget && showBudgetBanner(state, dismissedMonth) && (
+          <BudgetBanner budget={state.budget} onSettings={() => actions.show("settings")} onDismiss={dismissBudget} />
+        )}
         <ContextBar
           context={context}
           selected={state.live.selected_track}
@@ -229,7 +252,9 @@ function ChatView({ state, actions, pickerOpen, setPickerOpen }: ChatViewProps) 
           turns={turns}
           progress={chat ? state.progress[chat.id] : undefined}
           trackColors={trackColors}
+          inContext={inContext}
           onAsk={actions.send}
+          onPin={pin}
           after={
             blocked && (turns?.length ?? 0) > 0 ? (
               <OfflineCard live={state.live} examples={state.examples} onCheck={actions.listTracks} onExample={actions.useExample} />

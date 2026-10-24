@@ -3,7 +3,7 @@ import { HubClient, TOKEN_REJECTED } from "../hub/client";
 import { hubTarget } from "../hub/connect";
 import { FakeHub } from "../hub/fake";
 import type { ClientEnvelope, ContextSet, HubEnvelope } from "../protocol/types";
-import { initialState, reducer, type PanelState, type UsageRange, type View } from "./store";
+import { initialState, reducer, type PanelState, type SettingsChange, type UsageRange, type View } from "./store";
 
 export interface HubActions {
   newChat(context?: ContextSet): void;
@@ -13,7 +13,7 @@ export interface HubActions {
   /** Sends a message in the active chat, creating a chat first if there is none. */
   send(text: string): void;
   listTracks(): void;
-  updateSettings(change: { provider?: "claude" | "ollama"; model?: string; api_key?: string }): void;
+  updateSettings(change: SettingsChange): void;
   testSettings(): void;
   useExample(name: string | null): void;
   show(view: View): void;
@@ -64,7 +64,8 @@ export function useHub(): [PanelState, HubActions] {
     };
     const types: HubEnvelope["type"][] = [
       "welcome", "live.status", "tracks", "chat.changed", "chat.closed", "chat.history",
-      "chat.status", "chat.delta", "chat.steps", "chat.done", "settings", "usage.report", "error",
+      "chat.status", "chat.looked", "chat.delta", "chat.steps", "chat.done", "settings", "usage.report",
+      "usage.budget", "error",
     ];
     for (const t of types) offHandlers.push(client.on(t, route));
     offHandlers.push(

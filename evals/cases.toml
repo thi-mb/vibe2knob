@@ -265,3 +265,52 @@ request = "does the guitar clash with the vocal?"
 why = "Neither the guitar (acoustic-pick) nor the vocal is in context; the drums are selected. A good answer reads both before judging, and resolves \"the guitar\" to acoustic-pick from the summary."
 expect_reads_all = ["acoustic-pick", "Lead Vox"]
 min_steps = 0
+
+# Session view cases: the clip grid and what plays from it.
+#
+#   scenes           Session view clips, scenes numbered from 1:
+#                    { "<fixture>" = [1, 3] }. Leave it out for a Live link that reports
+#                    no Session view; {} is a grid with no clips.
+#   scene_names      ["Intro", "Verse", ...]
+#   playing          what plays now: { "<fixture>" = 3 } (the transport is playing when set)
+
+[[case]]
+id = "chat-scene-overlap"
+chat_only = true
+session = ["../fixtures/lead_vocal.json", "../fixtures/sub_bass.json", "../fixtures/synth_pad.json", "../fixtures/drum_group.json"]
+fixture = "../fixtures/lead_vocal.json"
+pinned = ["../fixtures/synth_pad.json"]
+scenes = { "../fixtures/lead_vocal.json" = [2, 3, 5], "../fixtures/synth_pad.json" = [1, 3, 4], "../fixtures/sub_bass.json" = [2, 3, 4, 5] }
+scene_names = ["Intro", "Verse", "Chorus", "Break", "Verse 2"]
+request = "the vocal and the pad are fighting each other, how do I make room for the vocal?"
+why = "A Session view set with no arrangement: the vocal and the pad only share the Chorus scene. A good answer still makes room, and says it only matters in the Chorus (e.g. a cut or automation that only bites there)."
+expect_any_device = ["EQ Eight", "Utility", "Compressor", "Auto Filter", "Chorus-Ensemble", "Wavetable"]
+mention_any = ["Chorus", "scene 3"]
+
+[[case]]
+id = "chat-playing-now"
+chat_only = true
+session = ["../fixtures/lead_vocal.json", "../fixtures/sub_bass.json", "../fixtures/synth_pad.json", "../fixtures/drum_group.json"]
+fixture = "../fixtures/synth_pad.json"
+scenes = { "../fixtures/synth_pad.json" = [1, 3], "../fixtures/lead_vocal.json" = [2], "../fixtures/sub_bass.json" = [2, 3], "../fixtures/drum_group.json" = [2, 3] }
+scene_names = ["Intro", "Verse", "Drop"]
+playing = { "../fixtures/synth_pad.json" = 3, "../fixtures/sub_bass.json" = 3 }
+request = "it sounds muddy right now, what should I do?"
+why = "The Drop scene is playing: the selected pad with the sub bass (the vocal isn't playing). A good answer goes by what plays now, points at the pad and the sub bass sharing the low end, and doesn't blame the vocal."
+expect_any_device = ["EQ Eight", "Utility", "Auto Filter", "Channel EQ", "Wavetable", "Operator", "Saturator"]
+mention_any = ["Sub Bass", "Drop"]
+min_steps = 1
+
+[[case]]
+id = "chat-arrangement-only"
+chat_only = true
+session = ["../fixtures/lead_vocal.json", "../fixtures/sub_bass.json", "../fixtures/synth_pad.json", "../fixtures/drum_group.json"]
+fixture = "../fixtures/lead_vocal.json"
+pinned = ["../fixtures/synth_pad.json"]
+plays = { "../fixtures/lead_vocal.json" = [[17, 32], [49, 64]], "../fixtures/synth_pad.json" = [[1, 16], [33, 48], [65, 80]], "../fixtures/sub_bass.json" = [[17, 80]] }
+scenes = {}
+scene_names = ["", "", "", "", "", "", "", ""]
+request = "how do these 2 interact?"
+why = "Like chat-never-overlap, but the Live link also reports an empty Session view (8 empty scenes). No Session view part goes to the model, and the answer still says the two never play at the same time."
+expect_no_steps = true
+mention_any = ["never", "same time", "at once", "don't overlap", "do not overlap", "take turns", "alternate", "hand off", "handover", "hand over"]

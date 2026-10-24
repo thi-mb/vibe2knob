@@ -3,7 +3,7 @@ import { parseTarget } from "../lib/knob";
 import { type Inline, parseMarkdown } from "../lib/markdown";
 import { trackColor } from "../lib/live";
 import { load, save } from "../lib/storage";
-import type { Step } from "../protocol/types";
+import type { Step, TrackRef } from "../protocol/types";
 import type { Phase, Progress, Turn } from "../state/store";
 import { Icon } from "./Icon";
 import { Knob } from "./Knob";
@@ -133,6 +133,32 @@ function StepCard({ step, number, done, current, showTrack, trackColorValue, onT
   );
 }
 
+/** The tracks the model read for an answer. Each chip pins its track to the chat. */
+function LookedAt({ tracks, inContext, onPin }: { tracks: TrackRef[]; inContext: Set<number>; onPin(track: TrackRef): void }) {
+  return (
+    <div className="looked" role="group" aria-label="Looked at">
+      <span className="looked-label">LOOKED AT</span>
+      {tracks.map((t) => {
+        const already = inContext.has(t.index);
+        return (
+          <button
+            key={t.index}
+            className="chip looked-chip"
+            disabled={already}
+            aria-label={already ? `${t.name} is in this chat` : `Pin ${t.name} to this chat`}
+            title={already ? "Already in this chat" : "Pin to this chat"}
+            onClick={() => onPin(t)}
+          >
+            <span className="swatch" style={{ background: trackColor(t.color) }} />
+            {t.name}
+            {!already && <span className="looked-pin">+</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 interface AssistantTurnProps {
   chatId: string;
   turn: Turn;
@@ -140,16 +166,19 @@ interface AssistantTurnProps {
   /** False once the prose is done and the progress line has taken over. */
   writing: boolean;
   trackColors: Map<string, number | null>;
+  inContext: Set<number>;
   onAsk(text: string): void;
+  onPin(track: TrackRef): void;
 }
 
-function AssistantTurn({ chatId, turn, latest, writing, trackColors, onAsk }: AssistantTurnProps) {
+function AssistantTurn({ chatId, turn, latest, writing, trackColors, inContext, onAsk, onPin }: AssistantTurnProps) {
   const [done, toggle] = useDoneSteps(chatId, turn.id);
   const steps = turn.steps ?? [];
   const current = latest ? steps.findIndex((_, i) => !done.has(i)) : -1;
   const tracks = new Set(steps.map((s) => s.track).filter(Boolean));
   return (
     <div className="assistant-turn">
+      {turn.looked_at.length > 0 && <LookedAt tracks={turn.looked_at} inContext={inContext} onPin={onPin} />}
       {turn.text && <Prose text={turn.text} streaming={turn.pending && writing} />}
       {steps.length > 0 && (
         <ol className="steps" aria-label="Steps">
@@ -223,7 +252,7 @@ function TurnProgress({ progress }: { progress: Progress }) {
   return (
     <div className="thinking progress" role="status">
       <span className="led small on blink" />
-      {PHASE_LABEL[progress.phase]}
+      {progress.detail ? <span className="progress-detail">{progress.detail}</span> : PHASE_LABEL[progress.phase]}
       <span className="elapsed">· {elapsed(Number.isNaN(since) ? 0 : now - since)}</span>
     </div>
   );
@@ -233,7 +262,10 @@ interface ConversationProps {
   chatId: string;
   turns: Turn[] | undefined;
   trackColors: Map<string, number | null>;
+  /** Track indexes already in the chat's context, so their looked-at chips don't offer a pin. */
+  inContext: Set<number>;
   onAsk(text: string): void;
+  onPin(track: TrackRef): void;
   /** The turn in flight, if any. */
   progress?: Progress;
   /** Shown after the turns, e.g. the offline card in a chat that already has answers. */
@@ -241,12 +273,12 @@ interface ConversationProps {
   empty?: React.ReactNode;
 }
 
-export function Conversation({ chatId, turns, trackColors, onAsk, progress, after, empty }: ConversationProps) {
+export function Conversation({ chatId, turns, trackColors, inContext, onAsk, onPin, progress, after, empty }: ConversationProps) {
   const end = useRef<HTMLDivElement>(null);
   const lastText = turns?.at(-1)?.text.length ?? 0;
   useEffect(() => {
     end.current?.scrollIntoView?.({ block: "end" });
-  }, [turns?.length, lastText, progress?.phase]);
+  }, [turns?.length, lastText, progress?.phase, progress?.detail]);
   const lastAssistant = turns ? turns.findLastIndex((t) => t.role === "assistant") : -1;
   return (
     <div className="conversation" aria-live="polite" aria-busy={turns?.some((t) => t.pending) ?? false}>
@@ -271,7 +303,9 @@ export function Conversation({ chatId, turns, trackColors, onAsk, progress, afte
               latest={i === lastAssistant}
               writing={!progress || progress.phase === "writing"}
               trackColors={trackColors}
+              inContext={inContext}
               onAsk={onAsk}
+              onPin={onPin}
             />
           ),
         )

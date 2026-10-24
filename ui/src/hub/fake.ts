@@ -4,7 +4,11 @@
 //
 // Scenarios: "chat" (Live connected, two saved chats), "firstrun" (no key, no chats),
 // "offline" (Live not reachable), "empty" (set up, no chats yet), "long" (like "chat", but
-// the pad chat has grown long enough for the header to suggest a new one).
+// the pad chat has grown long enough for the header to suggest a new one), "budget" (like
+// "chat", with a $5 monthly limit the next answer passes).
+//
+// An ask about the low end ("muddy", "low end", "clash") reads Beat and Sub Bass first, as
+// the hub's read_track does, so the progress line and the looked-at chips have something to show.
 
 import type { SocketLike } from "./client";
 import type {
@@ -63,6 +67,27 @@ const WASHY = {
   listen_for: "Hold one chord. Can you still hear each note, or do they smear into one?",
   caution: null,
 };
+
+const MUD = {
+  text:
+    "Three things fight under 200 Hz: your sub, the kick in Beat, and the left hand of Warm Pad. " +
+    "Start by clearing the pad out, then let the kick duck the sub.",
+  steps: [
+    step({ action: "add_device", track: "Warm Pad", track_index: 2, device: "EQ Eight", parameter: "Low Cut", value_range: "150-200 Hz", on_track: false,
+      explanation: "The pad's lowest notes add weight you can't hear in the mix, only mud." }),
+    step({ action: "add_device", track: "Sub Bass", track_index: 1, device: "Compressor", parameter: "Threshold", value_range: "-18 to -24 dB", on_track: false,
+      explanation: "Sidechained from Beat, the sub dips on each kick, so they take turns instead of stacking." }),
+  ],
+  listen_for: "Solo Beat and Sub Bass together. Can you hear each kick land, or does it blur into the bass?",
+  caution: null,
+  warnings: ["Sidechain routing isn't readable through AbletonOSC, so check Audio From on the Compressor yourself."],
+};
+
+/** How far under its limit the "budget" scenario starts, in dollars. */
+const BUDGET_HEADROOM = 0.006;
+
+/** The tracks a low-end ask reads. */
+const MUD_READS = [TRACKS[0], TRACKS[1]];
 
 const GENERAL =
   "On a Mac, Live 11 only lists plugins from the formats you've turned on. In **Preferences › Plug-Ins**:\n\n" +
@@ -215,29 +240,20 @@ function seedChats(long = false): FakeChat[] {
     summary: { id: "c-pad", title: "Pad width", context: { follow_selection: true, pinned: [] }, updated_at: now(5),
       usage: null, title_usage: null, context_tokens: null, context_window: null },
     turns: [
-      { id: "u-1", role: "user", text: "make it wider", created_at: now(0), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [] },
-      { id: "t-1", role: "assistant", text: WIDER.text, created_at: now(1), steps: WIDER.steps, listen_for: WIDER.listen_for, caution: WIDER.caution, warnings: [], error: null, usage: padUsage, looked_at: [] },
+      { id: "u-pad", role: "user", text: "make it wider", created_at: now(0), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [] },
+      { id: "t-pad", role: "assistant", text: WIDER.text, created_at: now(1), steps: WIDER.steps, listen_for: WIDER.listen_for, caution: WIDER.caution, warnings: [], error: null, usage: padUsage, looked_at: [] },
     ],
   };
   const mud: FakeChat = {
     summary: { id: "c-mud", title: "Low-end mud", context: { follow_selection: true, pinned: [0] }, updated_at: now(2),
       usage: null, title_usage: null, context_tokens: null, context_window: null },
     turns: [
-      { id: "u-2", role: "user", text: "the low end feels muddy", created_at: now(-30), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [] },
+      { id: "u-mud", role: "user", text: "the low end feels muddy", created_at: now(-30), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [] },
       {
-        id: "t-2", role: "assistant", created_at: now(-29), caution: null,
-        text: "Three things fight under 200 Hz: your sub, the kick in Beat, and the left hand of Warm Pad. Start by clearing the pad out, then let the kick duck the sub.",
-        steps: [
-          step({ action: "add_device", track: "Warm Pad", track_index: 2, device: "EQ Eight", parameter: "Low Cut", value_range: "150-200 Hz", on_track: false,
-            explanation: "The pad's lowest notes add weight you can't hear in the mix, only mud." }),
-          step({ action: "add_device", track: "Sub Bass", track_index: 1, device: "Compressor", parameter: "Threshold", value_range: "-18 to -24 dB", on_track: false,
-            explanation: "Sidechained from Beat, the sub dips on each kick, so they take turns instead of stacking." }),
-        ],
-        listen_for: "Solo Beat and Sub Bass together. Can you hear each kick land, or does it blur into the bass?",
-        warnings: ["Sidechain routing isn't readable through AbletonOSC, so check Audio From on the Compressor yourself."],
-        error: null,
+        id: "t-mud", role: "assistant", created_at: now(-29), ...MUD, error: null,
         usage: turnUsage({ live: 5900, history: 0, message: 6, thinking: 410, answer: 190, steps: 330 }),
-        looked_at: [],
+        // Beat is pinned and Warm Pad is followed, so only Sub Bass was read.
+        looked_at: [TRACKS[1], TRACKS[2]],
       },
     ],
   };
@@ -272,7 +288,7 @@ export class FakeHub {
     this.wordDelay = options.wordDelay ?? 25;
     this.phaseDelay = options.phaseDelay ?? (this.wordDelay ? 600 : 0);
     const firstRun = this.scenario === "firstrun";
-    this.chats = ["chat", "offline", "long"].includes(this.scenario) ? seedChats(this.scenario === "long") : [];
+    this.chats = ["chat", "offline", "long", "budget"].includes(this.scenario) ? seedChats(this.scenario === "long") : [];
     this.records = this.scenario === "firstrun" || this.scenario === "empty" ? [] : pastRecords();
     for (const r of this.records) if (r.chat_id) this.titles.set(r.chat_id, OLD_TITLES[Number(r.chat_id.slice(4)) % OLD_TITLES.length]);
     for (const chat of this.chats) {
@@ -280,7 +296,18 @@ export class FakeHub {
       this.records.push({ day: TODAY, kind: "title", chat_id: chat.summary.id, usage: titleUsage() });
       this.refreshSummary(chat);
     }
-    this.settings = { provider: "claude", model: "claude-haiku-5-5", api_key_set: !firstRun, monthly_budget_usd: null };
+    const limit = this.scenario === "budget" ? 5 : null;
+    if (limit !== null) {
+      // An eval run earlier this month left the month just under the limit, and answers run
+      // on Sonnet here, so the next one passes it.
+      const short = limit - BUDGET_HEADROOM - this.monthCost();
+      this.records.push({ day: dayOffset(-2), kind: "eval", chat_id: null, usage: priced({
+        input_tokens: Math.round(short / 2e-6), output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0,
+        thinking_tokens: 0, calls: 1, parts: {}, model: "claude-sonnet-5-5",
+      }) });
+    }
+    const model = limit === null ? "claude-haiku-5-5" : "claude-sonnet-5-5";
+    this.settings = { provider: "claude", model, api_key_set: !firstRun, monthly_budget_usd: limit };
     this.live =
       this.scenario === "offline"
         ? { connected: false, selected_track: null, detail: "AbletonOSC isn't answering on port 11000.", example: null }
@@ -336,6 +363,7 @@ export class FakeHub {
           v: 1, type: "welcome", hub_version: "0.1.0-fake",
           chats: this.chats.map((c) => c.summary), live: this.live, settings: this.settings, examples: EXAMPLES,
         });
+        this.sendBudget(socket);
         return;
       case "tracks.list":
         socket.deliver({ v: 1, type: "tracks", request_id, tracks: this.live.connected ? TRACKS : this.live.example ? EXAMPLES.filter((t) => t.name === this.live.example) : [] });
@@ -380,9 +408,15 @@ export class FakeHub {
           provider: m.provider ?? this.settings.provider,
           model: m.model ?? this.settings.model,
           api_key_set: this.settings.api_key_set || !!m.api_key,
-          monthly_budget_usd: this.settings.monthly_budget_usd,
+          monthly_budget_usd:
+            m.monthly_budget_usd === undefined || m.monthly_budget_usd === null
+              ? this.settings.monthly_budget_usd
+              : m.monthly_budget_usd > 0
+                ? Math.round(m.monthly_budget_usd * 100) / 100
+                : null,
         };
         this.broadcast({ v: 1, type: "settings", request_id, settings: this.settings, test_result: null });
+        if (m.monthly_budget_usd !== undefined && m.monthly_budget_usd !== null) this.sendBudget();
         return;
       case "settings.test": {
         const ok = this.settings.provider === "ollama" || this.settings.api_key_set;
@@ -404,6 +438,22 @@ export class FakeHub {
         return;
       }
     }
+  }
+
+  /** Estimated spend since the 1st of the fake hub's month. */
+  private monthCost(): number {
+    const month = TODAY.slice(0, 7);
+    return this.records.filter((r) => r.day.startsWith(month)).reduce((sum, r) => sum + (r.usage.cost_usd ?? 0), 0);
+  }
+
+  /** usage.budget to one client, or to all; nothing while no limit is set. */
+  private sendBudget(socket?: FakeSocket): void {
+    const limit = this.settings.monthly_budget_usd;
+    if (limit === null) return;
+    const spent = this.monthCost();
+    const m: HubEnvelope = { v: 1, type: "usage.budget", month_cost_usd: spent, limit_usd: limit, over: spent > limit };
+    if (socket) socket.deliver(m);
+    else this.broadcast(m);
   }
 
   /** A chat's total and how much its next message resends, as the hub works them out. */
@@ -479,9 +529,12 @@ export class FakeHub {
     const general = !chat.summary.context.follow_selection && chat.summary.context.pinned.length === 0;
     const lower = text.toLowerCase();
     const failing = lower.includes("fail");
-    const script = general
+    const reads = !general && /mud|low end|clash/.test(lower) ? MUD_READS : [];
+    const script: { text: string; steps: Step[] | null; listen_for: string | null; caution: string | null; warnings?: string[] } = general
       ? { text: GENERAL, steps: null, listen_for: null, caution: null }
-      : /washy|too much/.test(lower)
+      : reads.length
+        ? MUD
+        : /washy|too much/.test(lower)
         ? WASHY
         : /\bwhy\b/.test(lower)
           ? { text: "Your ears judge width by how different the left and right channels are. Chorus-Ensemble makes delayed copies and bends their pitch differently on each side, and Dry/Wet sets how much of that you hear. Too much and the chords wobble.", steps: null, listen_for: null, caution: null }
@@ -496,14 +549,14 @@ export class FakeHub {
         : turnUsage({
             live: general ? 0 : 2140, history, message: Math.ceil(text.length / 4),
             thinking: 180, answer: Math.ceil(script.text.length / 4), steps: script.steps ? 90 * script.steps.length : 0,
-          });
+          }, this.settings.model ?? "claude-haiku-5-5");
       if (failing) {
         this.broadcast({ v: 1, type: "error", request_id: null, code: "provider", chat_id: chatId, turn_id, message: "The model didn't answer (overloaded). Try again in a moment." });
       } else {
         if (script.steps) {
-          this.broadcast({ v: 1, type: "chat.steps", chat_id: chatId, turn_id, steps: script.steps, listen_for: script.listen_for, caution: script.caution, warnings: [] });
+          this.broadcast({ v: 1, type: "chat.steps", chat_id: chatId, turn_id, steps: script.steps, listen_for: script.listen_for, caution: script.caution, warnings: script.warnings ?? [] });
         }
-        chat.turns.push({ id: turn_id, role: "assistant", text: script.text, created_at: at, steps: script.steps, listen_for: script.listen_for, caution: script.caution, warnings: [], error: null, usage, looked_at: [] });
+        chat.turns.push({ id: turn_id, role: "assistant", text: script.text, created_at: at, steps: script.steps, listen_for: script.listen_for, caution: script.caution, warnings: script.warnings ?? [], error: null, usage, looked_at: reads });
         this.records.push({ day: TODAY, kind: "chat", chat_id: chatId, usage: usage! });
       }
       this.broadcast({ v: 1, type: "chat.done", chat_id: chatId, turn_id, usage });
@@ -514,10 +567,11 @@ export class FakeHub {
       }
       this.refreshSummary(chat);
       this.broadcast({ v: 1, type: "chat.changed", request_id: null, chat: chat.summary });
+      this.sendBudget();
     };
-    const status = (phase: "reading" | "thinking" | "steps") => {
+    const status = (phase: "reading" | "thinking" | "steps", detail: string | null = null) => {
       if (this.holdAt.has(phase)) this.held = true;
-      this.broadcast({ v: 1, type: "chat.status", chat_id: chatId, turn_id, phase, detail: null });
+      this.broadcast({ v: 1, type: "chat.status", chat_id: chatId, turn_id, phase, detail });
     };
     const tick = () => {
       if (i >= words.length) {
@@ -530,10 +584,19 @@ export class FakeHub {
       this.broadcast({ v: 1, type: "chat.delta", chat_id: chatId, turn_id, text: chunk });
       this.later(this.wordDelay, tick);
     };
-    status("reading");
-    this.later(general ? 0 : this.phaseDelay, () => {
+    const think = () => {
       status("thinking");
       this.later(this.phaseDelay, tick);
+    };
+    status("reading");
+    this.later(general ? 0 : this.phaseDelay, () => {
+      if (!reads.length) return think();
+      // A read round: the model asks for tracks, the hub reads them, then the model goes on.
+      // Holding "looked" stops the turn with the read on screen.
+      if (this.holdAt.has("looked")) this.held = true;
+      status("reading", `Reading ${reads.map((t) => t.name).join(", ")}`);
+      this.broadcast({ v: 1, type: "chat.looked", chat_id: chatId, turn_id, tracks: reads });
+      this.later(this.phaseDelay, think);
     });
   }
 

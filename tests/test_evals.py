@@ -197,3 +197,23 @@ def test_switch_steps_need_no_value_range():
     assert checks["gives starting values"]
     advice.steps[0].action = "adjust"
     assert not {c.name: c.passed for c in grade(case, advice)}["gives starting values"]
+
+
+def test_session_view_cases_build_the_grid():
+    from vibe2knob.evals import chat_answer
+    from vibe2knob.providers.fake import FakeProvider, Reply
+
+    cases = {c.id: c for c in load_cases(CASES)}
+
+    def context(case_id):
+        provider = FakeProvider([Reply("ok")])
+        chat_answer(cases[case_id], provider, CASES.parent)
+        return provider.calls[-1]["messages"][-1]["content"]
+
+    text = context("chat-scene-overlap")
+    assert '"Lead Vox" and "Warm Pad" have clips together only in scene 3 "Chorus".' in text
+    assert "Arrangement" not in text
+    text = context("chat-playing-now")
+    assert 'Playing now: all of scene 3 "Drop".' in text  # the Drums group doesn't count
+    text = context("chat-arrangement-only")
+    assert "never play at the same time" in text and "Session view" not in text

@@ -26,7 +26,10 @@ def encode_message(address: str, args=()) -> bytes:
     tags = ","
     payload = b""
     for arg in args:
-        if isinstance(arg, bool):
+        if arg is None:
+            # Nil, which AbletonOSC sends for an empty clip slot.
+            tags += "N"
+        elif isinstance(arg, bool):
             tags += "T" if arg else "F"
         elif isinstance(arg, int):
             tags += "i"

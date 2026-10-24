@@ -11,6 +11,7 @@ from typing import Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field
 
 from .arrangement import Arrangement, Timeline, as_arrangement, describe_arrangement, plays_note
+from .session_view import Grid, SessionView, as_session_view, describe_session_view
 from .state import Device, Track, TrackState, TrackType
 
 
@@ -48,6 +49,10 @@ class SessionSummary(_Open):
     arrangement: Arrangement | None = Field(
         None, description="Where clips sit in Arrangement view, when the Live link can tell."
     )
+    session: SessionView | None = Field(
+        None, description="Session view's clip grid and what plays from it, when the Live "
+                          "link can tell."
+    )
 
     def track(self, index: int) -> TrackSummary | None:
         return next((t for t in self.tracks if t.index == index), None)
@@ -62,13 +67,20 @@ class LiveView(Protocol):
 
     def track_state(self, index: int) -> TrackState | dict: ...
 
-    # Optional: arrangement() -> Arrangement | dict | None (see live_bridge/link.py).
+    # Optional: arrangement() -> Arrangement | dict | None and
+    # session_view() -> SessionView | dict | None (see live_bridge/link.py).
 
 
 def read_arrangement(live: LiveView) -> Arrangement | None:
     """The arrangement map, or None when this LiveView has none or can't read it."""
     read = getattr(live, "arrangement", None)
     return as_arrangement(read()) if read else None
+
+
+def read_session_view(live: LiveView) -> SessionView | None:
+    """Session view's grid, or None when this LiveView has none or can't read it."""
+    read = getattr(live, "session_view", None)
+    return as_session_view(read()) if read else None
 
 
 def as_summary(value: SessionSummary | dict) -> SessionSummary:
@@ -109,8 +121,10 @@ class StaticLive:
     """A LiveView over fixed track states, for tests and evals."""
 
     def __init__(self, states: list[TrackState], selected: int | None = None,
-                 arrangement: Arrangement | dict | None = None):
+                 arrangement: Arrangement | dict | None = None,
+                 session_view: SessionView | dict | None = None):
         self._arrangement = as_arrangement(arrangement)
+        self._session_view = as_session_view(session_view)
         self.states: dict[int, TrackState] = {}
         for i, s in enumerate(states):
             self.states[s.track.index if s.track.index is not None else i] = s
@@ -128,12 +142,16 @@ class StaticLive:
     def arrangement(self) -> Arrangement | None:
         return self._arrangement
 
+    def session_view(self) -> SessionView | None:
+        return self._session_view
+
 
 def describe_summary(summary: SessionSummary, detail: dict[int, str]) -> str:
     """The summary block of the prompt. `detail` maps track index -> why it has full detail.
 
     With an arrangement, each line also says where the track plays, and an Arrangement
-    part follows with the sections and how the tracks in `detail` overlap.
+    part follows with the sections and how the tracks in `detail` overlap. A Session view
+    part follows when any of its slots holds a clip.
     """
     timeline = Timeline(summary.arrangement) if summary.arrangement else None
     head = []
@@ -161,5 +179,10 @@ def describe_summary(summary: SessionSummary, detail: dict[int, str]) -> str:
     if timeline and summary.tracks:
         names = {t.index: t.name for t in summary.tracks}
         lines.append(describe_arrangement(timeline, names, list(detail)))
+    if summary.session and summary.tracks:
+        names = {t.index: t.name for t in summary.tracks}
+        block = describe_session_view(Grid(summary.session), names, list(detail))
+        if block:
+            lines.append(block)
     return "\n".join(lines)
 

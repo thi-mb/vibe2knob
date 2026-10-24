@@ -34,7 +34,7 @@ from .protocol import ChatSummary, ContextSet, TrackRef
 from .providers import Provider, ProviderError
 from .providers.base import Done, Error, Phase, TextDelta, ToolCall
 from .session import (LiveView, SessionSummary, as_summary, as_track_state, describe_summary,
-                      read_arrangement)
+                      read_arrangement, read_session_view)
 from .state import Device, TrackState, TrackType
 from .tools import BUDGET_USED, Look, ToolContext, ToolOutcome, ToolRegistry, default_tools
 from .usage import Sizes, UsageRecord, split_parts
@@ -258,6 +258,10 @@ def gather_context(context: ContextSet, live: LiveView | None) -> TurnContext:
             ctx.summary.arrangement = read_arrangement(live)
         except Exception:  # noqa: BLE001 - without it the model just doesn't know timing
             log.warning("Couldn't read the arrangement from Live", exc_info=True)
+        try:
+            ctx.summary.session = read_session_view(live)
+        except Exception:  # noqa: BLE001 - without it the model just doesn't know what plays
+            log.warning("Couldn't read Session view from Live", exc_info=True)
     wanted: dict[int, list[str]] = {}
     if context.follow_selection:
         try:

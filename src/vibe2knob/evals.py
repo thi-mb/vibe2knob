@@ -20,6 +20,7 @@ from .protocol import ContextSet
 from .providers import Provider, ProviderError
 from .arrangement import Arrangement
 from .session import StaticLive
+from .session_view import SessionView
 from .state import TrackState
 from .usage import UsageRecord, total
 
@@ -53,6 +54,11 @@ class Case:
     expect_reads_any: list[str] = field(default_factory=list)
     expect_reads_all: list[str] = field(default_factory=list)
     forbid_reads: list[str] = field(default_factory=list)
+    # Session view, scenes numbered from 1: fixture -> [scene, ...]. Unset means the Live
+    # link reports no Session view; {} means a grid with no clips.
+    scenes: dict[str, list[int]] | None = None
+    scene_names: list[str] = field(default_factory=list)
+    playing: dict[str, int] = field(default_factory=dict)  # fixture -> scene playing now
 
 
 @dataclass
@@ -235,7 +241,9 @@ def chat_answer(case: Case, provider: Provider, base_dir: Path,
                 st.track.index = i
         index_of = {p: st.track.index for p, st in zip(paths, states)}
         arrangement = _arrangement(case, paths, states) if case.plays is not None else None
-        live = StaticLive(states, selected=index_of[case.fixture], arrangement=arrangement)
+        grid = _session_view(case, paths, states) if case.scenes is not None else None
+        live = StaticLive(states, selected=index_of[case.fixture], arrangement=arrangement,
+                          session_view=grid)
         chat.context.pinned = [index_of[p] for p in case.pinned]
     engine = ChatEngine(provider)
     if case.prior_request:
@@ -283,6 +291,28 @@ def _arrangement(case: Case, paths: list[str], states: list[TrackState]) -> Arra
     return Arrangement.model_validate({
         "signature": [4, 4],
         "locators": [{"name": c["name"], "time": (c["bar"] - 1) * beats} for c in case.locators],
+        "tracks": tracks,
+    })
+
+
+def _session_view(case: Case, paths: list[str], states: list[TrackState]) -> SessionView:
+    """A Session view grid from the case's `scenes`, `scene_names` and `playing`."""
+    count = max([len(case.scene_names)] + [n for v in case.scenes.values() for n in v] + [1])
+    tracks = []
+    for path, st in zip(paths, states):
+        mine = set(case.scenes.get(path, []))
+        playing = case.playing.get(path)
+        tracks.append({
+            "index": st.track.index,
+            "is_group": st.track.type == "group",
+            "slots": [{"name": st.track.name, "length": 16.0} if n in mine else None
+                      for n in range(1, count + 1)],
+            "playing_slot": playing - 1 if playing else None,
+        })
+    names = case.scene_names
+    return SessionView.model_validate({
+        "is_playing": bool(case.playing),
+        "scenes": [{"index": i, "name": names[i] if i < len(names) else ""} for i in range(count)],
         "tracks": tracks,
     })
 

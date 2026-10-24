@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { LiveStatus, Settings, TrackRef, UsageReport } from "../protocol/types";
-import type { UsageRange } from "../state/store";
+import type { LiveStatus, Settings, TrackRef, UsageBudget, UsageReport } from "../protocol/types";
+import type { SettingsChange, UsageRange } from "../state/store";
 import { modelName } from "../lib/usage";
 import { Icon } from "./Icon";
 import { UsageSection } from "./Usage";
@@ -17,7 +17,7 @@ interface ModelFormProps {
   settings: Settings;
   testResult: string | null;
   compact?: boolean;
-  onSave(change: { provider?: "claude" | "ollama"; model?: string; api_key?: string }): void;
+  onSave(change: SettingsChange): void;
   onTest(): void;
 }
 
@@ -333,6 +333,7 @@ interface SettingsProps {
   onBackToLive(): void;
   onTheme(theme: Theme): void;
   usage: UsageReport | null;
+  budget: UsageBudget | null;
   usageRange: UsageRange;
   onUsageRange(range: UsageRange): void;
   onOpenChat(chatId: string): void;
@@ -352,8 +353,11 @@ export function SettingsPage(props: SettingsProps) {
         report={props.usage}
         range={props.usageRange}
         provider={settings.provider}
+        limit={settings.monthly_budget_usd}
+        budget={props.budget}
         onRange={props.onUsageRange}
         onOpenChat={props.onOpenChat}
+        onLimit={(limit) => props.onSave({ monthly_budget_usd: limit })}
       />
       <section aria-labelledby="s-live">
         <div className="label" id="s-live">

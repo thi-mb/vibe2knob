@@ -8,8 +8,8 @@ import copy
 import json
 from pathlib import Path
 
-from .link import (ARRANGEMENT_SCHEMA_VERSION, CONNECTED, OFFLINE, SUMMARY_SCHEMA_VERSION,
-                   LiveError, LiveLink)
+from .link import (ARRANGEMENT_SCHEMA_VERSION, CONNECTED, OFFLINE, SESSION_VIEW_SCHEMA_VERSION,
+                   SUMMARY_SCHEMA_VERSION, LiveError, LiveLink)
 
 # fixtures/ in a checkout; the wheel bundles them inside this package.
 _HERE = Path(__file__).resolve().parent
@@ -53,19 +53,45 @@ def _scripted_arrangement(stems):
     }
 
 
+def _scripted_session_view(stems, playing="Chorus"):
+    """The same song as a Session view grid: one scene per section, `playing` launched."""
+    scene = _SECTIONS.index(playing) if playing else None
+    tracks = []
+    for i, stem in enumerate(stems):
+        group = stem in _GROUPS
+        plays = set() if group else set(_PLAYS.get(stem, _SECTIONS))
+        slots = [{"name": f"{stem} {n.lower()}", "length": 64.0} if n in plays else None
+                 for n in _SECTIONS]
+        tracks.append({"index": i, "is_group": group, "slots": slots,
+                       "playing_slot": scene if scene is not None and slots[scene] else None,
+                       "fired_slot": None})
+    return {
+        "schema_version": SESSION_VIEW_SCHEMA_VERSION,
+        "is_playing": scene is not None,
+        "scenes": [{"index": i, "name": n} for i, n in enumerate(_SECTIONS)],
+        "tracks": tracks,
+    }
+
+
 class FakeLive(LiveLink):
     def __init__(self, tracks=None, *, selected=0, tempo=None, live_version="11.3",
-                 connected=True, arrangement=None):
+                 connected=True, arrangement=None, session_view=None):
         """`tracks` is a list of track-state dicts or paths, or a directory of JSON files.
 
-        Defaults to fixtures/, with a scripted arrangement. `arrangement` is what
-        arrangement() returns (see link.py); without one, other tracks have none.
+        Defaults to fixtures/, with a scripted arrangement and the same song in Session
+        view with the Chorus scene playing. `arrangement` and `session_view` are what
+        arrangement() and session_view() return (see link.py); without them, other tracks
+        have none.
         """
         super().__init__()
-        if arrangement is None and tracks is None:
+        if tracks is None:
             stems = [f.stem for f in sorted(FIXTURES.glob("*.json"))]
-            arrangement = _scripted_arrangement(stems)
+            if arrangement is None:
+                arrangement = _scripted_arrangement(stems)
+            if session_view is None:
+                session_view = _scripted_session_view(stems)
         self._arrangement = arrangement
+        self._session_view = session_view
         if tracks is None or isinstance(tracks, (str, Path)):
             folder = Path(tracks) if tracks is not None else FIXTURES
             tracks = sorted(folder.glob("*.json"))
@@ -150,3 +176,7 @@ class FakeLive(LiveLink):
     def arrangement(self):
         self._check()
         return copy.deepcopy(self._arrangement)
+
+    def session_view(self):
+        self._check()
+        return copy.deepcopy(self._session_view)
