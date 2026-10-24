@@ -1,161 +1,136 @@
 # vibe2knob
 
-An open-source producer mate that sits next to Ableton Live. Tell it how you want your track to
-feel ("wider", "trippier", "warmer") and it looks at the selected track's device chain and walks
-you through the moves with Live's stock devices, explaining each one. It teaches; you turn the knobs.
+**Tell it the vibe. You turn the knobs.**
 
-> Status: v0.1 in progress. This is the core, a CLI and a bridge that reads the selected track from Live. A chat UI is next.
+vibe2knob is a producer mate that sits next to Ableton Live. Say how a track should feel
+("wider", "warmer", "the low end feels muddy") and it reads your set, then walks you through the
+moves with Live's stock devices: which device, which knob, roughly where to set it, and why.
+It teaches; it never touches your set.
 
-## Try it
+https://github.com/user-attachments/assets/e24fceaa-c6d5-4e1d-87cd-cd9a5360be7d
 
-```sh
-pip install -e '.[claude]'
-export ANTHROPIC_API_KEY=...        # or: ant auth login
+- **It reads your set.** Through [AbletonOSC](https://github.com/ideoforms/AbletonOSC) it sees
+  your tracks, their devices and parameter values, and which tracks play together in the
+  arrangement.
+- **It answers in knob moves.** Each step names a stock device and parameter with a target
+  range, says why it works, and tells you what to listen for.
+- **You stay in control.** Nothing in Live changes unless you change it.
 
-vibe2knob ask "make this wider" --state fixtures/synth_pad.json
-```
+> **Status: v0.1.** Mac only, Live 11 and 12 (tested on Live 11). Bring your own Claude API key,
+> or run a model locally with Ollama. It's early, so expect rough edges and please open issues.
 
-The answer looks like this (shortened):
+## Quick start
 
-```text
-Spread the pad further across the stereo field ...
+You need macOS, Live 11 or later, Python 3.11+ and Node 22 (to build the panel).
 
-1. On Utility > Stereo Width: 120-140 %
-   Raises the side signal so the pad spreads wider around the centre.
-2. On Chorus-Ensemble > Mode: Ensemble
-   ...
+1. **Install AbletonOSC.** Clone it into
+   `~/Music/Ableton/User Library/Remote Scripts/AbletonOSC`, restart Live, and pick
+   **AbletonOSC** as a Control Surface in Settings > Link, Tempo & MIDI.
+2. **Get vibe2knob and open the panel.**
 
-Listen: Bypass Utility and listen to how far the pad reaches toward the speakers.
-Watch out: Turn on Bass Mono so the low end of the pad stays mono.
-```
+   ```sh
+   git clone https://github.com/thi-mb/vibe2knob && cd vibe2knob
+   python3 -m venv .venv
+   scripts/panel.sh
+   ```
 
-- `--json` prints the structured steps (device, parameter, value range, explanation).
-- `--state -` reads the track state from stdin, so you can pipe the Live bridge into it.
-- `--dry-run` prints the exact prompt without calling a model.
-- `vibe2knob terms` lists the subjective words it knows.
+   `scripts/panel.sh` installs the package, builds the panel and opens it in a slim window that
+   stays on top of Live. Run it again after a `git pull`.
+3. **Follow the setup card.** Paste a Claude API key (or pick Ollama), check that Live is
+   connected, then select a track in Live and say how it should feel.
 
-## Reading the track from Live
+Want to look around first? `scripts/panel.sh --fake` runs on example tracks with a scripted
+model: no Live and no key.
 
-`live_bridge/` reads the selected track from Ableton Live through
-[AbletonOSC](https://github.com/ideoforms/AbletonOSC), a remote script that exposes Live's
-(unofficial) Python API over OSC. Every OSC address the project uses is in
-`live_bridge/client.py`, so API changes stay contained there. It needs no extra dependencies.
+## Using it
 
-Setup (Live 11+):
+- **Chats in tabs.** Each chat is one topic, like "Pad width" or "Low-end mud".
+- **Context chips.** One chip follows the track you select in Live. Type `@` to pin more tracks
+  to a chat. The model also gets a light summary of the whole set.
+- **Step cards.** Each step shows the device, the parameter and a target range on a knob. Tap
+  **Why?** for more, and read the **Listen** and **Caution** notes.
+- **Follow-ups.** "Too much", "not enough" and "I made the changes" are one tap away. Every
+  message re-reads your tracks, so the next answer starts from what you actually did.
+- **Timing.** It knows which tracks play together and where, from the arrangement and its
+  locators, so "the low end is muddy in the drop" means something.
+- **Light and dark.** The panel follows your Mac's appearance, or you pick one in Settings.
+- **Cost.** Each chat shows what it has cost so far, and Settings > Usage breaks it down by day,
+  model and part of the prompt.
 
-1. Clone AbletonOSC into `~/Music/Ableton/User Library/Remote Scripts/AbletonOSC`.
-2. Restart Live, then pick **AbletonOSC** as a Control Surface in
-   Settings > Link, Tempo & MIDI.
+## Privacy and cost
 
-```sh
-python3 -m live_bridge                    # summary + JSON of the selected track
-python3 -m live_bridge --json --track 2   # JSON only, for a given track index
-python3 -m live_bridge --json | vibe2knob ask "make this wider" --state -
-python3 -m live_bridge --summary          # every track, light: names, types, devices, mixer
-python3 -m live_bridge --watch            # print connection and selection changes
-```
-
-For the hub, `LiveBridge` is the one owner of the connection: a background loop receives
-everything on port 11001 and routes each reply to its request or each listener push to its
-subscribers, while a watcher pings Live every 3 s and follows the selected track.
-`FakeLive` gives the same interface from the files in `fixtures/`, for tests and work
-without Live. Writes (mute, solo, parameters) are part of the interface but not built yet.
-
-Known limits: only regular tracks can be read (not returns or master), devices inside racks
-aren't listed (only the rack itself and its macros), and a plugin's knobs show up only after
-you add them with its Configure button in Live.
+- **Your key stays on your Mac.** It's kept in the Keychain (or read from `ANTHROPIC_API_KEY`) and
+  only sent to Anthropic.
+- **The model sees names and numbers, never audio.** Track names, devices, parameter values and
+  clip positions. Nothing else leaves your machine.
+- **No telemetry.** vibe2knob doesn't phone home.
+- **You pay for your own usage.** The panel defaults to Claude Haiku 5.5, which is fast and
+  cheap. Settings > Usage shows what you've spent. With Ollama it's free and fully offline.
 
 ## How it works
 
-1. **Track state.** A JSON snapshot of one track: its type, mixer, and device chain with parameter
-   values. The format is in [docs/track-state-format.md](docs/track-state-format.md); sample
-   tracks are in [`fixtures/`](fixtures/).
-2. **Knowledge map.** [`terms.toml`](src/vibe2knob/knowledge/terms.toml) maps subjective words to
-   techniques with stock devices, starting values and pitfalls, e.g. "wide" to Utility width,
-   chorus, Haas delay and mid/side EQ, with "keep the sub mono".
-3. **The model.** The core sends the track, the request and the knowledge map to an LLM and gets
-   back structured steps. It then checks the steps against the real chain (stock devices only,
-   no "adjust" on a device that isn't there) and flags anything off.
+```text
+Live ── AbletonOSC ── hub (Python, on your Mac) ── model (Claude or Ollama)
+                        │
+                        └── panel (window or browser tab)
+```
 
-### Models
+1. **The hub** owns the connection to Live, the model calls and your chats. The panel is a thin
+   client that only shows things and sends what you type.
+2. **The knowledge map.** [`terms.toml`](src/vibe2knob/knowledge/terms.toml) maps subjective
+   words to techniques with stock devices, starting values and pitfalls. For example, "wide"
+   leads to Utility width, chorus, a Haas delay and mid/side EQ, with "keep the sub mono".
+3. **The check.** Steps are checked against your real device chain: stock devices only, and no
+   "turn this knob" on a device that isn't there.
 
-The model is pluggable (`--provider`):
+## Models
 
 | Provider | Default model | Setup |
 |---|---|---|
-| `claude` (default) | `claude-opus-5-5` | `ANTHROPIC_API_KEY` or `ant auth login`. Override with `--model` or `VIBE2KNOB_MODEL`. |
-| `ollama` | `llama3.1` | Runs offline with [Ollama](https://ollama.com). `--model` or `VIBE2KNOB_OLLAMA_MODEL`, `OLLAMA_HOST`. |
+| Claude | `claude-haiku-5-5` in the panel | An API key from the [Claude Console](https://console.anthropic.com), pasted in Settings. |
+| Ollama | `llama3.1` | Runs offline with [Ollama](https://ollama.com). Pick it in Settings. |
 
-A new backend is a class with a `generate(system, user, schema) -> str` method, registered in
-`src/vibe2knob/providers/__init__.py`.
+## Command line
 
-## Judging the advice
-
-Plausible advice is easy; good advice is the point. [`evals/cases.toml`](evals/cases.toml) holds
-test cases: a track, a request, and what a good answer must do. For example, "make the bass
-wider" must keep the sub mono, and "make it tighter" on a Drum Rack should go to the Simpler
-envelopes first.
+The panel is the main way in, but the core works from a terminal too (with `.venv` active):
 
 ```sh
-vibe2knob eval                       # all cases, against Claude
-vibe2knob eval --only bass-wider --provider ollama
+vibe2knob ask "make this wider" --state fixtures/synth_pad.json   # one answer for one track
+python3 -m live_bridge --json | vibe2knob ask "make this wider" --state -
+vibe2knob terms                                                    # the words it knows
+vibe2knob eval                                                     # run the advice test cases
 ```
 
-Full answers are saved in `evals/reports/` so you can read them, not just the score.
+## Known limits
+
+- Only regular tracks can be read, not returns or the master.
+- Devices inside racks aren't listed, only the rack and its macros.
+- A third-party plugin's knobs only show up after you add them with its Configure button in Live.
+- AbletonOSC doesn't report when a clip ends, so clips are cut at the next clip on the track.
+
+## Roadmap
+
+- **v0.2:** Session view timing, a tool to ask what plays in a range of bars, tracks the model
+  reads on its own, and `pip install vibe2knob`.
+- **v0.3:** speech input, and a Do mode that makes changes in Live for you, always shown,
+  confirmed and undoable.
+- **v0.4:** our own remote script in place of AbletonOSC, for exact timing and loading devices.
+- **v0.5:** the panel on your phone.
+
+More ideas are in [docs/future-ideas.md](docs/future-ideas.md).
 
 ## Contributing
 
-The easiest and most useful contribution needs no code: improve `terms.toml`. Add a word people
-use, a better technique, or a pitfall you learned the hard way, and add an eval case for it.
-Run `pytest` before opening a PR; it checks that every technique uses stock devices.
+The easiest and most useful contribution needs no code: improve
+[`terms.toml`](src/vibe2knob/knowledge/terms.toml). Add a word people use, a better technique,
+or a pitfall you learned the hard way, and add a case to [`evals/cases.toml`](evals/cases.toml)
+that says what a good answer must do. For example, "make the bass wider" must keep the sub mono.
 
-```sh
-pip install -e '.[dev]'
-pytest
-```
+For code, see [docs/development.md](docs/development.md).
 
-## Development
+## License
 
-The hub is Python (`src/vibe2knob/`) and the panel is React + TypeScript (`ui/`). They talk over
-one WebSocket protocol, defined in `src/vibe2knob/protocol.py`. The UI's types are generated from
-that file:
+Apache License 2.0. See [LICENSE](LICENSE).
 
-```sh
-pip install -e '.[dev]' && pytest -q
-cd ui && npm ci && npm test && npm run build
-cd ui && npm run gen:types   # after changing protocol.py
-```
-
-### The panel
-
-After a `git pull`, `scripts/panel.sh` does the rest: it reinstalls the Python package, rebuilds
-the UI and opens the panel window (add `--fake` for no Live and no key).
-
-`vibe2knob panel` starts the hub on 127.0.0.1:8765 and opens the panel in your browser. It needs
-the `[panel]` extra (`pip install -e '.[panel]'`) and a built UI (`cd ui && npm run build`).
-
-```sh
-vibe2knob panel                 # real Live, Claude with the key from Settings or ANTHROPIC_API_KEY
-vibe2knob panel --fake          # fixtures instead of Live, a scripted model: no Live, no key
-vibe2knob panel --fake --dev    # and work on the UI with hot reload: cd ui && npm run dev
-```
-
-Chats and settings live in `~/Library/Application Support/vibe2knob/` (or `$VIBE2KNOB_HOME`); the
-API key goes in the Keychain, and an `ANTHROPIC_API_KEY` in the environment or a `.env` file wins.
-With `--fake` or `--fake-model`, chats go to a temporary folder instead.
-
-### Panel window
-
-`vibe2knob panel --window` opens the panel in a slim always-on-top window to sit beside Live,
-instead of a browser tab. It needs the `[window]` extra (`pip install -e '.[window]'`, which adds
-pywebview). It takes the same flags, so `--window --fake` works without Live or a key, and
-`--window --dev` shows the Vite dev server.
-
-Closing the window stops the hub, and Ctrl-C in the terminal closes the window. The window's size
-and position are saved in `settings.json` and restored on the next launch. **Window > Toggle
-Always on Top** turns on-top off or on, and that's remembered too. (With `--fake` the settings go
-to a temporary folder, so add `--data-dir` to keep the window's place between fake runs.) If a hub is already running on
-the port, a second `vibe2knob panel` says so and exits.
-
-The hub opens the panel at `/?token=...`. A client connects to `/ws?token=...`; a wrong token, Host
-or Origin closes the socket with code 4401.
+vibe2knob is not affiliated with or endorsed by Ableton. Ableton and Live are trademarks of
+Ableton AG.
