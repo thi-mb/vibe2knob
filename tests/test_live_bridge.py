@@ -33,6 +33,10 @@ class FakeAbletonOSC:
         self.listener_works = True
         self.listening = False
         self.received = []
+        self.writes = []
+        self.undos = 0
+        # True makes Live ignore writes (a set that never lands).
+        self.read_only = False
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._serve, daemon=True)
         self._thread.start()
@@ -88,6 +92,16 @@ class FakeAbletonOSC:
             return [120.0]
         if address == "/live/application/get/version":
             return [11, 3]
+        if address == "/live/song/undo":
+            self.undos += 1
+            return None
+        if "/set/" in address:
+            self._write(address, args)
+            return None
+        if address == "/live/track/get/send":
+            t, s = args[0], args[1]
+            sends = self.states[t]["track"].setdefault("sends", [0.0])
+            return [t, s, sends[s]] if s < len(sends) else None
         if address.startswith("/live/track/get/"):
             t = args[0]
             return [t, *self._track_prop(self.states[t]["track"], address.removeprefix("/live/track/get/"))]
@@ -97,9 +111,36 @@ class FakeAbletonOSC:
             prop = address.removeprefix("/live/device/get/")
             if prop == "parameter/value_string":
                 return [t, d, args[2], device["parameters"][args[2]]["display"] or ""]
+            if prop == "parameter/value":
+                return [t, d, args[2], float(device["parameters"][args[2]]["value"])]
             field = prop.removeprefix("parameters/")
             return [t, d, *[_osc_value(p[field]) for p in device["parameters"]]]
         return None
+
+    def _write(self, address, args):
+        """Like Live: a value out of range raises inside Live, so nothing changes."""
+        self.writes.append((address, list(args)))
+        if self.read_only:
+            return
+        if address.startswith("/live/track/set/"):
+            t, prop = args[0], address.removeprefix("/live/track/set/")
+            track = self.states[t]["track"]
+            if prop == "send":
+                sends = track.setdefault("sends", [0.0])
+                if args[1] < len(sends) and 0.0 <= args[2] <= 1.0:
+                    sends[args[1]] = args[2]
+                return
+            value = args[1]
+            low = -1.0 if prop == "panning" else 0.0
+            if prop in ("volume", "panning") and not low <= value <= 1.0:
+                return
+            track.setdefault("mixer", {})[prop] = bool(value) if prop in ("mute", "solo") else value
+        elif address == "/live/device/set/parameter/value":
+            t, d, p, value = args
+            param = self.states[t]["track"]["devices"][d]["parameters"][p]
+            if param["min"] <= value <= param["max"]:
+                param["value"] = value
+                param["display"] = f"{value:.2f}"
 
     def _track_prop(self, track, prop):
         mixer = track.get("mixer", {})
