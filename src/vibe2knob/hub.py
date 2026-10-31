@@ -272,6 +272,10 @@ class Hub:
                                    message=_short_validation(e)))
             return
         handler = getattr(self, "_on_" + type(message).__name__, None)
+        if handler is None:  # in the protocol, but this hub doesn't do it yet
+            conn.send(ErrorMessage(request_id=request_id, code="bad_request",
+                                   message=f"{message.type} isn't supported by this hub yet."))
+            return
         try:
             await handler(conn, message)
         except Exception as e:  # noqa: BLE001 - one bad request must not drop the client
@@ -374,6 +378,10 @@ class Hub:
             del changes["provider"]
         if changes.get("provider", self.settings.provider) != self.settings.provider:
             changes.setdefault("model", None)  # a model name only fits its own provider
+        if m.default_mode is not None:
+            changes["default_mode"] = m.default_mode
+        if m.auto_actions is not None:
+            changes["auto_actions"] = list(dict.fromkeys(m.auto_actions))
         if m.monthly_budget_usd is not None:
             limit = m.monthly_budget_usd
             changes["monthly_budget_usd"] = round(limit, 2) if limit > 0 else None
@@ -430,7 +438,9 @@ class Hub:
     def settings_view(self) -> Settings:
         return Settings(provider=self.settings.provider, model=panel_model(self.settings),
                         api_key_set=bool(self.store.api_key()),
-                        monthly_budget_usd=self.settings.monthly_budget_usd)
+                        monthly_budget_usd=self.settings.monthly_budget_usd,
+                        default_mode=self.settings.default_mode,
+                        auto_actions=self.settings.auto_actions)
 
     def budget(self) -> UsageBudget | None:
         """This month's spend against the limit, or None when no limit is set. A warning

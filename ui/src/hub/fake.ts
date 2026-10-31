@@ -238,22 +238,23 @@ function seedChats(long = false): FakeChat[] {
     : PAD_USAGE;
   const pad: FakeChat = {
     summary: { id: "c-pad", title: "Pad width", context: { follow_selection: true, pinned: [] }, updated_at: now(5),
-      usage: null, title_usage: null, context_tokens: null, context_window: null },
+      usage: null, title_usage: null, context_tokens: null, context_window: null, mode: "teach" },
     turns: [
-      { id: "u-pad", role: "user", text: "make it wider", created_at: now(0), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [] },
-      { id: "t-pad", role: "assistant", text: WIDER.text, created_at: now(1), steps: WIDER.steps, listen_for: WIDER.listen_for, caution: WIDER.caution, warnings: [], error: null, usage: padUsage, looked_at: [] },
+      { id: "u-pad", role: "user", text: "make it wider", created_at: now(0), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [], actions: [] },
+      { id: "t-pad", role: "assistant", text: WIDER.text, created_at: now(1), steps: WIDER.steps, listen_for: WIDER.listen_for, caution: WIDER.caution, warnings: [], error: null, usage: padUsage, looked_at: [], actions: [] },
     ],
   };
   const mud: FakeChat = {
     summary: { id: "c-mud", title: "Low-end mud", context: { follow_selection: true, pinned: [0] }, updated_at: now(2),
-      usage: null, title_usage: null, context_tokens: null, context_window: null },
+      usage: null, title_usage: null, context_tokens: null, context_window: null, mode: "teach" },
     turns: [
-      { id: "u-mud", role: "user", text: "the low end feels muddy", created_at: now(-30), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [] },
+      { id: "u-mud", role: "user", text: "the low end feels muddy", created_at: now(-30), steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [], actions: [] },
       {
         id: "t-mud", role: "assistant", created_at: now(-29), ...MUD, error: null,
         usage: turnUsage({ live: 5900, history: 0, message: 6, thinking: 410, answer: 190, steps: 330 }),
         // Beat is pinned and Warm Pad is followed, so only Sub Bass was read.
         looked_at: [TRACKS[1], TRACKS[2]],
+        actions: [],
       },
     ],
   };
@@ -307,11 +308,11 @@ export class FakeHub {
       }) });
     }
     const model = limit === null ? "claude-haiku-5-5" : "claude-sonnet-5-5";
-    this.settings = { provider: "claude", model, api_key_set: !firstRun, monthly_budget_usd: limit };
+    this.settings = { provider: "claude", model, api_key_set: !firstRun, monthly_budget_usd: limit, default_mode: "teach", auto_actions: [] };
     this.live =
       this.scenario === "offline"
-        ? { connected: false, selected_track: null, detail: "AbletonOSC isn't answering on port 11000.", example: null }
-        : { connected: true, selected_track: TRACKS[2], detail: null, example: null };
+        ? { connected: false, selected_track: null, detail: "AbletonOSC isn't answering on port 11000.", example: null, can_write: false }
+        : { connected: true, selected_track: TRACKS[2], detail: null, example: null, can_write: false };
   }
 
   socket(): SocketLike {
@@ -331,8 +332,8 @@ export class FakeHub {
 
   setLiveConnected(connected: boolean): void {
     this.live = connected
-      ? { connected: true, selected_track: TRACKS[2], detail: null, example: null }
-      : { connected: false, selected_track: null, detail: "Live isn't running.", example: null };
+      ? { connected: true, selected_track: TRACKS[2], detail: null, example: null, can_write: false }
+      : { connected: false, selected_track: null, detail: "Live isn't running.", example: null, can_write: false };
     this.broadcast({ v: 1, type: "live.status", live: this.live });
   }
 
@@ -362,6 +363,7 @@ export class FakeHub {
         socket.deliver({
           v: 1, type: "welcome", hub_version: "0.1.0-fake",
           chats: this.chats.map((c) => c.summary), live: this.live, settings: this.settings, examples: EXAMPLES,
+          voice: { available: false, reason: "The fake hub has no speech model.", model: null },
         });
         this.sendBudget(socket);
         return;
@@ -371,7 +373,7 @@ export class FakeHub {
       case "chat.create": {
         const context: ContextSet = { follow_selection: m.context?.follow_selection ?? true, pinned: m.context?.pinned ?? [] };
         const chat: FakeChat = {
-          summary: { id: `c-${this.nextId++}`, title: null, context, updated_at: new Date().toISOString(), usage: null, title_usage: null, context_tokens: null, context_window: null },
+          summary: { id: `c-${this.nextId++}`, title: null, context, updated_at: new Date().toISOString(), usage: null, title_usage: null, context_tokens: null, context_window: null, mode: "teach" },
           turns: [],
         };
         this.chats.push(chat);
@@ -414,6 +416,8 @@ export class FakeHub {
               : m.monthly_budget_usd > 0
                 ? Math.round(m.monthly_budget_usd * 100) / 100
                 : null,
+          default_mode: m.default_mode ?? this.settings.default_mode,
+          auto_actions: m.auto_actions ?? this.settings.auto_actions,
         };
         this.broadcast({ v: 1, type: "settings", request_id, settings: this.settings, test_result: null });
         if (m.monthly_budget_usd !== undefined && m.monthly_budget_usd !== null) this.sendBudget();
@@ -432,8 +436,8 @@ export class FakeHub {
       case "live.use_example": {
         const example = m.name ? EXAMPLES.find((t) => t.name === m.name) : undefined;
         this.live = example
-          ? { connected: false, selected_track: example, detail: this.live.detail, example: example.name }
-          : { ...this.live, selected_track: this.live.connected ? this.live.selected_track : null, example: null };
+          ? { connected: false, selected_track: example, detail: this.live.detail, example: example.name, can_write: false }
+          : { ...this.live, selected_track: this.live.connected ? this.live.selected_track : null, example: null, can_write: false };
         this.broadcast({ v: 1, type: "live.status", live: this.live });
         return;
       }
@@ -524,7 +528,7 @@ export class FakeHub {
     const chat = this.find(chatId);
     if (!chat) return this.notFound(socket, request_id, chatId);
     const at = new Date().toISOString();
-    chat.turns.push({ id: `u-${this.nextId++}`, role: "user", text, created_at: at, steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [] });
+    chat.turns.push({ id: `u-${this.nextId++}`, role: "user", text, created_at: at, steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [], actions: [] });
     const turn_id = `t-${this.nextId++}`;
     const general = !chat.summary.context.follow_selection && chat.summary.context.pinned.length === 0;
     const lower = text.toLowerCase();
@@ -556,7 +560,7 @@ export class FakeHub {
         if (script.steps) {
           this.broadcast({ v: 1, type: "chat.steps", chat_id: chatId, turn_id, steps: script.steps, listen_for: script.listen_for, caution: script.caution, warnings: script.warnings ?? [] });
         }
-        chat.turns.push({ id: turn_id, role: "assistant", text: script.text, created_at: at, steps: script.steps, listen_for: script.listen_for, caution: script.caution, warnings: script.warnings ?? [], error: null, usage, looked_at: reads });
+        chat.turns.push({ id: turn_id, role: "assistant", text: script.text, created_at: at, steps: script.steps, listen_for: script.listen_for, caution: script.caution, warnings: script.warnings ?? [], error: null, usage, looked_at: reads, actions: [] });
         this.records.push({ day: TODAY, kind: "chat", chat_id: chatId, usage: usage! });
       }
       this.broadcast({ v: 1, type: "chat.done", chat_id: chatId, turn_id, usage });

@@ -50,6 +50,11 @@ def test_settings(store):
     assert store.load_settings().monthly_budget_usd is None
     store.save_settings(StoredSettings(monthly_budget_usd=5.0))
     assert store.load_settings().monthly_budget_usd == 5.0
+    # A v0.2 file (no Do mode settings) loads in Teach, asking before every action.
+    store.settings_path.write_text(json.dumps({"schema_version": 1, "provider": "claude",
+                                               "model": None, "monthly_budget_usd": None}))
+    old = store.load_settings()
+    assert old.default_mode == "teach" and old.auto_actions == []
     store.settings_path.write_text(json.dumps({"schema_version": 2}))
     with pytest.raises(ValueError, match="newer"):
         store.load_settings()
