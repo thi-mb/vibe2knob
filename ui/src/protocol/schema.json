@@ -43,7 +43,19 @@
             }
           ],
           "default": null,
-          "description": "For device_on and parameter (and send: the return's name)."
+          "description": "For device_on and parameter."
+        },
+        "send": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "For send: the return track's name, e.g. \"A-Reverb\"."
         },
         "parameter": {
           "anyOf": [
@@ -102,6 +114,7 @@
         "kind",
         "track",
         "device",
+        "send",
         "parameter",
         "before",
         "after",

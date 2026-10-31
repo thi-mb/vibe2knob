@@ -767,9 +767,13 @@ export interface Action {
   kind: "mute" | "solo" | "volume" | "pan" | "send" | "device_on" | "parameter";
   track: TrackRef;
   /**
-   * For device_on and parameter (and send: the return's name).
+   * For device_on and parameter.
    */
   device: string | null;
+  /**
+   * For send: the return track's name, e.g. "A-Reverb".
+   */
+  send: string | null;
   /**
    * For parameter.
    */

@@ -138,7 +138,10 @@ def test_chat_actions_round_trip():
                               "actions": [action]}))
     assert isinstance(m, protocol.ChatActions)
     a = m.actions[0]
-    assert a.status == "proposed" and a.device is None and a.note is None
+    assert a.status == "proposed" and a.device is None and a.send is None and a.note is None
+    send = parse_hub(json.dumps({"type": "chat.actions", "chat_id": "c", "turn_id": "t", "actions": [
+        {**action, "id": "a2", "kind": "send", "send": "A-Reverb"}]})).actions[0]
+    assert send.send == "A-Reverb" and send.device is None
     data = json.loads(m.model_dump_json())
     assert data["actions"][0]["status"] == "proposed"
     assert data["actions"][0]["track"]["devices"] == []
