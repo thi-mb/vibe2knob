@@ -137,6 +137,9 @@ expect_any_device = ["Reverb", "Hybrid Reverb", "Echo", "Delay", "Grain Delay", 
 #   fixture_after    the selected track as the user left it after that turn (the refine diff)
 #   expect_no_steps  a prose-only answer is the right one
 #   min_steps = 0    steps are optional (a prose-only answer passes too)
+#
+# Every chat-path answer is also checked for words about what the model is given
+# ("summary", "context block"), which the user never sees.
 
 [[case]]
 id = "chat-pad-refine"
