@@ -123,7 +123,18 @@ def _target_tracks(
         return named, None
     if named:
         return named, f"'{step.track}' matches more than one track."
+    # Models sometimes give a rack chain's name ("Kick") as the track ("Beat").
+    holders = [s for s in states if wanted in _chain_names(s)]
+    if len(holders) == 1:
+        if not step.chain:
+            step.chain = _chain_names(holders[0])[wanted]
+        return holders, None
     return states, f"names the track '{step.track}', which isn't in the chat."
+
+
+def _chain_names(state: TrackState) -> dict[str, str]:
+    """The track's rack chains, folded name -> name as in Live."""
+    return {c.name.casefold(): c.name for d in state.all_devices() for c in d.chains}
 
 
 _NOTES = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]\s*$")

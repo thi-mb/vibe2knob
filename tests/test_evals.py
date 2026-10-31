@@ -217,3 +217,15 @@ def test_session_view_cases_build_the_grid():
     assert 'Playing now: all of scene 3 "Drop".' in text  # the Drums group doesn't count
     text = context("chat-arrangement-only")
     assert "never play at the same time" in text and "Session view" not in text
+
+
+def test_wording_check_flags_the_summary():
+    from vibe2knob.evals import grade_wording
+
+    def answer(text):
+        return Advice(interpretation=text, steps=[], listen_for="", caution=None)
+
+    assert grade_wording(answer("Your session has a pad and a vocal."))[0].passed
+    for text in ("The Summary shows a reverb on the pad.", "From the context block, the pad..."):
+        check = grade_wording(answer(text))[0]
+        assert not check.passed and check.name == "talks about Live, not its context"

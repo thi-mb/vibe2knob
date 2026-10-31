@@ -166,7 +166,7 @@ def _describe_devices(devices: list[Device], lines: list[str], indent: int) -> N
         if len(params) > MAX_PARAMS_PER_DEVICE:
             lines.append(f"{pad}   - ... {len(params) - MAX_PARAMS_PER_DEVICE} more parameters")
         for c in d.chains:
-            lines.append(f"{pad}   chain \"{c.name}\":")
+            lines.append(f"{pad}   rack chain \"{c.name}\" (in {d.name}):")
             _describe_devices(c.devices, lines, indent + 2)
 
 

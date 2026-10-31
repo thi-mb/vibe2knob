@@ -150,6 +150,14 @@ vibe2knob eval --chat --repeat 3 --model claude-haiku-5-5 \
 The baseline is the one report kept in git. Eval spend goes to the usage ledger as "Evals", so
 Settings › Usage shows it apart from chats.
 
+On the chat path every case also checks that the answer talks about the session as Live shows
+it, never about "the summary" or "the context block" it was given.
+
+To see what the knowledge map costs before trimming it, `scripts/measure_knowledge_map.py`
+runs a three-turn chat on a small set and on the 39-track set and prints the system prompt's
+split (map vs the rest), cache writes and reads per turn, and the map's share of each turn's
+cost. It needs a key; `--fake` prints only the split.
+
 ## Releasing
 
 Releases go to [PyPI](https://pypi.org/project/vibe2knob/) from GitHub Actions

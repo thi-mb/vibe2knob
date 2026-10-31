@@ -137,3 +137,42 @@ def test_new_device_marked_on_track_is_normalised(fake):
     advice = ask(pad(), "dreamy", fake(answer))
     assert advice.warnings == []
     assert advice.steps[0].on_track is False
+
+
+def _step(**fields):
+    from vibe2knob.advice import Step
+
+    base = {"action": "adjust", "on_track": True, "value_range": "0.2-0.4 s",
+            "explanation": "Shorter tails keep each hit apart."}
+    return Step.model_validate({**base, **fields})
+
+
+def test_rack_chain_named_as_track_resolves_to_its_track():
+    # Seen from a real model in a chat: the drum rack's "Kick" chain given as the track.
+    from vibe2knob.core import check_steps
+
+    beat = TrackState.load(FIXTURES / "drum_rack.json")
+    vocal = TrackState.load(FIXTURES / "lead_vocal.json")
+    steps = [
+        _step(track="Kick", device="Kick 909", chain=None, parameter="Ve Decay"),
+        _step(track="snare", device="Reverb", chain="Snare", parameter="Decay Time"),
+    ]
+    assert check_steps(steps, [vocal, beat]) == []
+    assert [(s.track, s.track_index, s.chain) for s in steps] == [
+        ("Beat", beat.track.index, "Kick"), ("Beat", beat.track.index, "Snare")]
+
+
+def test_unknown_track_name_is_still_flagged():
+    from vibe2knob.core import check_steps
+
+    beat = TrackState.load(FIXTURES / "drum_rack.json")
+    vocal = TrackState.load(FIXTURES / "lead_vocal.json")
+    steps = [_step(track="Tom", device="Reverb", chain=None, parameter="Decay Time")]
+    warnings = check_steps(steps, [vocal, beat])
+    assert any("names the track 'Tom'" in w for w in warnings)
+    assert steps[0].track_index is None
+
+
+def test_chains_are_described_as_inside_the_rack():
+    text = TrackState.load(FIXTURES / "drum_rack.json").describe()
+    assert 'rack chain "Kick" (in Drum Rack):' in text
