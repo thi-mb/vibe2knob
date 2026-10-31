@@ -75,6 +75,20 @@ cautions = [
   ]
   best_on = ["stereo groups", "pads", "overheads"]
 
+  [[term.technique]]
+  name = "Width around a centred voice"
+  devices = ["Echo", "Reverb", "Chorus-Ensemble"]
+  how = "For a lead vocal or another mono lead, keep the dry voice in the middle and put the width in its effects. Pair two small moves: a short stereo echo or a light chorus mixed low, and a little more of a wide reverb. Together they widen more than one big move, and the words stay centred."
+  params = [
+    { device = "Echo", parameter = "Channel Mode", range = "Stereo or Ping Pong" },
+    { device = "Echo", parameter = "Time", range = "1/16 to 1/8, slightly different left and right" },
+    { device = "Echo", parameter = "Dry/Wet", range = "8-20 %" },
+    { device = "Chorus-Ensemble", parameter = "Dry/Wet", range = "10-20 %" },
+    { device = "Reverb", parameter = "Dry/Wet", range = "+5 to +10 % over where it is" },
+  ]
+  best_on = ["lead vocals", "mono leads", "mono sources"]
+  avoid_on = ["bass", "kick"]
+
 [[term]]
 id = "warm"
 words = ["warm", "warmer", "warmth", "cosy", "analog", "analogue", "round", "rounder", "softer highs"]

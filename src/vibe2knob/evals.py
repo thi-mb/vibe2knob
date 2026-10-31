@@ -199,6 +199,17 @@ def _mention_check(case: Case, advice: Advice) -> list[Check]:
     ]
 
 
+# Words for what the model is given, which the user never sees (chat path).
+HIDDEN_WORDS = ("summary", "context block")
+
+
+def grade_wording(advice: Advice) -> list[Check]:
+    """The answer talks about the session as Live shows it, not about its own context."""
+    text = _text(advice)
+    found = [w for w in HIDDEN_WORDS if w in text]
+    return [Check("talks about Live, not its context", not found, f"says {found}")]
+
+
 def grade_reads(case: Case, reads: list[str], tools: list[str] = ()) -> list[Check]:
     """Checks on which tracks the model read in a chat turn, and which read tools it called."""
     checks = []
@@ -370,7 +381,7 @@ def _run_once(case: Case, provider: Provider, base_dir: Path, chat: bool) -> Res
     try:
         if chat:
             advice = chat_answer(case, provider, base_dir, records, reads, tools)
-            checks = grade(case, advice) + grade_reads(case, reads, tools)
+            checks = grade(case, advice) + grade_reads(case, reads, tools) + grade_wording(advice)
             return Result(case, checks, advice, records=records, reads=reads, tools=tools)
         else:
             if hasattr(provider, "last_usage"):
