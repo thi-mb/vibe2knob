@@ -8,8 +8,10 @@ import copy
 import json
 from pathlib import Path
 
+from .curves import parameter_display, volume_display
 from .link import (ARRANGEMENT_SCHEMA_VERSION, CONNECTED, OFFLINE, SESSION_VIEW_SCHEMA_VERSION,
-                   SUMMARY_SCHEMA_VERSION, LiveError, LiveLink)
+                   SUMMARY_SCHEMA_VERSION, LiveError, LiveLink, check_range, mute_display,
+                   pan_display)
 
 # fixtures/ in a checkout; the wheel bundles them inside this package.
 _HERE = Path(__file__).resolve().parent
@@ -75,13 +77,18 @@ def _scripted_session_view(stems, playing="Chorus"):
 
 class FakeLive(LiveLink):
     def __init__(self, tracks=None, *, selected=0, tempo=None, live_version="11.3",
-                 connected=True, arrangement=None, session_view=None):
+                 connected=True, arrangement=None, session_view=None, returns=("A-Reverb",),
+                 writable=True):
         """`tracks` is a list of track-state dicts or paths, or a directory of JSON files.
 
         Defaults to fixtures/, with a scripted arrangement and the same song in Session
         view with the Chorus scene playing. `arrangement` and `session_view` are what
         arrangement() and session_view() return (see link.py); without them, other tracks
         have none.
+
+        Writes change the in-memory tracks, so later reads see them. `returns` names the
+        return tracks (one send per return on every track); `writable=False` makes Live
+        refuse writes, as a Live without a working AbletonOSC setter would.
         """
         super().__init__()
         if tracks is None:
@@ -105,6 +112,11 @@ class FakeLive(LiveLink):
             tempo = next((s["tempo"] for s in self._states if s.get("tempo")), 120.0)
         self.tempo = tempo
         self.live_version = live_version
+        self.returns = list(returns)
+        self.writable = writable
+        self.writes = []
+        # Send levels per track, kept apart from the track-state dicts (not in that format).
+        self._sends = [[0.0] * len(self.returns) for _ in self._states]
         self._selected = selected if self._states else None
         self._started = False
         if connected:
@@ -180,3 +192,94 @@ class FakeLive(LiveLink):
     def session_view(self):
         self._check()
         return copy.deepcopy(self._session_view)
+
+    # Writes
+
+    def _track(self, track_index):
+        self._check()
+        if not 0 <= track_index < len(self._states):
+            raise LiveError(f"No track {track_index}.")
+        if not self.writable:
+            raise LiveError("Live didn't take the change (fake, read-only).")
+        return self._states[track_index]["track"]
+
+    def _set_mixer(self, track_index, prop, value):
+        track = self._track(track_index)
+        track.setdefault("mixer", {})[prop] = value
+        self.writes.append((prop, track_index, value))
+        return value
+
+    def set_mute(self, track_index, mute):
+        on = self._set_mixer(track_index, "mute", bool(mute))
+        return {"value": on, "display": mute_display(on)}
+
+    def set_solo(self, track_index, solo):
+        on = self._set_mixer(track_index, "solo", bool(solo))
+        return {"value": on, "display": mute_display(on)}
+
+    def set_volume(self, track_index, value):
+        value = self._set_mixer(track_index, "volume", check_range("Volume", value, 0.0, 1.0))
+        return {"value": value, "display": volume_display(value)}
+
+    def set_panning(self, track_index, value):
+        value = self._set_mixer(track_index, "panning", check_range("Pan", value, -1.0, 1.0))
+        return {"value": value, "display": pan_display(value)}
+
+    def set_send(self, track_index, send_index, value):
+        value = check_range("Send", value, 0.0, 1.0)
+        self._track(track_index)
+        sends = self._sends[track_index]
+        if not 0 <= send_index < len(sends):
+            raise LiveError(f"No send {send_index} on track {track_index}. "
+                            "Does the set have that return track?")
+        sends[send_index] = value
+        self.writes.append(("send", track_index, send_index, value))
+        return {"value": value, "display": volume_display(value, send=True)}
+
+    def _parameter(self, track, track_index, device_index, parameter_index):
+        devices = track.get("devices", [])
+        if not 0 <= device_index < len(devices):
+            raise LiveError(f"No device {device_index} on track {track_index}.")
+        parameters = devices[device_index]["parameters"]
+        if not 0 <= parameter_index < len(parameters):
+            raise LiveError(f"No parameter {parameter_index} on device {device_index} of "
+                            f"track {track_index}.")
+        return devices[device_index], parameters[parameter_index]
+
+    def set_device_on(self, track_index, device_index, on):
+        return self.set_parameter(track_index, device_index, 0, 1.0 if on else 0.0)
+
+    def set_parameter(self, track_index, device_index, parameter_index, value):
+        value = check_range("Value", value, float("-inf"), float("inf"))
+        track = self._track(track_index)
+        device, param = self._parameter(track, track_index, device_index, parameter_index)
+        if not param["min"] <= value <= param["max"]:
+            raise LiveError(f"Live didn't take {value} for {param['name']}; it holds "
+                            f"{param['value']}. Is it out of range?")
+        if param.get("is_quantized"):
+            value = float(round(value))
+        param["value"] = value
+        param["display"] = parameter_display(device.get("class_name"), param, value)
+        self.writes.append(("parameter", track_index, device_index, parameter_index, value))
+        return {"value": value, "display": param["display"]}
+
+    def parameter_info(self, track_index, device_index):
+        self._check()
+        if not 0 <= track_index < len(self._states):
+            raise LiveError(f"No track {track_index}.")
+        devices = self._states[track_index]["track"].get("devices", [])
+        if not 0 <= device_index < len(devices):
+            raise LiveError(f"No device {device_index} on track {track_index}.")
+        device = copy.deepcopy(devices[device_index])
+        return {"track": track_index, "device": device_index, "name": device["name"],
+                "class_name": device.get("class_name"),
+                "parameters": [{k: p.get(k) for k in ("index", "name", "value", "min", "max",
+                                                     "is_quantized", "display")}
+                               for p in device["parameters"]]}
+
+    def send_level(self, track_index, send_index):
+        """A send's raw level (test helper; AbletonOSC reads aren't in the summary yet)."""
+        return self._sends[track_index][send_index]
+
+    def check_writes(self):
+        return self.status == CONNECTED and self.writable and bool(self._states)

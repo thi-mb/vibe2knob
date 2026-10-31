@@ -113,6 +113,8 @@ class FakeAbletonOSC:
                 return [t, d, args[2], device["parameters"][args[2]]["display"] or ""]
             if prop == "parameter/value":
                 return [t, d, args[2], float(device["parameters"][args[2]]["value"])]
+            if prop in ("name", "class_name"):
+                return [t, d, device[prop]]
             field = prop.removeprefix("parameters/")
             return [t, d, *[_osc_value(p[field]) for p in device["parameters"]]]
         return None
@@ -293,13 +295,73 @@ def test_selected_track(live_set):
         live.selected_track_state()
 
 
-def test_writes_are_not_supported_yet(live_set):
+def test_writes_read_back_what_live_holds(live_set):
+    server, connect = live_set
+    live = connect()
+    assert live.set_mute(0, True) == {"value": True, "display": "on"}
+    assert live.track_state(0)["track"]["mixer"]["mute"] is True
+    assert live.set_solo(0, False) == {"value": False, "display": "off"}
+    assert live.set_volume(0, 0.5)["value"] == pytest.approx(0.5)
+    assert live.set_panning(0, -0.5) == {"value": pytest.approx(-0.5), "display": "25L"}
+    assert live.set_send(0, 0, 0.25)["value"] == pytest.approx(0.25)
+    assert live.set_device_on(0, 1, False)["value"] == 0.0
+    result = live.set_parameter(0, 1, 2, 0.75)
+    assert result == {"value": pytest.approx(0.75), "display": "0.75"}
+    # Each set goes out right before its reads, so they land in the same Live tick.
+    last_set = max(i for i, a in enumerate(server.received) if a == "/live/device/set/parameter/value")
+    assert set(server.received[last_set + 1:]) == {"/live/device/get/parameter/value",
+                                                  "/live/device/get/parameter/value_string"}
+
+
+def test_a_write_live_refuses_is_an_error(live_set):
+    server, connect = live_set
+    live = connect()
+    server.read_only = True
+    with pytest.raises(LiveError, match="didn't take"):
+        live.set_mute(0, not live.track_state(0)["track"]["mixer"]["mute"])
+    with pytest.raises(LiveError, match="out of range"):
+        live.set_parameter(0, 1, 2, 0.75)
+    assert live.check_writes() is True  # setting mute to what it is changes nothing
+
+
+def test_writes_check_values_before_sending(live_set):
+    server, connect = live_set
+    live = connect()
+    for call in (lambda: live.set_volume(0, 1.5), lambda: live.set_panning(0, -2),
+                 lambda: live.set_send(0, 0, float("nan")), lambda: live.set_volume(0, True)):
+        with pytest.raises(ValueError):
+            call()
+    assert server.writes == []
+
+
+def test_missing_send_or_device(live_set):
     _, connect = live_set
     live = connect()
-    for call in (lambda: live.set_mute(0, True), lambda: live.set_solo(0, True),
-                 lambda: live.set_parameter(0, 0, 0, 0.5)):
-        with pytest.raises(NotSupportedYet):
-            call()
+    with pytest.raises(LiveError, match="No send 3"):
+        live.set_send(0, 3, 0.5)
+    with pytest.raises(LiveError, match="No parameter"):
+        live.set_parameter(0, 1, 99, 0.5)
+
+
+def test_parameter_info(live_set):
+    _, connect = live_set
+    live = connect()
+    info = live.parameter_info(0, 1)
+    device = live.track_state(0)["track"]["devices"][1]
+    assert (info["track"], info["device"]) == (0, 1)
+    assert (info["name"], info["class_name"]) == (device["name"], device["class_name"])
+    assert [p["name"] for p in info["parameters"]] == [p["name"] for p in device["parameters"]]
+    with pytest.raises(LiveError, match="No device 9"):
+        live.parameter_info(0, 9)
+
+
+def test_check_writes(live_set):
+    server, connect = live_set
+    live = connect()
+    assert live.check_writes() is True
+    assert ("/live/track/set/mute", [0, 0]) in server.writes
+    server.down = True
+    assert live.check_writes() is False
 
 
 # Watching
@@ -376,8 +438,47 @@ def test_fake_live_from_fixtures():
     assert statuses == [OFFLINE] and seen == [4, None]
     with pytest.raises(LiveError):
         live.session_summary()
-    with pytest.raises(NotSupportedYet):
+    with pytest.raises(LiveError):
         live.set_mute(0, True)
+    assert live.check_writes() is False
+
+
+def test_fake_live_writes_are_seen_by_later_reads():
+    live = FakeLive()
+    assert live.check_writes() is True
+    assert live.set_mute(1, True) == {"value": True, "display": "on"}
+    assert live.session_summary()["tracks"][1]["mute"] is True
+    assert live.set_panning(1, 0.5)["display"] == "25R"
+    assert live.track_state(1)["track"]["mixer"]["panning"] == 0.5
+    live.set_send(1, 0, 0.3)
+    assert live.send_level(1, 0) == 0.3
+    with pytest.raises(LiveError, match="No send 1"):
+        live.set_send(1, 1, 0.3)
+
+    info = live.parameter_info(0, 1)
+    param = info["parameters"][2]
+    result = live.set_parameter(0, 1, 2, param["max"])
+    assert live.parameter_info(0, 1)["parameters"][2]["value"] == param["max"]
+    assert live.track_state(0)["track"]["devices"][1]["parameters"][2]["display"] == result["display"]
+    with pytest.raises(LiveError, match="out of range"):
+        live.set_parameter(0, 1, 2, param["max"] + 1)
+    assert live.set_device_on(0, 1, False)["value"] == 0.0
+    assert live.writes[-1] == ("parameter", 0, 1, 0, 0.0)
+
+
+def test_fake_live_read_only():
+    live = FakeLive(writable=False)
+    assert live.check_writes() is False
+    with pytest.raises(LiveError, match="read-only"):
+        live.set_volume(0, 0.5)
+
+
+def test_links_that_cant_write_say_so():
+    from live_bridge import LiveLink
+    link = LiveLink()
+    assert link.check_writes() is False
+    with pytest.raises(NotSupportedYet):
+        link.set_parameter(0, 0, 0, 0.5)
 
 
 def test_fake_live_from_dicts():
@@ -567,3 +668,21 @@ def test_fake_live_session_view():
     assert len(view["tracks"]) == len(live._states)
     assert view["is_playing"]
     assert FakeLive([FIXTURES / "synth_pad.json"]).session_view() is None
+
+
+# The command line's write checks
+
+
+def test_cli_set_parses_each_kind():
+    from live_bridge.__main__ import _set
+    live = FakeLive()
+    assert _set(live, ["mute", "1", "on"])["value"] is True
+    assert _set(live, ["pan", "1", "-1"])["display"] == "50L"
+    assert _set(live, ["send", "1", "0", "0.5"])["value"] == 0.5
+    assert _set(live, ["device_on", "0", "1", "off"])["value"] == 0.0
+    with pytest.raises(ValueError, match="usage: --set send"):
+        _set(live, ["send", "1", "0.5"])
+    with pytest.raises(ValueError, match="takes one of"):
+        _set(live, ["arm", "1", "on"])
+    with pytest.raises(ValueError, match="on or off"):
+        _set(live, ["mute", "1", "maybe"])

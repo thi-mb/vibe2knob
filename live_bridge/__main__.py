@@ -6,6 +6,15 @@
     python3 -m live_bridge --arrangement  # where clips sit in Arrangement view, with read time
     python3 -m live_bridge --session  # Session view's clip grid and what plays, with read time
     python3 -m live_bridge --watch    # print connection and selection changes until Ctrl-C
+    python3 -m live_bridge --params 3 1      # track 3, device 1: every parameter, raw + display
+    python3 -m live_bridge --set mute 3 on   # writes, read back (use a scratch set):
+    python3 -m live_bridge --set solo 3 off
+    python3 -m live_bridge --set volume 3 0.7          # raw 0..1 (0.85 is 0 dB)
+    python3 -m live_bridge --set pan 3 -0.5            # raw -1..1
+    python3 -m live_bridge --set send 3 0 0.4          # track 3, send A
+    python3 -m live_bridge --set device_on 3 1 off     # track 3, device 1
+    python3 -m live_bridge --set parameter 3 1 5 0.25  # track 3, device 1, parameter 5
+    python3 -m live_bridge --check-writes    # does Live take writes?
 """
 
 import argparse
@@ -76,6 +85,48 @@ def _print_session_view(live):
           file=sys.stderr)
 
 
+_SET_USAGE = {
+    "mute": "TRACK on|off", "solo": "TRACK on|off", "volume": "TRACK RAW", "pan": "TRACK RAW",
+    "send": "TRACK SEND RAW", "device_on": "TRACK DEVICE on|off",
+    "parameter": "TRACK DEVICE PARAMETER RAW",
+}
+
+
+def _on_off(text):
+    if text.lower() in ("on", "1", "true", "yes"):
+        return True
+    if text.lower() in ("off", "0", "false", "no"):
+        return False
+    raise ValueError(f"expected on or off, not {text!r}")
+
+
+def _set(live, words):
+    """Run one --set write. Returns what Live reads back."""
+    kind, args = words[0], words[1:]
+    calls = {
+        "mute": lambda t, v: live.set_mute(int(t), _on_off(v)),
+        "solo": lambda t, v: live.set_solo(int(t), _on_off(v)),
+        "volume": lambda t, v: live.set_volume(int(t), float(v)),
+        "pan": lambda t, v: live.set_panning(int(t), float(v)),
+        "send": lambda t, s, v: live.set_send(int(t), int(s), float(v)),
+        "device_on": lambda t, d, v: live.set_device_on(int(t), int(d), _on_off(v)),
+        "parameter": lambda t, d, p, v: live.set_parameter(int(t), int(d), int(p), float(v)),
+    }
+    if kind not in calls:
+        raise ValueError(f"--set takes one of {', '.join(calls)}")
+    if len(args) != len(_SET_USAGE[kind].split()):
+        raise ValueError(f"usage: --set {kind} {_SET_USAGE[kind]}")
+    return calls[kind](*args)
+
+
+def _print_params(info):
+    print(f"Track {info['track']}, device {info['device']}: {info['name']} <{info['class_name']}>")
+    for p in info["parameters"]:
+        kind = "stepped" if p["is_quantized"] else "continuous"
+        print(f"  [{p['index']}] {p['name']}: {p['display']} (raw {p['value']:.4g}, "
+              f"{p['min']:.4g} to {p['max']:.4g}, {kind})")
+
+
 def _watch(live):
     def on_status(status, detail):
         print(f"{time.strftime('%H:%M:%S')} status {status}" + (f": {detail}" if detail else ""))
@@ -105,6 +156,12 @@ def main(argv=None):
     parser.add_argument("--watch", action="store_true", help="print status and selection changes")
     parser.add_argument("--no-poll", action="store_true",
                         help="with --watch, rely on Live's selection listener only")
+    parser.add_argument("--set", nargs="+", metavar="WORD",
+                        help="write to Live and read back: " + "; ".join(
+                            f"{k} {v}" for k, v in _SET_USAGE.items()))
+    parser.add_argument("--params", nargs=2, type=int, metavar=("TRACK", "DEVICE"),
+                        help="print a device's parameters with ranges and display strings")
+    parser.add_argument("--check-writes", action="store_true", help="check that Live takes writes")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--timeout", type=float, default=2.0, help="seconds to wait for Live")
     args = parser.parse_args(argv)
@@ -124,11 +181,29 @@ def main(argv=None):
             if args.session:
                 _print_session_view(live)
                 return 0
+            if args.set:
+                started = time.monotonic()
+                result = _set(live, args.set)
+                print(json.dumps(result, ensure_ascii=False))
+                print(f"written and read back in {time.monotonic() - started:.3f} s",
+                      file=sys.stderr)
+                return 0
+            if args.params:
+                info = live.parameter_info(*args.params)
+                if args.json:
+                    print(json.dumps(info, indent=2, ensure_ascii=False))
+                else:
+                    _print_params(info)
+                return 0
+            if args.check_writes:
+                ok = live.check_writes()
+                print("Live takes writes." if ok else "Live didn't take a write.")
+                return 0 if ok else 1
             if args.track is None:
                 state = live.selected_track_state()
             else:
                 state = live.track_state(args.track)
-    except (LiveError, ConnectionError) as exc:
+    except (LiveError, ConnectionError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

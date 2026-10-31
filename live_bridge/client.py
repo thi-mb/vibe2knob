@@ -8,9 +8,10 @@ only place that should need fixing.
 import threading
 import time
 
+from .curves import volume_display
 from .link import (ARRANGEMENT_SCHEMA_VERSION, CONNECTED, OFFLINE, RECONNECTING,
                    SESSION_VIEW_SCHEMA_VERSION, SUMMARY_SCHEMA_VERSION, LiveError, LiveLink,
-                   NotSupportedYet)
+                   NotSupportedYet, check_range, mute_display, pan_display, took)
 from .osc import OscClient
 
 __all__ = ["LiveBridge", "LiveError", "NotSupportedYet"]
@@ -29,7 +30,21 @@ _KEY_LEN = {
     "/live/song/get/tempo": 0,
     "/live/application/get/version": 0,
     "/live/device/get/parameter/value_string": 3,
+    "/live/device/get/parameter/value": 3,
+    "/live/device/get/name": 2,
+    "/live/device/get/class_name": 2,
+    # Replies carry the track and the send index.
+    "/live/track/get/send": 2,
 }
+
+# Writes. AbletonOSC sends no reply to a set, so each one is followed by a read in the same
+# Live tick (Live handles queued messages in order, every 100 ms).
+_SET_TRACK = "/live/track/set/{}"  # mute, solo, volume, panning: [track, value]
+_SET_SEND = "/live/track/set/send"  # [track, send, value]
+_GET_SEND = "/live/track/get/send"
+_SET_PARAMETER = "/live/device/set/parameter/value"  # [track, device, parameter, value]
+_GET_PARAMETER = "/live/device/get/parameter/value"
+_GET_PARAMETER_STRING = "/live/device/get/parameter/value_string"
 
 _TRACK_PROPS = [
     "name", "color", "is_foldable", "is_grouped", "has_midi_input",
@@ -460,3 +475,96 @@ class LiveBridge(LiveLink):
                 "display": display[0] if display else None,
             })
         return {"index": d, "parameters": parameters}
+
+    # Writes
+
+    def _write(self, address, args, reads):
+        """Send one set and the reads that check it, in one Live tick. Returns the replies."""
+        with self._io_lock:
+            try:
+                self._osc.send(address, args)
+            except OSError as exc:
+                raise LiveError(f"Couldn't reach Live: {exc}") from exc
+            return self._batch(reads)
+
+    def _set_track(self, prop, t, value, wanted):
+        get = f"/live/track/get/{prop}"
+        replies = self._write(_SET_TRACK.format(prop), [t, value], [(get, [t])])
+        reply = replies.get((get, t))
+        if not reply:
+            raise LiveError(f"No answer from Live after setting track {t} {prop}.")
+        got = reply[0]
+        if not took(wanted, got):
+            raise LiveError(f"Live didn't take {prop} {value} on track {t}; it holds {got}.")
+        return got
+
+    def set_mute(self, track_index, mute):
+        on = bool(self._set_track("mute", track_index, int(bool(mute)), int(bool(mute))))
+        return {"value": on, "display": mute_display(on)}
+
+    def set_solo(self, track_index, solo):
+        on = bool(self._set_track("solo", track_index, int(bool(solo)), int(bool(solo))))
+        return {"value": on, "display": mute_display(on)}
+
+    def set_volume(self, track_index, value):
+        value = check_range("Volume", value, 0.0, 1.0)
+        got = self._set_track("volume", track_index, value, value)
+        return {"value": got, "display": volume_display(got)}
+
+    def set_panning(self, track_index, value):
+        value = check_range("Pan", value, -1.0, 1.0)
+        got = self._set_track("panning", track_index, value, value)
+        return {"value": got, "display": pan_display(got)}
+
+    def set_send(self, track_index, send_index, value):
+        value = check_range("Send", value, 0.0, 1.0)
+        t, s = track_index, send_index
+        replies = self._write(_SET_SEND, [t, s, value], [(_GET_SEND, [t, s])])
+        reply = replies.get((_GET_SEND, t, s))
+        if not reply:
+            raise LiveError(f"No send {s} on track {t}. Does the set have that return track?")
+        if not took(value, reply[0]):
+            raise LiveError(f"Live didn't take send {s} {value} on track {t}; it holds {reply[0]}.")
+        return {"value": reply[0], "display": volume_display(reply[0], send=True)}
+
+    def set_device_on(self, track_index, device_index, on):
+        # Parameter 0 of every Live device is "Device On".
+        return self.set_parameter(track_index, device_index, 0, 1.0 if on else 0.0)
+
+    def set_parameter(self, track_index, device_index, parameter_index, value):
+        value = check_range("Value", value, float("-inf"), float("inf"))
+        t, d, p = track_index, device_index, parameter_index
+        replies = self._write(_SET_PARAMETER, [t, d, p, value],
+                              [(_GET_PARAMETER, [t, d, p]), (_GET_PARAMETER_STRING, [t, d, p])])
+        reply = replies.get((_GET_PARAMETER, t, d, p))
+        if not reply:
+            raise LiveError(f"No parameter {p} on device {d} of track {t}.")
+        if not took(value, reply[0]):
+            raise LiveError(f"Live didn't take {value} for parameter {p} on device {d} of "
+                            f"track {t}; it holds {reply[0]}. Is it out of range?")
+        display = replies.get((_GET_PARAMETER_STRING, t, d, p))
+        return {"value": reply[0], "display": display[0] if display else None}
+
+    def parameter_info(self, track_index, device_index):
+        t, d = track_index, device_index
+        with self._io_lock:
+            head = self._batch([("/live/device/get/name", [t, d]),
+                                ("/live/device/get/class_name", [t, d])])
+            name = head.get(("/live/device/get/name", t, d))
+            if name is None:
+                raise LiveError(f"No device {d} on track {t}.")
+            state = self._device_state(t, d)
+        class_name = head.get(("/live/device/get/class_name", t, d))
+        return {"track": t, "device": d, "name": name[0],
+                "class_name": class_name[0] if class_name else None,
+                "parameters": state["parameters"]}
+
+    def check_writes(self):
+        reply = self._request("/live/track/get/mute", [0])
+        if not reply:
+            return False
+        try:
+            self._set_track("mute", 0, int(bool(reply[0])), int(bool(reply[0])))
+        except LiveError:
+            return False
+        return True
