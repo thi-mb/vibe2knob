@@ -11,6 +11,7 @@ const chat = (id: string, updated_at = "2026-10-21T10:00:00Z"): ChatSummary => (
   title_usage: null,
   context_tokens: null,
   context_window: null,
+  mode: "teach",
 });
 
 const usage = (input_tokens: number, output_tokens: number): Usage => ({
@@ -25,8 +26,9 @@ function welcomed(chats = [chat("a"), chat("b", "2026-10-21T11:00:00Z")]): Panel
     initialState,
     hub({
       v: 1, type: "welcome", hub_version: "0.1", chats, examples: [],
-      live: { connected: true, selected_track: null, detail: null, example: null },
-      settings: { provider: "claude", model: null, api_key_set: true, monthly_budget_usd: null },
+      voice: { available: false, reason: null, model: null },
+      live: { connected: true, selected_track: null, detail: null, example: null, can_write: false },
+      settings: { provider: "claude", model: null, api_key_set: true, monthly_budget_usd: null, default_mode: "teach", auto_actions: [] },
     }),
   );
 }
@@ -52,7 +54,7 @@ describe("reducer", () => {
     s = reducer(s, hub({
       v: 1, type: "chat.history", request_id: null, chat_id: "b", turns: [{
         id: "t1", role: "assistant", text: "Hi", created_at: "t", steps: null, listen_for: null, caution: null,
-        warnings: [], error: null, usage: null, looked_at: [track(3, "Kick")],
+        warnings: [], error: null, usage: null, looked_at: [track(3, "Kick")], actions: [],
       }],
     }));
     expect(s.turns.b[0].looked_at[0].name).toBe("Kick");
@@ -69,7 +71,7 @@ describe("reducer", () => {
     expect(showBudgetBanner(s, "2026-09", "2026-10")).toBe(true);
     // Turning the limit off clears it.
     s = reducer(s, hub({ v: 1, type: "settings", request_id: null, test_result: null,
-      settings: { provider: "claude", model: null, api_key_set: true, monthly_budget_usd: null } }));
+      settings: { provider: "claude", model: null, api_key_set: true, monthly_budget_usd: null, default_mode: "teach", auto_actions: [] } }));
     expect(s.budget).toBeNull();
     expect(monthKey(new Date(2026, 0, 5))).toBe("2026-01");
   });
@@ -134,7 +136,7 @@ describe("reducer", () => {
     s = reducer(s, hub({ v: 1, type: "chat.delta", chat_id: "b", turn_id: "t1", text: "Spr" }));
     s = reducer(s, hub({
       v: 1, type: "chat.history", request_id: null, chat_id: "b",
-      turns: [{ id: "u1", role: "user", text: "wider", created_at: "t", steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [] }],
+      turns: [{ id: "u1", role: "user", text: "wider", created_at: "t", steps: null, listen_for: null, caution: null, warnings: [], error: null, usage: null, looked_at: [], actions: [] }],
     }));
     expect(s.turns.b.map((t) => t.id)).toEqual(["u1", "t1"]);
   });
@@ -154,7 +156,7 @@ describe("reducer", () => {
     s = reducer(s, hub({ v: 1, type: "chat.delta", chat_id: "b", turn_id: "t1", text: "x" }));
     s = reducer(s, { type: "connection", connection: "connecting" });
     expect(s.ready).toBe(false);
-    s = reducer(s, hub({ v: 1, type: "welcome", hub_version: "0.1", chats: [chat("b")], examples: [], live: s.live, settings: s.settings }));
+    s = reducer(s, hub({ v: 1, type: "welcome", hub_version: "0.1", chats: [chat("b")], examples: [], live: s.live, settings: s.settings, voice: { available: false, reason: null, model: null } }));
     expect(s.turns).toEqual({});
     expect(s.activeChatId).toBe("b");
   });

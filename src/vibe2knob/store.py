@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from .chat import Chat
 from .usage import Ledger
+from .protocol import ActionKind, ChatMode
 
 SETTINGS_SCHEMA_VERSION = 1
 KEY_ENV = "ANTHROPIC_API_KEY"
@@ -56,6 +57,8 @@ class StoredSettings(BaseModel):
     provider: Literal["claude", "ollama"] = "claude"
     model: str | None = None
     monthly_budget_usd: float | None = None  # None: no budget warning
+    default_mode: ChatMode = "teach"
+    auto_actions: list[ActionKind] = Field(default_factory=list)
     window: WindowState = Field(default_factory=WindowState)
 
 

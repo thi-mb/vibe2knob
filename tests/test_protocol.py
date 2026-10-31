@@ -106,3 +106,66 @@ def test_v02_reads_and_budget_are_additive():
     assert isinstance(budget, protocol.UsageBudget) and budget.over
     assert "ChatLooked" in schema()["$defs"] and "UsageBudget" in schema()["$defs"]
     assert protocol.PROTOCOL_VERSION == 1
+
+
+# Do mode and voice
+
+
+def test_do_mode_messages_parse():
+    m = parse_client('{"type": "chat.set_mode", "chat_id": "c", "mode": "do"}')
+    assert m.mode == "do"
+    with pytest.raises(ValidationError):
+        parse_client('{"type": "chat.set_mode", "chat_id": "c", "mode": "yolo"}')
+    for kind in ("action.confirm", "action.skip", "action.undo"):
+        m = parse_client(json.dumps({"type": kind, "chat_id": "c", "action_ids": ["a1", "a2"]}))
+        assert m.action_ids == ["a1", "a2"]
+        with pytest.raises(ValidationError):
+            parse_client(json.dumps({"type": kind, "chat_id": "c", "action_ids": []}))
+    assert parse_client('{"type": "step.apply", "chat_id": "c", "turn_id": "t", "step_index": 1}'
+                        ).step_index == 1
+    with pytest.raises(ValidationError):
+        parse_client('{"type": "step.apply", "chat_id": "c", "turn_id": "t", "step_index": -1}')
+    m = parse_client('{"type": "settings.update", "default_mode": "do", "auto_actions": ["mute"]}')
+    assert m.auto_actions == ["mute"]
+    with pytest.raises(ValidationError):
+        parse_client('{"type": "settings.update", "auto_actions": ["delete_track"]}')
+
+
+def test_chat_actions_round_trip():
+    track = {"index": 2, "name": "Pad", "type": "midi"}
+    action = {"id": "a1", "kind": "volume", "track": track, "before": "-6.0 dB", "after": "-3.0 dB"}
+    m = parse_hub(json.dumps({"type": "chat.actions", "chat_id": "c", "turn_id": "t",
+                              "actions": [action]}))
+    assert isinstance(m, protocol.ChatActions)
+    a = m.actions[0]
+    assert a.status == "proposed" and a.device is None and a.send is None and a.note is None
+    send = parse_hub(json.dumps({"type": "chat.actions", "chat_id": "c", "turn_id": "t", "actions": [
+        {**action, "id": "a2", "kind": "send", "send": "A-Reverb"}]})).actions[0]
+    assert send.send == "A-Reverb" and send.device is None
+    data = json.loads(m.model_dump_json())
+    assert data["actions"][0]["status"] == "proposed"
+    assert data["actions"][0]["track"]["devices"] == []
+
+
+def test_voice_messages():
+    with pytest.raises(ValidationError):  # the transcript is matched by request_id
+        parse_client('{"type": "voice.transcribe", "audio": "AAAA", "mime": "audio/webm"}')
+    m = parse_client('{"type": "voice.transcribe", "request_id": "r", "audio": "AAAA", '
+                     '"mime": "audio/webm"}')
+    assert m.mime == "audio/webm"
+    t = parse_hub('{"type": "voice.transcript", "request_id": "r", "text": "solo the bass"}')
+    assert t.text == "solo the bass" and t.error is None
+
+
+def test_v1_hub_messages_without_the_new_fields_still_parse():
+    """Everything added for Do mode and voice has a default, so v1 stays v1."""
+    assert protocol.PROTOCOL_VERSION == 1
+    welcome = {"type": "welcome", "hub_version": "0.2.0", "chats": [{
+        "id": "c", "context": {}, "updated_at": "2026-10-24T10:00:00Z"}],
+        "live": {"connected": True}, "settings": {}}
+    m = parse_hub(json.dumps(welcome))
+    assert m.voice.available is False
+    assert m.chats[0].mode == "teach" and m.live.can_write is False
+    assert m.settings.default_mode == "teach" and m.settings.auto_actions == []
+    turn = protocol.ChatTurn(id="t", role="assistant", text="x", created_at="t")
+    assert turn.actions == []

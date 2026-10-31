@@ -101,6 +101,46 @@ class Usage(_Shape):
     )
 
 
+ChatMode = Literal["teach", "do"]
+
+ActionKind = Literal["mute", "solo", "volume", "pan", "send", "device_on", "parameter"]
+
+ActionStatus = Literal["proposed", "applied", "skipped", "failed", "undone"]
+
+
+class Action(_Shape):
+    """One change to Live that Do mode proposes. Nothing is applied until the user confirms
+    it (or its kind is in Settings.auto_actions), and an applied action can be undone."""
+
+    id: str
+    kind: ActionKind
+    track: TrackRef
+    device: str | None = Field(default=None, description="For device_on and parameter.")
+    send: str | None = Field(
+        default=None, description='For send: the return track\'s name, e.g. "A-Reverb".'
+    )
+    parameter: str | None = Field(default=None, description="For parameter.")
+    before: str | None = Field(
+        default=None, description="The value as Live showed it before, e.g. \"-6.0 dB\"; null if "
+        "unknown."
+    )
+    after: str = Field(description="The value to set, as Live would show it, e.g. \"-3.0 dB\".")
+    status: ActionStatus = "proposed"
+    note: str | None = Field(
+        default=None, description="Why it failed or was skipped, or what the hub corrected."
+    )
+
+
+class VoiceStatus(_Shape):
+    """Whether the hub can transcribe speech."""
+
+    available: bool = False
+    reason: str | None = Field(
+        default=None, description="Why voice isn't available, e.g. vibe2knob[voice] not installed."
+    )
+    model: str | None = Field(default=None, description="The speech model, e.g. \"base.en\".")
+
+
 class ChatSummary(_Shape):
     """A chat as a tab shows it."""
 
@@ -118,6 +158,9 @@ class ChatSummary(_Shape):
         "its output.",
     )
     context_window: int | None = Field(default=None, description="The model's context window.")
+    mode: ChatMode = Field(
+        default="teach", description="teach: steps the user does. do: the hub proposes actions."
+    )
 
 
 class LiveStatus(_Shape):
@@ -126,6 +169,9 @@ class LiveStatus(_Shape):
     detail: str | None = Field(default=None, description="Why Live isn't reachable, if it isn't.")
     example: str | None = Field(
         default=None, description="Name of the example track in use instead of Live, if any."
+    )
+    can_write: bool = Field(
+        default=False, description="True when the hub can change Live (Do mode's actions)."
     )
 
 
@@ -145,6 +191,9 @@ class ChatTurn(_Shape):
     looked_at: list[TrackRef] = Field(
         default_factory=list, description="Tracks the model read during an assistant turn."
     )
+    actions: list[Action] = Field(
+        default_factory=list, description="Do mode actions of an assistant turn, latest status."
+    )
 
 
 class Settings(_Shape):
@@ -155,6 +204,10 @@ class Settings(_Shape):
     api_key_set: bool = False
     monthly_budget_usd: float | None = Field(
         default=None, description="Warn once this month's spend passes it; null is off."
+    )
+    default_mode: ChatMode = Field(default="teach", description="The mode new chats start in.")
+    auto_actions: list[ActionKind] = Field(
+        default_factory=list, description="Action kinds applied without asking first."
     )
 
 
@@ -208,10 +261,63 @@ class SettingsUpdate(_Request):
     monthly_budget_usd: float | None = Field(
         default=None, description="A new monthly limit; 0 or less turns it off."
     )
+    default_mode: ChatMode | None = None
+    auto_actions: list[ActionKind] | None = Field(
+        default=None, description="Replaces the whole list; [] asks before every action."
+    )
 
 
 class SettingsTest(_Request):
     type: Literal["settings.test"] = "settings.test"
+
+
+class ChatSetMode(_Request):
+    """Switch a chat between Teach and Do. The hub answers with chat.changed."""
+
+    type: Literal["chat.set_mode"] = "chat.set_mode"
+    chat_id: str
+    mode: ChatMode
+
+
+class _ActionsRequest(_Request):
+    chat_id: str
+    action_ids: list[str] = Field(min_length=1)
+
+
+class ActionConfirm(_ActionsRequest):
+    """Apply proposed actions. The hub answers with chat.actions."""
+
+    type: Literal["action.confirm"] = "action.confirm"
+
+
+class ActionSkip(_ActionsRequest):
+    """Leave proposed actions unapplied."""
+
+    type: Literal["action.skip"] = "action.skip"
+
+
+class ActionUndo(_ActionsRequest):
+    """Put applied actions back, if Live still holds the values the hub set."""
+
+    type: Literal["action.undo"] = "action.undo"
+
+
+class StepApply(_Request):
+    """Turn a step card into an action (the Apply button on an on-track step)."""
+
+    type: Literal["step.apply"] = "step.apply"
+    chat_id: str
+    turn_id: str
+    step_index: int = Field(ge=0, description="Index into the turn's steps.")
+
+
+class VoiceTranscribe(_Request):
+    """Recorded speech to turn into text. The hub answers with voice.transcript."""
+
+    type: Literal["voice.transcribe"] = "voice.transcribe"
+    request_id: str = Field(description="Echoed on the voice.transcript.")
+    audio: str = Field(description="The recording, base64.")
+    mime: str = Field(description='e.g. "audio/webm" or "audio/wav".')
 
 
 UsageRange = Literal["today", "7d", "30d", "all"]
@@ -234,7 +340,8 @@ class LiveUseExample(_Request):
 
 ClientMessage = Annotated[
     Union[Hello, ChatCreate, ChatSend, ChatUpdate, ChatOpen, ChatClose, TracksList,
-          SettingsUpdate, SettingsTest, LiveUseExample, UsageGet],
+          SettingsUpdate, SettingsTest, LiveUseExample, UsageGet, ChatSetMode, ActionConfirm,
+          ActionSkip, ActionUndo, StepApply, VoiceTranscribe],
     Field(discriminator="type"),
 ]
 
@@ -251,6 +358,7 @@ class Welcome(_Message):
     examples: list[TrackRef] = Field(
         default_factory=list, description="Example tracks to try while Live is offline."
     )
+    voice: VoiceStatus = Field(default_factory=VoiceStatus)
 
 
 class LiveStatusChanged(_Message):
@@ -344,6 +452,25 @@ class ChatDone(_Message):
     usage: Usage | None = Field(default=None, description="What the turn used, if it got that far.")
 
 
+class ChatActions(_Message):
+    """A turn's actions, all of them with their latest status. Sent when they are proposed
+    and whenever any one's status changes."""
+
+    type: Literal["chat.actions"] = "chat.actions"
+    chat_id: str
+    turn_id: str
+    actions: list[Action]
+
+
+class VoiceTranscript(_Message):
+    """The text of a voice.transcribe, for the composer. Never sent as a message by itself."""
+
+    type: Literal["voice.transcript"] = "voice.transcript"
+    request_id: str
+    text: str | None = None
+    error: str | None = Field(default=None, description="Why it couldn't be transcribed.")
+
+
 class UsageDay(_Shape):
     date: str = Field(description="Local date, YYYY-MM-DD.")
     usage: Usage
@@ -409,7 +536,7 @@ class ErrorMessage(_Message):
 HubMessage = Annotated[
     Union[Welcome, LiveStatusChanged, Tracks, ChatChanged, ChatClosed, ChatHistory, ChatStatus,
           ChatDelta, ChatSteps, ChatDone, SettingsChanged, UsageReport, ErrorMessage,
-          ChatLooked, UsageBudget],
+          ChatLooked, UsageBudget, ChatActions, VoiceTranscript],
     Field(discriminator="type"),
 ]
 

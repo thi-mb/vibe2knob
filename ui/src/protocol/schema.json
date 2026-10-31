@@ -12,6 +12,294 @@
     }
   },
   "$defs": {
+    "Action": {
+      "description": "One change to Live that Do mode proposes. Nothing is applied until the user confirms\nit (or its kind is in Settings.auto_actions), and an applied action can be undone.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "mute",
+            "solo",
+            "volume",
+            "pan",
+            "send",
+            "device_on",
+            "parameter"
+          ],
+          "type": "string"
+        },
+        "track": {
+          "$ref": "#/$defs/TrackRef"
+        },
+        "device": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "For device_on and parameter."
+        },
+        "send": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "For send: the return track's name, e.g. \"A-Reverb\"."
+        },
+        "parameter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "For parameter."
+        },
+        "before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The value as Live showed it before, e.g. \"-6.0 dB\"; null if unknown."
+        },
+        "after": {
+          "description": "The value to set, as Live would show it, e.g. \"-3.0 dB\".",
+          "type": "string"
+        },
+        "status": {
+          "default": "proposed",
+          "enum": [
+            "proposed",
+            "applied",
+            "skipped",
+            "failed",
+            "undone"
+          ],
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Why it failed or was skipped, or what the hub corrected."
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "track",
+        "device",
+        "send",
+        "parameter",
+        "before",
+        "after",
+        "status",
+        "note"
+      ],
+      "title": "Action",
+      "type": "object"
+    },
+    "ActionConfirm": {
+      "additionalProperties": false,
+      "description": "Apply proposed actions. The hub answers with chat.actions.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "chat_id": {
+          "type": "string"
+        },
+        "action_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "type": {
+          "const": "action.confirm",
+          "default": "action.confirm",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "chat_id",
+        "action_ids"
+      ],
+      "title": "ActionConfirm",
+      "type": "object"
+    },
+    "ActionSkip": {
+      "additionalProperties": false,
+      "description": "Leave proposed actions unapplied.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "chat_id": {
+          "type": "string"
+        },
+        "action_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "type": {
+          "const": "action.skip",
+          "default": "action.skip",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "chat_id",
+        "action_ids"
+      ],
+      "title": "ActionSkip",
+      "type": "object"
+    },
+    "ActionUndo": {
+      "additionalProperties": false,
+      "description": "Put applied actions back, if Live still holds the values the hub set.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "chat_id": {
+          "type": "string"
+        },
+        "action_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "type": {
+          "const": "action.undo",
+          "default": "action.undo",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "chat_id",
+        "action_ids"
+      ],
+      "title": "ActionUndo",
+      "type": "object"
+    },
+    "ChatActions": {
+      "additionalProperties": false,
+      "description": "A turn's actions, all of them with their latest status. Sent when they are proposed\nand whenever any one's status changes.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "chat.actions",
+          "default": "chat.actions",
+          "type": "string"
+        },
+        "chat_id": {
+          "type": "string"
+        },
+        "turn_id": {
+          "type": "string"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/Action"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "chat_id",
+        "turn_id",
+        "actions"
+      ],
+      "title": "ChatActions",
+      "type": "object"
+    },
     "ChatChanged": {
       "additionalProperties": false,
       "properties": {
@@ -402,6 +690,52 @@
       "title": "ChatSend",
       "type": "object"
     },
+    "ChatSetMode": {
+      "additionalProperties": false,
+      "description": "Switch a chat between Teach and Do. The hub answers with chat.changed.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "type": {
+          "const": "chat.set_mode",
+          "default": "chat.set_mode",
+          "type": "string"
+        },
+        "chat_id": {
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "teach",
+            "do"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "chat_id",
+        "mode"
+      ],
+      "title": "ChatSetMode",
+      "type": "object"
+    },
     "ChatStatus": {
       "additionalProperties": false,
       "description": "What a running turn is doing before (or between) the parts the client can show.\n\nSent as the turn starts and whenever the phase changes. Prose deltas mean the model is\nwriting, and chat.done ends the turn.",
@@ -597,6 +931,15 @@
           ],
           "default": null,
           "description": "The model's context window."
+        },
+        "mode": {
+          "default": "teach",
+          "description": "teach: steps the user does. do: the hub proposes actions.",
+          "enum": [
+            "teach",
+            "do"
+          ],
+          "type": "string"
         }
       },
       "required": [
@@ -607,7 +950,8 @@
         "usage",
         "title_usage",
         "context_tokens",
-        "context_window"
+        "context_window",
+        "mode"
       ],
       "title": "ChatSummary",
       "type": "object"
@@ -706,6 +1050,13 @@
             "$ref": "#/$defs/TrackRef"
           },
           "type": "array"
+        },
+        "actions": {
+          "description": "Do mode actions of an assistant turn, latest status.",
+          "items": {
+            "$ref": "#/$defs/Action"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -719,7 +1070,8 @@
         "warnings",
         "error",
         "usage",
-        "looked_at"
+        "looked_at",
+        "actions"
       ],
       "title": "ChatTurn",
       "type": "object"
@@ -787,17 +1139,23 @@
       "description": "Any message a client may send.",
       "discriminator": {
         "mapping": {
+          "action.confirm": "#/$defs/ActionConfirm",
+          "action.skip": "#/$defs/ActionSkip",
+          "action.undo": "#/$defs/ActionUndo",
           "chat.close": "#/$defs/ChatClose",
           "chat.create": "#/$defs/ChatCreate",
           "chat.open": "#/$defs/ChatOpen",
           "chat.send": "#/$defs/ChatSend",
+          "chat.set_mode": "#/$defs/ChatSetMode",
           "chat.update": "#/$defs/ChatUpdate",
           "hello": "#/$defs/Hello",
           "live.use_example": "#/$defs/LiveUseExample",
           "settings.test": "#/$defs/SettingsTest",
           "settings.update": "#/$defs/SettingsUpdate",
+          "step.apply": "#/$defs/StepApply",
           "tracks.list": "#/$defs/TracksList",
-          "usage.get": "#/$defs/UsageGet"
+          "usage.get": "#/$defs/UsageGet",
+          "voice.transcribe": "#/$defs/VoiceTranscribe"
         },
         "propertyName": "type"
       },
@@ -834,6 +1192,24 @@
         },
         {
           "$ref": "#/$defs/UsageGet"
+        },
+        {
+          "$ref": "#/$defs/ChatSetMode"
+        },
+        {
+          "$ref": "#/$defs/ActionConfirm"
+        },
+        {
+          "$ref": "#/$defs/ActionSkip"
+        },
+        {
+          "$ref": "#/$defs/ActionUndo"
+        },
+        {
+          "$ref": "#/$defs/StepApply"
+        },
+        {
+          "$ref": "#/$defs/VoiceTranscribe"
         }
       ],
       "title": "ClientEnvelope"
@@ -1002,6 +1378,7 @@
       "description": "Any message the hub may send.",
       "discriminator": {
         "mapping": {
+          "chat.actions": "#/$defs/ChatActions",
           "chat.changed": "#/$defs/ChatChanged",
           "chat.closed": "#/$defs/ChatClosed",
           "chat.delta": "#/$defs/ChatDelta",
@@ -1016,6 +1393,7 @@
           "tracks": "#/$defs/Tracks",
           "usage.budget": "#/$defs/UsageBudget",
           "usage.report": "#/$defs/UsageReport",
+          "voice.transcript": "#/$defs/VoiceTranscript",
           "welcome": "#/$defs/Welcome"
         },
         "propertyName": "type"
@@ -1065,6 +1443,12 @@
         },
         {
           "$ref": "#/$defs/UsageBudget"
+        },
+        {
+          "$ref": "#/$defs/ChatActions"
+        },
+        {
+          "$ref": "#/$defs/VoiceTranscript"
         }
       ],
       "title": "HubEnvelope"
@@ -1108,13 +1492,19 @@
           ],
           "default": null,
           "description": "Name of the example track in use instead of Live, if any."
+        },
+        "can_write": {
+          "default": false,
+          "description": "True when the hub can change Live (Do mode's actions).",
+          "type": "boolean"
         }
       },
       "required": [
         "connected",
         "selected_track",
         "detail",
-        "example"
+        "example",
+        "can_write"
       ],
       "title": "LiveStatus",
       "type": "object"
@@ -1229,13 +1619,40 @@
           ],
           "default": null,
           "description": "Warn once this month's spend passes it; null is off."
+        },
+        "default_mode": {
+          "default": "teach",
+          "description": "The mode new chats start in.",
+          "enum": [
+            "teach",
+            "do"
+          ],
+          "type": "string"
+        },
+        "auto_actions": {
+          "description": "Action kinds applied without asking first.",
+          "items": {
+            "enum": [
+              "mute",
+              "solo",
+              "volume",
+              "pan",
+              "send",
+              "device_on",
+              "parameter"
+            ],
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "required": [
         "provider",
         "model",
         "api_key_set",
-        "monthly_budget_usd"
+        "monthly_budget_usd",
+        "default_mode",
+        "auto_actions"
       ],
       "title": "Settings",
       "type": "object"
@@ -1399,6 +1816,45 @@
           ],
           "default": null,
           "description": "A new monthly limit; 0 or less turns it off."
+        },
+        "default_mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "teach",
+                "do"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "auto_actions": {
+          "anyOf": [
+            {
+              "items": {
+                "enum": [
+                  "mute",
+                  "solo",
+                  "volume",
+                  "pan",
+                  "send",
+                  "device_on",
+                  "parameter"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Replaces the whole list; [] asks before every action."
         }
       },
       "title": "SettingsUpdate",
@@ -1512,6 +1968,54 @@
         "explanation"
       ],
       "title": "Step",
+      "type": "object"
+    },
+    "StepApply": {
+      "additionalProperties": false,
+      "description": "Turn a step card into an action (the Apply button on an on-track step).",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Set by the client; echoed on the hub's reply or error."
+        },
+        "type": {
+          "const": "step.apply",
+          "default": "step.apply",
+          "type": "string"
+        },
+        "chat_id": {
+          "type": "string"
+        },
+        "turn_id": {
+          "type": "string"
+        },
+        "step_index": {
+          "description": "Index into the turn's steps.",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "chat_id",
+        "turn_id",
+        "step_index"
+      ],
+      "title": "StepApply",
       "type": "object"
     },
     "TrackRef": {
@@ -2010,6 +2514,135 @@
       "title": "UsageReport",
       "type": "object"
     },
+    "VoiceStatus": {
+      "description": "Whether the hub can transcribe speech.",
+      "properties": {
+        "available": {
+          "default": false,
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Why voice isn't available, e.g. vibe2knob[voice] not installed."
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The speech model, e.g. \"base.en\"."
+        }
+      },
+      "required": [
+        "available",
+        "reason",
+        "model"
+      ],
+      "title": "VoiceStatus",
+      "type": "object"
+    },
+    "VoiceTranscribe": {
+      "additionalProperties": false,
+      "description": "Recorded speech to turn into text. The hub answers with voice.transcript.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "request_id": {
+          "description": "Echoed on the voice.transcript.",
+          "type": "string"
+        },
+        "type": {
+          "const": "voice.transcribe",
+          "default": "voice.transcribe",
+          "type": "string"
+        },
+        "audio": {
+          "description": "The recording, base64.",
+          "type": "string"
+        },
+        "mime": {
+          "description": "e.g. \"audio/webm\" or \"audio/wav\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "request_id",
+        "audio",
+        "mime"
+      ],
+      "title": "VoiceTranscribe",
+      "type": "object"
+    },
+    "VoiceTranscript": {
+      "additionalProperties": false,
+      "description": "The text of a voice.transcribe, for the composer. Never sent as a message by itself.",
+      "properties": {
+        "v": {
+          "const": 1,
+          "default": 1,
+          "description": "Protocol version.",
+          "type": "integer"
+        },
+        "type": {
+          "const": "voice.transcript",
+          "default": "voice.transcript",
+          "type": "string"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Why it couldn't be transcribed."
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "request_id",
+        "text",
+        "error"
+      ],
+      "title": "VoiceTranscript",
+      "type": "object"
+    },
     "Welcome": {
       "additionalProperties": false,
       "properties": {
@@ -2045,6 +2678,9 @@
             "$ref": "#/$defs/TrackRef"
           },
           "type": "array"
+        },
+        "voice": {
+          "$ref": "#/$defs/VoiceStatus"
         }
       },
       "required": [
@@ -2054,7 +2690,8 @@
         "chats",
         "live",
         "settings",
-        "examples"
+        "examples",
+        "voice"
       ],
       "title": "Welcome",
       "type": "object"
