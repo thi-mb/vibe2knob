@@ -115,8 +115,9 @@ class Action(_Shape):
     id: str
     kind: ActionKind
     track: TrackRef
-    device: str | None = Field(
-        default=None, description="For device_on and parameter (and send: the return's name)."
+    device: str | None = Field(default=None, description="For device_on and parameter.")
+    send: str | None = Field(
+        default=None, description='For send: the return track\'s name, e.g. "A-Reverb".'
     )
     parameter: str | None = Field(default=None, description="For parameter.")
     before: str | None = Field(
