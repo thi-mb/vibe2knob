@@ -147,14 +147,76 @@ class LiveLink:
             raise LiveError("Couldn't read the selected track. Select an audio, MIDI or group track.")
         return self.track_state(index)
 
-    # Writes (Do mode). Anything that changes Live must be shown, confirmed and undoable,
-    # so these stay off until that flow exists.
+    # Writes (Do mode). Anything that changes Live must be shown, confirmed and undoable;
+    # that flow lives in the hub. These only write and read back.
+    #
+    # Each write reads the value back in the same Live tick and returns what Live now holds:
+    # {"value": raw, "display": str | None}. It raises LiveError when Live doesn't answer or
+    # didn't take the value (out of range, or a device that went away), and ValueError for a
+    # value that can't be right before it's sent. Devices are top-level only: AbletonOSC
+    # can't reach devices inside rack chains (rack macros are the rack's own parameters).
 
     def set_mute(self, track_index, mute):
-        raise NotSupportedYet("Muting tracks isn't supported yet.")
+        raise NotSupportedYet("This Live connection can't mute tracks.")
 
     def set_solo(self, track_index, solo):
-        raise NotSupportedYet("Soloing tracks isn't supported yet.")
+        raise NotSupportedYet("This Live connection can't solo tracks.")
+
+    def set_volume(self, track_index, value):
+        """Raw fader value, 0.0 to 1.0 (0.85 is 0 dB)."""
+        raise NotSupportedYet("This Live connection can't change volume.")
+
+    def set_panning(self, track_index, value):
+        """Raw pan, -1.0 (50L) to 1.0 (50R)."""
+        raise NotSupportedYet("This Live connection can't change panning.")
+
+    def set_send(self, track_index, send_index, value):
+        """Raw send level, 0.0 to 1.0."""
+        raise NotSupportedYet("This Live connection can't change sends.")
+
+    def set_device_on(self, track_index, device_index, on):
+        raise NotSupportedYet("This Live connection can't turn devices on or off.")
 
     def set_parameter(self, track_index, device_index, parameter_index, value):
-        raise NotSupportedYet("Changing device parameters isn't supported yet.")
+        """Raw parameter value, between the parameter's min and max (see parameter_info)."""
+        raise NotSupportedYet("This Live connection can't change device parameters.")
+
+    def parameter_info(self, track_index, device_index):
+        """A top-level device's parameters as Live holds them now:
+        {"track": int, "device": int, "name": str, "class_name": str,
+         "parameters": [{"index", "name", "value", "min", "max", "is_quantized", "display"}]}
+        """
+        raise NotSupportedYet("This Live connection can't read device parameters.")
+
+    def check_writes(self):
+        """True if Live takes writes: sets a track's mute to what it already is, reads back."""
+        return False
+
+
+# Mixer values have no display string from Live; these match what Live's mixer shows.
+
+def mute_display(on):
+    return "on" if on else "off"
+
+
+def pan_display(value):
+    """Live's pan box: "C", "25L", "50R"."""
+    amount = round(abs(value) * 50)
+    if amount == 0:
+        return "C"
+    return f"{amount}{'L' if value < 0 else 'R'}"
+
+
+def check_range(name, value, low, high):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value:
+        raise ValueError(f"{name} must be a number, not {value!r}.")
+    if not low <= value <= high:
+        raise ValueError(f"{name} {value} is outside {low} to {high}.")
+    return float(value)
+
+
+def took(wanted, got):
+    """Whether a read-back value matches what was set (Live stores 32-bit floats)."""
+    if got is None:
+        return False
+    return abs(float(got) - float(wanted)) <= 1e-4 * max(1.0, abs(float(wanted)))
