@@ -97,8 +97,8 @@ export const initialState: PanelState = {
   connection: "connecting",
   ready: false,
   hubVersion: null,
-  live: { connected: false, selected_track: null, detail: null, example: null },
-  settings: { provider: "claude", model: null, api_key_set: false, monthly_budget_usd: null },
+  live: { connected: false, selected_track: null, detail: null, example: null, can_write: false },
+  settings: { provider: "claude", model: null, api_key_set: false, monthly_budget_usd: null, default_mode: "teach", auto_actions: [] },
   examples: [],
   tracks: [],
   chats: [],
@@ -314,6 +314,9 @@ function onHub(state: PanelState, m: HubEnvelope): PanelState {
       const next = refused ? withoutProgress(state, refused[0]) : state;
       return { ...next, notice: m.message };
     }
+    case "chat.actions":
+    case "voice.transcript":
+      return state; // Do mode and voice aren't in the panel yet
   }
 }
 

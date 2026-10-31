@@ -104,9 +104,12 @@ def test_welcome(setup):
     assert "Chorus" in selected["devices"]
     # No model saved yet: Settings shows the one the chats will really use.
     assert m["settings"] == {"provider": "claude", "model": "claude-haiku-5-5", "api_key_set": True,
-                             "monthly_budget_usd": None}
+                             "monthly_budget_usd": None, "default_mode": "teach",
+                             "auto_actions": []}
     assert [e["name"] for e in m["examples"]] == ["Lead Vox"]
     assert m["examples"][0]["devices"] == ["EQ Eight", "Compressor", "Reverb"]
+    assert m["live"]["can_write"] is False
+    assert m["voice"] == {"available": False, "reason": None, "model": None}
 
 
 @pytest.mark.parametrize("token,headers", [
@@ -366,10 +369,38 @@ def test_settings_update_keeps_the_key_in_the_hub(tmp_path):
     m = json.loads(raw)
     assert m["type"] == "settings" and m["request_id"] == "u"
     assert m["settings"] == {"provider": "claude", "model": "m1", "api_key_set": True,
-                             "monthly_budget_usd": None}
+                             "monthly_budget_usd": None, "default_mode": "teach",
+                             "auto_actions": []}
     assert "sk-new" not in raw
     assert s.store.keys.get() == "sk-new"
     assert s.store.load_settings() == StoredSettings(model="m1")
+
+
+def test_settings_update_saves_the_do_mode_settings(setup):
+    with TestClient(setup.app) as client, connect(client) as ws:
+        hello(ws)
+        ws.send_json({"v": 1, "type": "settings.update", "default_mode": "do",
+                      "auto_actions": ["mute", "solo", "mute"]})
+        m = until(ws, "settings")
+        assert m["settings"]["default_mode"] == "do"
+        assert m["settings"]["auto_actions"] == ["mute", "solo"]
+        ws.send_json({"v": 1, "type": "settings.update", "auto_actions": []})
+        assert until(ws, "settings")["settings"]["auto_actions"] == []
+    saved = setup.store.load_settings()
+    assert saved.default_mode == "do" and saved.auto_actions == []
+
+
+def test_messages_this_hub_doesnt_do_yet_are_refused(setup):
+    with TestClient(setup.app) as client, connect(client) as ws:
+        hello(ws)
+        ws.send_json({"v": 1, "type": "voice.transcribe", "request_id": "v1", "audio": "AAAA",
+                      "mime": "audio/wav"})
+        m = until(ws, "error")
+        assert m["code"] == "bad_request" and m["request_id"] == "v1"
+        assert "voice.transcribe" in m["message"]
+        # The connection is still fine.
+        ws.send_json({"v": 1, "type": "tracks.list", "request_id": "t"})
+        assert until(ws, "tracks")["request_id"] == "t"
 
 
 def test_switching_provider_resets_the_model(setup):

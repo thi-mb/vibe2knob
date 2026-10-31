@@ -17,7 +17,13 @@ export type ClientEnvelope =
   | SettingsUpdate
   | SettingsTest
   | LiveUseExample
-  | UsageGet;
+  | UsageGet
+  | ChatSetMode
+  | ActionConfirm
+  | ActionSkip
+  | ActionUndo
+  | StepApply
+  | VoiceTranscribe;
 /**
  * Any message the hub may send.
  *
@@ -39,7 +45,9 @@ export type HubEnvelope =
   | UsageReport
   | ErrorMessage
   | ChatLooked
-  | UsageBudget;
+  | UsageBudget
+  | ChatActions
+  | VoiceTranscript;
 
 /**
  * vibe2knob hub protocol v1
@@ -204,6 +212,11 @@ export interface SettingsUpdate {
    * A new monthly limit; 0 or less turns it off.
    */
   monthly_budget_usd?: number | null;
+  default_mode?: ("teach" | "do") | null;
+  /**
+   * Replaces the whole list; [] asks before every action.
+   */
+  auto_actions?: ("mute" | "solo" | "volume" | "pan" | "send" | "device_on" | "parameter")[] | null;
 }
 /**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
@@ -261,6 +274,139 @@ export interface UsageGet {
   range?: "today" | "7d" | "30d" | "all";
 }
 /**
+ * Switch a chat between Teach and Do. The hub answers with chat.changed.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "ChatSetMode".
+ */
+export interface ChatSetMode {
+  /**
+   * Protocol version.
+   */
+  v?: 1;
+  /**
+   * Set by the client; echoed on the hub's reply or error.
+   */
+  request_id?: string | null;
+  type: "chat.set_mode";
+  chat_id: string;
+  mode: "teach" | "do";
+}
+/**
+ * Apply proposed actions. The hub answers with chat.actions.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "ActionConfirm".
+ */
+export interface ActionConfirm {
+  /**
+   * Protocol version.
+   */
+  v?: 1;
+  /**
+   * Set by the client; echoed on the hub's reply or error.
+   */
+  request_id?: string | null;
+  chat_id: string;
+  /**
+   * @minItems 1
+   */
+  action_ids: [string, ...string[]];
+  type: "action.confirm";
+}
+/**
+ * Leave proposed actions unapplied.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "ActionSkip".
+ */
+export interface ActionSkip {
+  /**
+   * Protocol version.
+   */
+  v?: 1;
+  /**
+   * Set by the client; echoed on the hub's reply or error.
+   */
+  request_id?: string | null;
+  chat_id: string;
+  /**
+   * @minItems 1
+   */
+  action_ids: [string, ...string[]];
+  type: "action.skip";
+}
+/**
+ * Put applied actions back, if Live still holds the values the hub set.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "ActionUndo".
+ */
+export interface ActionUndo {
+  /**
+   * Protocol version.
+   */
+  v?: 1;
+  /**
+   * Set by the client; echoed on the hub's reply or error.
+   */
+  request_id?: string | null;
+  chat_id: string;
+  /**
+   * @minItems 1
+   */
+  action_ids: [string, ...string[]];
+  type: "action.undo";
+}
+/**
+ * Turn a step card into an action (the Apply button on an on-track step).
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "StepApply".
+ */
+export interface StepApply {
+  /**
+   * Protocol version.
+   */
+  v?: 1;
+  /**
+   * Set by the client; echoed on the hub's reply or error.
+   */
+  request_id?: string | null;
+  type: "step.apply";
+  chat_id: string;
+  turn_id: string;
+  /**
+   * Index into the turn's steps.
+   */
+  step_index: number;
+}
+/**
+ * Recorded speech to turn into text. The hub answers with voice.transcript.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "VoiceTranscribe".
+ */
+export interface VoiceTranscribe {
+  /**
+   * Protocol version.
+   */
+  v?: 1;
+  /**
+   * Echoed on the voice.transcript.
+   */
+  request_id: string;
+  type: "voice.transcribe";
+  /**
+   * The recording, base64.
+   */
+  audio: string;
+  /**
+   * e.g. "audio/webm" or "audio/wav".
+   */
+  mime: string;
+}
+/**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
  * via the `definition` "Welcome".
  */
@@ -278,6 +424,7 @@ export interface Welcome {
    * Example tracks to try while Live is offline.
    */
   examples: TrackRef[];
+  voice: VoiceStatus;
 }
 /**
  * A chat as a tab shows it.
@@ -312,6 +459,10 @@ export interface ChatSummary {
    * The model's context window.
    */
   context_window: number | null;
+  /**
+   * teach: steps the user does. do: the hub proposes actions.
+   */
+  mode: "teach" | "do";
 }
 /**
  * What a chat looks at, besides the light session summary it always gets.
@@ -390,6 +541,10 @@ export interface LiveStatus {
    * Name of the example track in use instead of Live, if any.
    */
   example: string | null;
+  /**
+   * True when the hub can change Live (Do mode's actions).
+   */
+  can_write: boolean;
 }
 /**
  * A track as the session list and the context chips show it.
@@ -421,6 +576,31 @@ export interface Settings {
    * Warn once this month's spend passes it; null is off.
    */
   monthly_budget_usd: number | null;
+  /**
+   * The mode new chats start in.
+   */
+  default_mode: "teach" | "do";
+  /**
+   * Action kinds applied without asking first.
+   */
+  auto_actions: ("mute" | "solo" | "volume" | "pan" | "send" | "device_on" | "parameter")[];
+}
+/**
+ * Whether the hub can transcribe speech.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "VoiceStatus".
+ */
+export interface VoiceStatus {
+  available: boolean;
+  /**
+   * Why voice isn't available, e.g. vibe2knob[voice] not installed.
+   */
+  reason: string | null;
+  /**
+   * The speech model, e.g. "base.en".
+   */
+  model: string | null;
 }
 /**
  * Sent when Live connects or disconnects, or the selected track changes.
@@ -527,6 +707,10 @@ export interface ChatTurn {
    * Tracks the model read during an assistant turn.
    */
   looked_at: TrackRef[];
+  /**
+   * Do mode actions of an assistant turn, latest status.
+   */
+  actions: Action[];
 }
 /**
  * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
@@ -570,6 +754,39 @@ export interface Step {
    * Live's index of the track the step is on; filled in by vibe2knob's checks, null when the track name is missing or matches more than one track.
    */
   track_index?: number | null;
+}
+/**
+ * One change to Live that Do mode proposes. Nothing is applied until the user confirms
+ * it (or its kind is in Settings.auto_actions), and an applied action can be undone.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "Action".
+ */
+export interface Action {
+  id: string;
+  kind: "mute" | "solo" | "volume" | "pan" | "send" | "device_on" | "parameter";
+  track: TrackRef;
+  /**
+   * For device_on and parameter (and send: the return's name).
+   */
+  device: string | null;
+  /**
+   * For parameter.
+   */
+  parameter: string | null;
+  /**
+   * The value as Live showed it before, e.g. "-6.0 dB"; null if unknown.
+   */
+  before: string | null;
+  /**
+   * The value to set, as Live would show it, e.g. "-3.0 dB".
+   */
+  after: string;
+  status: "proposed" | "applied" | "skipped" | "failed" | "undone";
+  /**
+   * Why it failed or was skipped, or what the hub corrected.
+   */
+  note: string | null;
 }
 /**
  * What a running turn is doing before (or between) the parts the client can show.
@@ -798,4 +1015,40 @@ export interface UsageBudget {
    * True once month_cost_usd passes limit_usd.
    */
   over: boolean;
+}
+/**
+ * A turn's actions, all of them with their latest status. Sent when they are proposed
+ * and whenever any one's status changes.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "ChatActions".
+ */
+export interface ChatActions {
+  /**
+   * Protocol version.
+   */
+  v: 1;
+  type: "chat.actions";
+  chat_id: string;
+  turn_id: string;
+  actions: Action[];
+}
+/**
+ * The text of a voice.transcribe, for the composer. Never sent as a message by itself.
+ *
+ * This interface was referenced by `Vibe2KnobProtocol`'s JSON-Schema
+ * via the `definition` "VoiceTranscript".
+ */
+export interface VoiceTranscript {
+  /**
+   * Protocol version.
+   */
+  v: 1;
+  type: "voice.transcript";
+  request_id: string;
+  text: string | null;
+  /**
+   * Why it couldn't be transcribed.
+   */
+  error: string | null;
 }
